@@ -1,0 +1,69 @@
+name: Python CI
+
+on:
+  push:
+    branches:
+      - develop
+    paths:
+      - 'beratools/**'
+  pull_request:
+    branches:
+      - develop
+    paths:
+      - 'beratools/**'
+
+jobs:
+#   lint-format:
+#     runs-on: ubuntu-latest
+#     steps:
+#       - name: Checkout Code
+#         uses: actions/checkout@v3
+
+#       - name: Set up Python
+#         uses: actions/setup-python@v4
+#         with:
+#           python-version: '3.11'
+
+#       - name: Install Ruff
+#         run: pip install ruff
+
+#       - name: Run Ruff Lint and Format Check
+#         run: |
+#           # Check for lint issues
+#           ruff check beratools
+
+#           # Check for Black formatting issues
+#           ruff format --check beratools
+
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v3
+
+      - name: Setup Miniconda
+        uses: conda-incubator/setup-miniconda@v2
+        with:
+          python-version: '3.11'
+          auto-update-conda: true
+
+      - name: Initialize Conda
+        run: |
+          conda init bash
+          source ~/.bashrc
+
+      - name: Create Conda Environment
+        run: |
+          conda env create -f conda_environment.yml
+
+      - name: Install Test Dependencies
+        run: |
+          source ~/.bashrc  
+          conda activate bera
+          pip install pytest-cov
+
+      - name: Activate Conda Environment and Run Tests
+        run: |
+          source ~/.bashrc  
+          conda activate bera
+          pytest tests/test_workflow.py --maxfail=1 --disable-warnings -s -v 

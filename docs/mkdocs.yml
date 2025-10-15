@@ -1,0 +1,16 @@
+site_name: BERA Tools Guide
+theme:
+  name: material
+
+docs_dir: files
+watch:
+  - files
+
+# page tree
+nav: 
+  - User Guide: index.md
+  - Programming Guid: programming_guide.md
+
+plugins:
+  - git-revision-date-localized:
+      type: date

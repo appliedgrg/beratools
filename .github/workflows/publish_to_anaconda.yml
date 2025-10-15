@@ -1,0 +1,37 @@
+name: Publish to Anaconda.org
+
+on:
+  push:
+    tags:
+      - 'main/v*'  # Trigger when a tag is pushed to the `main` branch starting with "v" (e.g., v1.0.0)
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest  # You can use another runner, such as windows-latest or macos-latest
+
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v3
+
+      - name: Set up Miniconda
+        uses: conda-incubator/setup-miniconda@v2
+        with:
+          python-version: '3.11'
+          auto-update-conda: true
+
+      - name: Install Dependencies
+        run: |
+          conda install conda-build anaconda-client  # Install dependencies for building and publishing
+
+      - name: Build Conda Package (Output .conda)
+        run: |
+          conda build .  # Builds the package using the .conda format by default (conda-build 3.20+)
+
+      - name: Publish to Organization Channel on Anaconda.org
+        env:
+          ANACONDA_API_TOKEN: ${{ secrets.ANACONDA_API_TOKEN }}  # Use GitHub Secrets for token security
+        run: |
+          conda install anaconda-client  # Ensure anaconda-client is installed
+          anaconda login --token $ANACONDA_API_TOKEN  # Log in using the token stored in GitHub Secrets
+          conda build . --output-folder ./dist  # Build package (outputs .conda files by default)
+          anaconda upload ./dist/*.conda --user AppliedGRG --channel appliedgrg  # Upload the .conda file

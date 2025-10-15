@@ -1,0 +1,6 @@
+repos:
+  - repo: https://github.com/astral-sh/ruff-pre-commit
+    rev: v0.14.0  # Make sure to use the latest version
+    hooks:
+      - id: ruff
+        name: ruff (python linter and import sorter)
