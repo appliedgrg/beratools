@@ -1,14 +1,14 @@
-name: Python CI
+name: Python Tests
 
 on:
   push:
     branches:
-      - develop
+      - main
     paths:
       - 'beratools/**'
   pull_request:
     branches:
-      - develop
+      - main
     paths:
       - 'beratools/**'
 
