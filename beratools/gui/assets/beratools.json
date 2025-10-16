@@ -5,80 +5,15 @@
             "description": "Tools used to map center lines and footprint polygons of linear disturbances in forests using a Canopy Height Model (CHM) as reference.",
             "tools": [
                 {
-                    "name": "Vertex Optimization",
-                    "info": "Relocating line intersections to seismic line paths",
-                    "multiprocessing": true,
-                    "batch_processing": true,
-                    "tool_type": "python",
-                    "tool_api": "vertex_optimization",
-                    "paramFile": "\\Scripts\\FLM_VO_params.txt",
-                    "image": "../Images/FLM_IO_VertexOptimization.gif",
-                    "tech_link": "https://forest-line-mapper.readthedocs.io/en/latest/Tools/Pre-processing/VertexOptimization.html",
-                    "parameters": [
-                        {
-                            "variable": "in_line",
-                            "parameter": "Forest Lines Feature Class",
-                            "description": "Input vector layer.",
-                            "type": "vector",
-                            "typelab": "SHP",
-                            "layer": "in_layer",
-                            "default": "",
-                            "output": false,
-                            "optional": false
-                        },
-                        {
-                            "variable": "in_raster",
-                            "parameter": "CHM Raster",
-                            "description": "Input CHM raster used to optimize vertices.",
-                            "type": "raster",
-                            "typelab": "TIF",
-                            "default": "",
-                            "output": false,
-                            "optional": false
-                        },
-                        {
-                            "variable": "search_distance",
-                            "parameter": "Vertex searching distance (m)",
-                            "description": "Bigger value will let tool enlarge searching area for better vertex location.",
-                            "type": "number",
-                            "typelab": "number",
-                            "default": 30,
-                            "output": false,
-                            "optional": false
-                        },
-                        {
-                            "variable": "line_radius",
-                            "parameter": "Line Processing Radius",
-                            "description": "Maximum processing distance from input lines. A large search radius may increase processing times whereas a small radius may cause undesired clipping.",
-                            "type": "number",
-                            "typelab": "number",
-                            "default": 35,
-                            "output": false,
-                            "optional": true
-                        },
-                        {
-                            "variable": "out_line",
-                            "parameter": "Output Center-Line",
-                            "description": "Output optimized center-line shapefile.",
-                            "type": "vector",
-                            "typelab": "SHP",
-                            "layer": "out_layer",
-                            "default": "",
-                            "output": true,
-                            "optional": false
-                        }
-                    ]
-                },
-                {
-                    "name": "Line Grouping",
-                    "info": "Group lines into groups by connection and direction.",
+                    "name": "Check Seed Lines",
+                    "info": "Check seed line quality and fix issues if present.",
                     "multiprocessing": true,
                     "batch_processing": true,
                     "tool_type": "python",
                     "tool_api": "line_grouping",
                     "paramFile": "\\Scripts\\FLM_VO_params.txt",
                     "image": "../Images/BT_LineGrouping.gif",
-                    "tech_link": "https://forest-line-mapper.readthedocs.io/en/latest/Tools/Mapping/LineGroupinng.html",
+                    "tech_link": "https://appliedgrg.github.io/beratools/check_seed_lines.html",
                     "parameters": [
                         {
                             "variable": "in_line",
@@ -113,7 +48,7 @@
                     "tool_api": "centerline",
                     "paramFile": "\\Scripts\\FLM_CL_params.txt",
                     "image": "../Images/FLM_IO_CenterLine.gif",
-                    "tech_link": "https://forest-line-mapper.readthedocs.io/en/latest/Tools/Mapping/Centerline.html",
+                    "tech_link": "https://appliedgrg.github.io/beratools/centerline.html",
                     "parameters": [
                         {
                             "variable": "in_line",
@@ -174,6 +109,71 @@
                     ]
                 },
                 {
+                    "name": "Vertex Optimization",
+                    "info": "Relocating line intersections to seismic line paths",
+                    "multiprocessing": true,
+                    "batch_processing": true,
+                    "tool_type": "python",
+                    "tool_api": "vertex_optimization",
+                    "paramFile": "\\Scripts\\FLM_VO_params.txt",
+                    "image": "../Images/FLM_IO_VertexOptimization.gif",
+                    "tech_link": "https://appliedgrg.github.io/beratools/vertex_optimization.html",
+                    "parameters": [
+                        {
+                            "variable": "in_line",
+                            "parameter": "Forest Lines Feature Class",
+                            "description": "Input vector layer.",
+                            "type": "vector",
+                            "typelab": "SHP",
+                            "layer": "in_layer",
+                            "default": "",
+                            "output": false,
+                            "optional": false
+                        },
+                        {
+                            "variable": "in_raster",
+                            "parameter": "CHM Raster",
+                            "description": "Input CHM raster used to optimize vertices.",
+                            "type": "raster",
+                            "typelab": "TIF",
+                            "default": "",
+                            "output": false,
+                            "optional": false
+                        },
+                        {
+                            "variable": "search_distance",
+                            "parameter": "Vertex searching distance (m)",
+                            "description": "Bigger value will let tool enlarge searching area for better vertex location.",
+                            "type": "number",
+                            "typelab": "number",
+                            "default": 30,
+                            "output": false,
+                            "optional": false
+                        },
+                        {
+                            "variable": "line_radius",
+                            "parameter": "Line Processing Radius",
+                            "description": "Maximum processing distance from input lines. A large search radius may increase processing times whereas a small radius may cause undesired clipping.",
+                            "type": "number",
+                            "typelab": "number",
+                            "default": 35,
+                            "output": false,
+                            "optional": true
+                        },
+                        {
+                            "variable": "out_line",
+                            "parameter": "Output Center-Line",
+                            "description": "Output optimized center-line shapefile.",
+                            "type": "vector",
+                            "typelab": "SHP",
+                            "layer": "out_layer",
+                            "default": "",
+                            "output": true,
+                            "optional": false
+                        }
+                    ]
+                },
+                {
                     "name": "Canopy Footprint (Absolute Threshold)",
                     "info": "Creates footprint polygons for each input line based on a least cost corridor method and individual line thresholds.",
                     "multiprocessing": true,
@@ -182,7 +182,7 @@
                     "tool_api": "line_footprint_absolute",
                     "paramFile": "\\Scripts\\FLM_LFP_params.txt",
                     "image": "../Images/FLM_IO_LineFootprint.gif",
-                    "tech_link": "https://forest-line-mapper.readthedocs.io/en/latest/Tools/Mapping/LineFootprint.html",
+                    "tech_link": "https://appliedgrg.github.io/beratools/line_footprint_abs.html",
                     "parameters": [
                         {
                             "variable": "in_line",
@@ -257,7 +257,7 @@
                     "tool_api": "line_footprint_relative",
                     "paramFile": "\\Scripts\\FLM_DLFP_params.txt",
                     "image": "../Images/FLM_IO_LineFootprint.gif",
-                    "tech_link": "https://forest-line-mapper.readthedocs.io/en/latest/Tools/Mapping/DynLineFootprintFS.html",
+                    "tech_link": "https://appliedgrg.github.io/beratools/line_footprint_rel.html",
                     "parameters": [
                         {
                             "variable": "in_line",
@@ -412,7 +412,7 @@
                     "tool_api": "line_footprint_fixed",
                     "paramFile": "\\Scripts\\FLM_FF_params.txt",
                     "image": "../Images/FLM_IO_VertexOptimization.gif",
-                    "tech_link": "https://forest-line-mapper.readthedocs.io/en/latest/Tools/Pre-processing/VertexOptimization.html",
+                    "tech_link": "https://appliedgrg.github.io/beratools/ground_footprint.html",
                     "parameters": [
                         {
                             "variable": "in_line",

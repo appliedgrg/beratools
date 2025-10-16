@@ -13,7 +13,7 @@ BERA Tools is successor of [Forest Line Mapper](https://github.com/appliedgrg/fl
 </div>
 <!--![Banner](docs/files/images/BERALogo.png)-->
 
-## [Quick Start](https://beratools.readthedocs.io/en/latest/installation.html)
+## [Quick Start](https://appliedgrg.github.io/beratools)
 
 BERA Tools is built upon open-source Python libraries. Anaconda is used to manage runtime environments.
 
@@ -37,13 +37,13 @@ Installation Steps:
 
 ## User Guide
 
-Check the online [User Guide](https://beratools.readthedocs.io/en/latest/) for more information.
+Check the online [User Guide](https://appliedgrg.github.io/beratools/) for more information.
 
 ## Technical Documentation
 
 BERA Tools provides a series of tools for forest lines processing. Please refer to the technical documentation for programming APIs and algorithm details.
 
-[Technical Documentation](https://beratools.readthedocs.io/en/latest/)
+[Technical Documentation](https://appliedgrg.github.io/beratools/)
 
 ## Contribution Guide
 
