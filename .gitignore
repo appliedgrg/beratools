@@ -22,3 +22,6 @@ config.ini
 *.egg-info
 .pixi
 pixi.lock
+
+.vscode/
+/_build/
