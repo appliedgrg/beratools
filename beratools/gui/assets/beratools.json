@@ -8,9 +8,9 @@
                     "name": "Check Seed Lines",
                     "info": "Check seed line quality and fix issues if present.",
                     "tool_type": "python",
-                    "tool_api": "check_seed_lines",
-                    "icon": "check_seed_lines.gif",
-                    "tech_link": "https://appliedgrg.github.io/beratools/check_seed_lines.html",
+                    "tool_api": "check_seed_line",
+                    "icon": "check_seed_line.gif",
+                    "tech_link": "https://appliedgrg.github.io/beratools/check_seed_line.html",
                     "parameters": [
                         {
                             "variable": "in_line",
