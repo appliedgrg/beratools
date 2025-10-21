@@ -1,7 +1,5 @@
 # Bibliography
 
-::: {#citations}
-
 [Gu]{#Gu .citation-label}
 
 :   **The Forest Line Mapper: A Semi-Automated Tool for Mapping Linear
