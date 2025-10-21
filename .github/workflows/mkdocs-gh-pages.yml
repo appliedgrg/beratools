@@ -20,7 +20,9 @@ jobs:
           sudo apt-get install -y gdal-bin libgdal-dev
           gdal-config --version
       - name: Install documentation dependencies
-        run: pip install -r docs/files/requirements.txt
+        run: |
+          pip install "gdal==3.8.4"
+          pip install -r docs/files/requirements.txt
       - name: Install project in editable mode
         run: pip install -e .
       - name: Deploy to GitHub Pages
