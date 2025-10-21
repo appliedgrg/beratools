@@ -21,11 +21,13 @@ import geopandas as gpd
 import beratools.tools.common as bt_common
 from beratools.core.algo_line_grouping import LineGrouping
 from beratools.core.logger import Logger
+from beratools.tools.common import qc_merge_multistring
 
 
 def check_seed_line(in_line, out_line, verbose, processes=-1, in_layer=None, out_layer=None):
     print("check_seed_line started")
     in_line_gdf = gpd.read_file(in_line, layer=in_layer)
+    in_line_gdf = qc_merge_multistring(in_line_gdf)
     lg = LineGrouping(in_line_gdf)
     lg.run_grouping()
     lg.lines.to_file(out_line, layer=out_layer)

@@ -34,6 +34,7 @@ from rasterio import mask
 from scipy import ndimage
 
 import beratools.core.constants as bt_const
+from beratools.core.algo_merge_lines import custom_line_merge
 
 # suppress pandas UserWarning: Geometry column contains no geometry when splitting lines
 warnings.simplefilter(action="ignore", category=UserWarning)
@@ -48,6 +49,46 @@ if not bt_const.BT_DEBUGGING:
     warnings.filterwarnings("ignore")  # suppress warnings
     warnings.simplefilter(action="ignore", category=UserWarning)  # suppress Pandas UserWarning
 
+def qc_merge_multistring(gdf):
+    """
+    QC step: Merge MultiLineStrings if possible, else split into LineStrings.
+
+    Args:
+        gdf (GeoDataFrame): Input GeoDataFrame.
+
+    Returns:
+        GeoDataFrame: Cleaned GeoDataFrame with only LineStrings.
+    """
+    records = []
+    for idx, row in gdf.iterrows():
+        geom = row.geometry
+        # Try to merge MultiLineString
+        if geom.geom_type == "MultiLineString":
+            merged = custom_line_merge(geom)
+            if merged.geom_type == "MultiLineString":
+                # Could not merge, split into LineStrings
+                for part in merged.geoms:
+                    new_row = row.copy()
+                    new_row.geometry = part
+                    records.append(new_row)
+            elif merged.geom_type == "LineString":
+                new_row = row.copy()
+                new_row.geometry = merged
+                records.append(new_row)
+            else:
+                # Unexpected geometry, keep as is
+                new_row = row.copy()
+                new_row.geometry = merged
+                records.append(new_row)
+        elif geom.geom_type == "LineString":
+            records.append(row)
+        else:
+            # Keep other geometry types unchanged
+            records.append(row)
+    # Build new GeoDataFrame
+    out_gdf = gpd.GeoDataFrame(records, columns=gdf.columns, crs=gdf.crs)
+    out_gdf = out_gdf[out_gdf.geometry.type == "LineString"].reset_index(drop=True)
+    return out_gdf
 
 def clip_raster(
     in_raster_file,
@@ -99,76 +140,11 @@ def clip_raster(
 
     return out_image, out_meta
 
-
-# def clip_lines(clip_geom, buffer, in_line_file, out_line_file):
-#     in_line = gpd.read_file(in_line_file)
-#     out_line = in_line.clip(clip_geom.buffer(buffer * bt_const.BT_BUFFER_RATIO))
-
-#     if out_line_file and len(out_line) > 0:
-#         out_line.to_file(out_line_file)
-#         print("[Clip lines]:  data saved to {}.".format(out_line_file))
-
-#     return out_line
-
-
-# def read_geoms_from_shapefile(in_file):
-#     geoms = []
-#     with fiona.open(in_file) as open_file:
-#         for geom in open_file:
-#             geoms.append(geom['geometry'])
-
-#     return geoms
-
-
-# def read_feature_from_shapefile(in_file):
-#     """ Read feature from shapefile
-
-#     Args:
-#         in_file (str): file name
-
-#     Returns:
-#         list: list of features
-#     """
-#     shapes = []
-#     with fiona.open(in_file) as open_file:
-#         for feat in open_file:
-#             shapes.append([shape(feat.geometry), feat.properties])
-
-#     return shapes
-
-
 def remove_nan_from_array(matrix):
     with np.nditer(matrix, op_flags=["readwrite"]) as it:
         for x in it:
             if np.isnan(x[...]):
                 x[...] = bt_const.BT_NODATA_COST
-
-
-# def replace_Nodata2NaN(matrix, nodata):
-#     with np.nditer(matrix, op_flags=["readwrite"]) as it:
-#         for x in it:
-#             if x[...] == nodata:
-#                 x[...] = np.NaN
-
-
-# def replace_Nodata2Inf(matrix, nodata):
-#     with np.nditer(matrix, op_flags=["readwrite"]) as it:
-#         for x in it:
-#             if x[...] == nodata:
-#                 x[...] = np.Inf
-
-
-# Split LineString to segments at vertices
-# def segments(line_coords):
-#     if len(line_coords) < 2:
-#         return None
-#     elif len(line_coords) == 2:
-#         return [fiona.Geometry.from_dict({'type': 'LineString', 'coordinates': line_coords})]
-#     else:
-#         seg_list = zip(line_coords[:-1], line_coords[1:])
-#         line_list = [{'type': 'LineString', 'coordinates': coords} for coords in seg_list]
-#         return [fiona.Geometry.from_dict(line) for line in line_list]
-
 
 def extract_string_from_printout(str_print, str_extract):
     str_array = shlex.split(str_print)  # keep string in double quotes
@@ -180,7 +156,6 @@ def extract_string_from_printout(str_print, str_extract):
             break
     str_out = str_array[index]
     return str_out.strip()
-
 
 def check_arguments():
     # Get tool arguments
@@ -198,69 +173,6 @@ def check_arguments():
             args.input[item] = True
 
     return args, verbose
-
-
-# def save_features_to_file(out_file, crs, geoms, properties=None, schema=None,
-#                           driver='ESRI Shapefile', layer=None):
-#     """
-
-#     Args:
-#         out_file :
-#         crs :
-#         geoms : shapely geometry objects
-#         schema :
-#         properties :
-#         driver:
-#         layer:
-#     """
-#     # remove all None items
-#     # TODO: check geom type consistency
-#     if len(geoms) < 1:
-#         return
-
-#     try:
-#         geom_type = mapping(geoms[0])['type']
-#     except Exception as e:
-#         print(e)
-
-#     if not schema:
-#         props_tuple = zip([], [])  # if lengths are not the same, ValueError raises
-#         props_schema = [(item, type(value).__name__) for item, value in props_tuple]
-
-#         schema = {
-#             'geometry': geom_type,
-#             'properties': OrderedDict([])
-#         }
-
-#         properties = None
-
-#     print('Writing to file {}'.format(out_file), flush=True)
-
-#     try:
-#         out_line_file = fiona.open(out_file, 'w', driver, schema, crs, layer=layer)
-#     except Exception as e:
-#         print(e)
-#         out_line_file.close()
-#         return
-
-#     if properties:
-#         feat_tuple = zip_longest(geoms, properties)
-#     else:  # properties are None
-#         feat_tuple = [(item, None) for item in geoms]
-
-#     try:
-#         for geom, prop in feat_tuple:
-#             if geom:
-#                 feature = {
-#                     'geometry': mapping(geom),
-#                     'properties': prop
-#                 }
-
-#                 out_line_file.write(feature)
-#     except Exception as e:
-#         print(e)
-
-#     out_line_file.close()
 
 
 def vector_crs(in_vector):
@@ -284,29 +196,6 @@ def vector_crs(in_vector):
     except Exception as e:
         print(e)
         exit()
-
-
-# def df_crs(in_df):
-#     vec_crs = None
-#     osr_crs = osgeo.osr.SpatialReference()
-#     from pyproj.enums import WktVersion
-
-#     try:
-#         if in_df.crs is not None:
-#             vec_crs = in_df.crs
-#             if osgeo.version_info.major < 3:
-#                 osr_crs.ImportFromWkt(vec_crs.to_wkt(WktVersion.WKT1_GDAL))
-#             else:
-#                 osr_crs.ImportFromEPSG(vec_crs.to_epsg())
-#             return osr_crs
-#         else:
-#             print(
-#                 "No Coordinate Reference System (CRS) find in the input feature, please check!"
-#             )
-#             exit()
-#     except Exception as e:
-#         print(e)
-#         exit()
 
 
 def raster_crs(in_raster):
@@ -541,41 +430,6 @@ def cut_line_by_length(line, length, merge_threshold=0.5):
 
     return lines
 
-
-# def LCP_skimage_mcp_connect(cost_clip, in_meta, seed_line):
-#     lc_path_new = []
-#     if len(cost_clip.shape) > 2:
-#         cost_clip = np.squeeze(cost_clip, axis=0)
-
-#     out_transform = in_meta["transform"]
-#     transformer = rasterio.transform.AffineTransformer(out_transform)
-
-#     x1, y1 = list(seed_line.coords)[0][:2]
-#     x2, y2 = list(seed_line.coords)[-1][:2]
-#     source = [transformer.rowcol(x1, y1)]
-#     destination = [transformer.rowcol(x2, y2)]
-
-#     try:
-#         init_obj1 = sk_graph.MCP_Connect(cost_clip)
-#         path = []
-#         for end in destination:
-#             path.append(init_obj1.traceback(end))
-#         for row, col in path[0]:
-#             x, y = transformer.xy(row, col)
-#             lc_path_new.append((x, y))
-#     except Exception as e:
-#         print(e)
-#         return None
-
-#     if len(lc_path_new) < 2:
-#         print("No least cost path detected, pass.")
-#         return None
-#     else:
-#         lc_path_new = sh_geom.LineString(lc_path_new)
-
-#     return lc_path_new
-
-
 def chk_df_multipart(df, chk_shp_in_string):
     try:
         found = False
@@ -644,81 +498,6 @@ def dyn_np_cc_map(in_chm, canopy_ht_threshold, nodata):
     canopy_ndarray.fill_value = nodata
 
     return canopy_ndarray
-
-
-# def morph_raster(corridor_thresh, canopy_raster, exp_shk_cell, cell_size_x):
-#     # Process: Stamp CC and Max Line Width
-#     ras_sum = corridor_thresh + canopy_raster
-#     raster_class = np.ma.where(ras_sum == 0, 1, 0).data
-
-#     if exp_shk_cell > 0 and cell_size_x < 1:
-#         # Process: Expand
-#         # FLM original Expand equivalent
-#         cell_size = int(exp_shk_cell * 2 + 1)
-#         expanded = ndimage.grey_dilation(raster_class, size=(cell_size, cell_size))
-
-#         # Process: Shrink
-#         # FLM original Shrink equivalent
-#         file_shrink = ndimage.grey_erosion(expanded, size=(cell_size, cell_size))
-
-#     else:
-#         if bt_const.BT_DEBUGGING:
-#             print("No Expand And Shrink cell performed.")
-#         file_shrink = raster_class
-
-#     # Process: Boundary Clean
-#     clean_raster = ndimage.gaussian_filter(file_shrink, sigma=0, mode="nearest")
-
-#     return clean_raster
-
-
-# def generate_line_args_NoClipraster(
-#     line_seg,
-#     work_in_buffer,
-#     in_chm_obj,
-#     in_chm,
-#     tree_radius,
-#     max_line_dist,
-#     canopy_avoidance,
-#     exponent,
-#     canopy_thresh_percentage,
-# ):
-#     line_argsC = []
-
-#     for record in range(0, len(work_in_buffer)):
-#         try:
-#             line_bufferC = work_in_buffer.loc[record, "geometry"]
-
-#             nodata = bt_const.BT_NODATA
-#             line_argsC.append(
-#                 [
-#                     in_chm,
-#                     float(work_in_buffer.loc[record, "DynCanTh"]),
-#                     float(tree_radius),
-#                     float(max_line_dist),
-#                     float(canopy_avoidance),
-#                     float(exponent),
-#                     in_chm_obj.res,
-#                     nodata,
-#                     line_seg.iloc[[record]],
-#                     in_chm_obj.meta.copy(),
-#                     record,
-#                     10,
-#                     "Center",
-#                     canopy_thresh_percentage,
-#                     line_bufferC,
-#                 ]
-#             )
-#         except Exception as e:
-#             print(e)
-
-#         step = record + 1
-#         total = len(work_in_buffer)
-
-#         print(f' "PROGRESS_LABEL Preparing lines {step} of {total}" ', flush=True)
-#         print(f" %{step / total * 100} ", flush=True)
-
-#     return line_argsC
 
 
 def generate_line_args_DFP_NoClip(
@@ -824,17 +603,3 @@ def generate_line_args_DFP_NoClip(
 
     return line_argsL, line_argsR, line_argsC
 
-
-# def chk_null_geometry(in_data):
-#     find = False
-#     if isinstance(in_data, gpd.GeoDataFrame):
-#         if len(in_data[(in_data.is_empty | in_data.isna())]) > 0:
-#             find = True
-#
-#     return find
-
-
-# def read_data2gpd(in_data):
-#     print("Reading data.......")
-#     out_gpd_obj = gpd.GeoDataFrame.from_file(in_data)
-#     return out_gpd_obj

@@ -24,12 +24,12 @@ import pandas as pd
 import shapely.geometry as sh_geom
 import shapely.ops as sh_ops
 from shapely.ops import linemerge
-from beratools.core.algo_merge_lines import MergeLines
 
 import beratools.core.algo_common as algo_common
 import beratools.core.constants as bt_const
 import beratools.tools.common as bt_common
 from beratools.core.algo_line_grouping import LineGrouping
+from beratools.core.algo_merge_lines import MergeLines
 from beratools.core.algo_split_with_lines import LineSplitter
 from beratools.core.tool_base import execute_multiprocessing
 
