@@ -18,8 +18,8 @@ from hydra import compose, initialize_config_dir
 from omegaconf import OmegaConf
 
 from beratools.core.algo_footprint_rel import line_footprint_rel
-from beratools.core.algo_split_with_lines import split_with_lines
 from beratools.tools.centerline import centerline
+from beratools.tools.check_seed_line import check_seed_line
 from beratools.tools.line_footprint_absolute import line_footprint_abs
 from beratools.tools.line_footprint_fixed import line_footprint_fixed
 
@@ -44,6 +44,12 @@ def main():
     print(f"Parallel mode: {parallel_mode}, Processes: {processes}")
 
     steps_to_run = set(cfg.steps_to_run) if "steps_to_run" in cfg else set()
+    
+    if "check_seed_line" in steps_to_run:
+        print_message("Running check_seed_line")
+        args = dict(cfg.args_check_seed_line)
+        args["processes"] = processes
+        check_seed_line(**args)
 
     if "centerline" in steps_to_run:
         print_message("Running centerline")
@@ -72,18 +78,6 @@ def main():
         args["processes"] = processes
         args["parallel_mode"] = parallel_mode
         line_footprint_fixed(**args)
-
-    if "split_lines" in steps_to_run:
-        print_message("Running split lines")
-        args = dict(cfg.args_split_lines)
-        split_with_lines(**args)
-
-    if "footprint_inter" in steps_to_run:
-        print_message("Running footprint intersection")
-        args = dict(cfg.args_footprint_inter)
-        args["processes"] = processes
-        args["parallel_mode"] = parallel_mode
-        line_footprint_fixed(**args)  # Assuming same function as "fixed"
 
     print_message("Workflow completed successfully!")
 

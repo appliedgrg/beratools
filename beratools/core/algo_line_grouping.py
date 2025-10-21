@@ -792,7 +792,7 @@ class LineGrouping:
             self.group_lines()
 
         self.find_vertex_for_poly_trimming()
-        self.lines["group"] = self.groups  # assign group attribute
+        self.lines[bt_const.BT_GROUP] = self.groups  # assign group attribute
 
     def run_regrouping(self):
         """

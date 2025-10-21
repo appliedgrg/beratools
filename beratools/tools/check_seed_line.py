@@ -23,7 +23,7 @@ from beratools.core.algo_line_grouping import LineGrouping
 from beratools.core.logger import Logger
 
 
-def check_seed_line(callback, in_line, out_line, processes, verbose, in_layer=None, out_layer=None):
+def check_seed_line(in_line, out_line, verbose, processes=-1, in_layer=None, out_layer=None):
     print("check_seed_line started")
     in_line_gdf = gpd.read_file(in_line, layer=in_layer)
     lg = LineGrouping(in_line_gdf)
@@ -38,6 +38,6 @@ print = log.print
 if __name__ == "__main__":
     in_args, in_verbose = bt_common.check_arguments()
     start_time = time.time()
-    check_seed_line(print, **in_args.input, processes=int(in_args.processes), verbose=in_verbose)
+    check_seed_line(**in_args.input, processes=int(in_args.processes), verbose=in_verbose)
 
     print("Elapsed time: {}".format(time.time() - start_time))
