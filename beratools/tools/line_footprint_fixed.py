@@ -403,6 +403,16 @@ def line_footprint_fixed(
     # trim lines and footprints
     if trim_output:
         lg.run_cleanup(buffer_gdf)
+        # Ensure only polygons are saved in clean_footprint
+        def ensure_polygons(gdf, buffer_width=0.01):
+            gdf['geometry'] = gdf['geometry'].apply(
+                lambda geom: geom.buffer(buffer_width) if geom.geom_type in ['LineString', 'MultiLineString'] else geom
+            )
+            gdf = gdf[gdf.geometry.type.isin(['Polygon', 'MultiPolygon'])]
+            return gdf
+        # Patch: after trimming, ensure polygons in clean_footprint layer
+        if hasattr(lg, "merged_lines_trimmed") and lg.merged_lines_trimmed is not None:
+            lg.merged_lines_trimmed = ensure_polygons(lg.merged_lines_trimmed)
         lg.save_file(out_footprint)
     else:
         print("Skipping line and footprint trimming per user option.")
