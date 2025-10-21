@@ -31,8 +31,10 @@ dependencies = [
     "dask-expr",
     "distributed",
     "bera_centerlines",
-    "GDAL>=3.9.2",
+    # Windows-specific wheel from cgohlke
     'GDAL @ https://github.com/cgohlke/geospatial-wheels/releases/download/v2025.3.30/gdal-3.10.2-cp311-cp311-win_amd64.whl; platform_system == "Windows" and python_version >= "3.11" and python_version < "3.12"',
+    # Default for Linux/macOS
+    'gdal >= 3.9.2; platform_system != "Windows"',
     "geopandas",
     "pip",
     "pyogrio>=0.9.0",
