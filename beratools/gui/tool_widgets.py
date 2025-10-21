@@ -75,7 +75,7 @@ class ToolWidgets(QtWidgets.QWidget):
             pt = p["parameter_type"]
             widget = None
 
-            if "ExistingFile" in pt or "NewFile" in pt or "Directory" in pt:
+            if "ExistingFile" in pt or "NewFile" in pt or "directory" in pt:
                 widget = FileSelector(json_str, None)
                 param_num = param_num + 1
             elif "FileList" in pt:

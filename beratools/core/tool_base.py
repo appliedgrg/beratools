@@ -86,7 +86,6 @@ def execute_multiprocessing(
             print("Using {} CPU cores".format(processes), flush=True)
 
             with Pool(processes) as pool:
-                # print(multiprocessing.active_children())
                 with tqdm(total=total_steps, disable=verbose) as pbar:
                     for result in pool.imap_unordered(in_func, in_data):
                         if result_is_valid(result):

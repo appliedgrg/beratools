@@ -357,12 +357,8 @@ class BTData(object):
     def get_bera_tool_params(self, tool_name):
         new_param_whole = {"parameters": []}
         tool = {}
-        batch_tool_list = []
         for toolbox in self.bera_tools["toolbox"]:
             for single_tool in toolbox["tools"]:
-                if single_tool["batch_processing"]:
-                    batch_tool_list.append(single_tool["name"])
-
                 if tool_name == single_tool["name"]:
                     tool = single_tool
 
@@ -375,7 +371,7 @@ class BTData(object):
             print("issue")
 
         for param in tool["parameters"]:
-            single_param = {"name": param["parameter"]}
+            single_param = {"name": param["label"]}
             if "variable" in param.keys():
                 single_param["flag"] = param["variable"]
                 # restore saved parameters
@@ -394,27 +390,27 @@ class BTData(object):
                     else:
                         single_param["parameter_type"] = {"OptionList": param["data"]}
                         single_param["data_type"] = "String"
-                        if param["typelab"] == "text":
+                        if param["subtype"] == "text":
                             single_param["data_type"] = "String"
-                        elif param["typelab"] == "int":
+                        elif param["subtype"] == "int":
                             single_param["data_type"] = "Integer"
-                        elif param["typelab"] == "float":
+                        elif param["subtype"] == "float":
                             single_param["data_type"] = "Float"
-                        elif param["typelab"] == "bool":
+                        elif param["subtype"] == "bool":
                             single_param["data_type"] = "Boolean"
                 elif param["type"] == "text":
                     single_param["parameter_type"] = "String"
                 elif param["type"] == "number":
-                    if param["typelab"] == "int":
+                    if param["subtype"] == "int":
                         single_param["parameter_type"] = "Integer"
                     else:
                         single_param["parameter_type"] = "Float"
                 elif param["type"] == "file":
-                    single_param["parameter_type"] = {"ExistingFile": [param["typelab"]]}
+                    single_param["parameter_type"] = {"ExistingFile": [param["subtype"]]}
                 else:
                     single_param["parameter_type"] = {"ExistingFile": ""}
             else:
-                single_param["parameter_type"] = {"NewFile": [param["typelab"]]}
+                single_param["parameter_type"] = {"NewFile": [param["subtype"]]}
 
             single_param["description"] = param["description"]
 
@@ -434,8 +430,8 @@ class BTData(object):
                         "layer_value": layer_value,
                     }
 
-            elif param["type"] == "Directory":
-                single_param["parameter_type"] = {"Directory": [param["typelab"]]}
+            elif param["type"] == "directory":
+                single_param["parameter_type"] = {"directory": [param["subtype"]]}
 
             single_param["default_value"] = param["default"]
             if "optional" in param.keys():
