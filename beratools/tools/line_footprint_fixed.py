@@ -225,11 +225,20 @@ def calculate_average_width(line, in_poly, offset, n_samples):
 
     try:
         for i, points in enumerate(sample_points_pairs):
-            perp_line = algo_common.generate_perpendicular_line_precise(points, offset=offset)
-            perp_lines_original.append(perp_line)
+            try:
+                perp_line = algo_common.generate_perpendicular_line_precise(points, offset=offset)
+                perp_lines_original.append(perp_line)
+            except Exception as e:
+                print(f"Failed to generate perpendicular at index {i}: {e}")
+                perp_lines_original.append(None)
+                continue
 
-            polygon_intersect = in_poly.iloc[in_poly.sindex.query(perp_line)]
-            intersections = polygon_intersect.intersection(perp_line)
+            try:
+                polygon_intersect = in_poly.iloc[in_poly.sindex.query(perp_line)]
+                intersections = polygon_intersect.intersection(perp_line)
+            except Exception as e:
+                print(f"Failed intersection at index {i}: {e}")
+                intersections = []
 
             line_list = []
             for inter in intersections:
@@ -253,6 +262,10 @@ def calculate_average_width(line, in_poly, offset, n_samples):
             for item in line_list:
                 widths[i] = max(widths[i], item.length)
                 valid_widths += 1
+
+            # Todo: check missing perpendicular lines
+            # if len(perp_lines_original) < len(sample_points_pairs):
+            #     print(f"Missing perpendicular at index {i}")
 
     except Exception as e:
         print(f"loop: {e}")
@@ -435,6 +448,9 @@ def line_footprint_fixed(
     perp_lines_original_gdf.to_file(out_aux_gpkg.as_posix(), layer=layer)
 
     layer = "centerline_simplified"
+    # Drop perp_lines_original column if present to avoid export warnings
+    if "perp_lines_original" in line_attr.columns:
+        line_attr = line_attr.drop(columns=["perp_lines_original"])
     line_attr = line_attr.drop(columns="perp_lines")
     line_attr.to_file(out_aux_gpkg.as_posix(), layer=layer)
 
