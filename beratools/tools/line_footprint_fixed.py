@@ -23,6 +23,8 @@ import numpy as np
 import pandas as pd
 import shapely.geometry as sh_geom
 import shapely.ops as sh_ops
+from shapely.ops import linemerge
+from beratools.core.algo_merge_lines import MergeLines
 
 import beratools.core.algo_common as algo_common
 import beratools.core.constants as bt_const
@@ -287,10 +289,22 @@ def line_footprint_fixed(
 
     # TODO: refactor this code for better line quality check
     line_gdf = gpd.read_file(in_line, layer=in_layer)
+    if bt_const.BT_GROUP not in line_gdf.columns:
+        line_gdf[bt_const.BT_GROUP] = range(1, len(line_gdf) + 1)
     lc_path_gdf = gpd.read_file(in_line, layer=in_layer_lc_path)
+    def custom_line_merge(geom):
+        if geom.geom_type == "MultiLineString":
+            worker = MergeLines(geom)
+            merged = worker.merge_all_lines()
+            return merged if merged else geom
+        elif geom.geom_type == "LineString":
+            return geom
+        else:
+            return geom
+
     if not merge_group:
-        line_gdf.geometry = line_gdf.line_merge()
-        lc_path_gdf.geometry = lc_path_gdf.line_merge()
+        line_gdf["geometry"] = line_gdf.geometry.apply(custom_line_merge)
+        lc_path_gdf["geometry"] = lc_path_gdf.geometry.apply(custom_line_merge)
 
     line_gdf = algo_common.clean_line_geometries(line_gdf)
 
@@ -348,6 +362,10 @@ def line_footprint_fixed(
         process_single_line, line_args, "Fixed footprint", processes, mode=parallel_mode
     )
     line_attr = pd.concat(out_lines)
+
+    # Ensure BT_GROUP is present in line_attr
+    if bt_const.BT_GROUP not in line_attr.columns:
+        raise ValueError("BT_GROUP column is required in line_attr but is missing.")
 
     # update avg_width and max_width by max value of group
     if not merge_group:

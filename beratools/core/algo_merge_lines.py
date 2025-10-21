@@ -19,17 +19,31 @@ from operator import itemgetter
 
 import networkit as nk
 import shapely.geometry as sh_geom
+from shapely.ops import linemerge
 
 import beratools.core.algo_common as algo_common
 import beratools.core.constants as bt_const
+
+def custom_line_merge(geom):
+    if geom.geom_type == "MultiLineString":
+        worker = MergeLines(geom)
+        merged = worker.merge_all_lines()
+        return merged if merged else geom
+    elif geom.geom_type == "LineString":
+        return geom
+    else:
+        return geom
 
 
 def run_line_merge(in_line_gdf, merge_group):
     out_line_gdf = in_line_gdf
     if merge_group:
+        if bt_const.BT_GROUP not in in_line_gdf.columns:
+            in_line_gdf = in_line_gdf.copy()
+            in_line_gdf[bt_const.BT_GROUP] = range(1, len(in_line_gdf) + 1)
         out_line_gdf = in_line_gdf.dissolve(by=bt_const.BT_GROUP, as_index=False)
 
-    out_line_gdf.geometry = out_line_gdf.line_merge()
+    out_line_gdf["geometry"] = out_line_gdf.geometry.apply(custom_line_merge)
 
     for row in out_line_gdf.itertuples():
         if isinstance(row.geometry, sh_geom.MultiLineString):

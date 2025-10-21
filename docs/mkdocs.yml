@@ -9,7 +9,7 @@ watch:
 # page tree
 nav: 
   - User Guide: index.md
-  - Programming Guid: programming_guide.md
+  - Developer Guid: developer_guide.md
   - API Reference: api.md
 
 plugins:
