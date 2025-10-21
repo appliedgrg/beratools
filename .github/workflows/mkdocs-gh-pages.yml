@@ -13,6 +13,12 @@ jobs:
         uses: actions/setup-python@v5
         with:
           python-version: '3.x'
+
+      - name: Install GDAL system libs
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y gdal-bin libgdal-dev
+          gdal-config --version
       - name: Install documentation dependencies
         run: pip install -r docs/files/requirements.txt
       - name: Deploy to GitHub Pages
