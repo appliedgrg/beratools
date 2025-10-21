@@ -59,6 +59,9 @@ Homepage = "https://github.com/RichardQZeng/BTools"
 [tool.hatch.version]
 path = "beratools/__init__.py"
 
+[tool.hatch.metadata]
+allow-direct-references = true
+
 [tool.hatch.build.targets.sdist]
 include = ["/beratools"]
 
