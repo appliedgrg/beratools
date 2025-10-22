@@ -4,9 +4,47 @@ theme:
   name: material
   repo_url: https://github.com/appliedgrg/beratools
   repo_name: GitHub
+  palette:
+    - media: "(prefers-color-scheme)"
+      primary: blue
+      accent: blue
+      toggle:
+        icon: material/brightness-auto
+        name: "Switch to light mode"
+    - media: "(prefers-color-scheme: light)"
+      scheme: default
+      primary: blue
+      accent: blue
+      toggle:
+        icon: material/brightness-7
+        name: "Switch to dark mode"
+    - media: "(prefers-color-scheme: dark)"
+      scheme: slate
+      primary: blue
+      accent: blue
+      toggle:
+        icon: material/brightness-4
+        name: "Switch to system preference"
+
+  features:
+    - navigation.tabs          # top-level tabs in the header
+    - navigation.top           # keep nav in header
+    - content.code.copy        # optional niceties
+    - content.action.edit
+  font:
+    text: Inter
+    code: JetBrains Mono
+  favicon: icons/bera_logo.png
+  logo: icons/bera_logo.svg
+
+repo_url: https://github.com/appliedgrg/beratools
+repo_name: BERA Tools
 
 markdown_extensions:
   - attr_list
+
+extra_css:
+  - stylesheets/extra.css
 
 docs_dir: files
 watch:
@@ -14,23 +52,28 @@ watch:
 
 # page tree
 nav:
-  - Home: index.md
-  - Installation: installation.md
-  - Developer Guide: developer_guide.md
+  - Home: 
+    - index.md
+    - bibliography.md
+
+  - Getting Started: getting_started.md
   - User Guide:
-      - user_guide.md
-      - tools/check_seed_line.md
-      - tools/vertex_optimization.md
-      - tools/centerline.md
-      - tools/line_footprint_abs.md
-      - tools/line_footprint_fixed.md
-      - tools/line_footprint_rel.md
-      - tools/tool_template.md
-  - Bibliography: bibliography.md
+    - user_guide.md
+    - Check Seed Line: tools/check_seed_line.md
+    - Vertex Optimization: tools/vertex_optimization.md
+    - Centerline: tools/centerline.md
+    - Line Footprint Absolute: tools/line_footprint_abs.md
+    - Line Footprint Fixed: tools/line_footprint_fixed.md
+    - Line Footprint Relative: tools/line_footprint_rel.md
+  - Developer Guide:
+    - developer_guide.md
+    - tools/tool_template.md
+
   - API Reference: api.md
-  - GitHub: https://github.com/appliedgrg/beratools
+  - About: about.md
 
 plugins:
+  - search
   - git-revision-date-localized:
       type: date
   - mkdocstrings:

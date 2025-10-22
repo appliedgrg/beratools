@@ -5,10 +5,10 @@ linear disturbances in forests.
 
 **Mapping**
 
-- [Check Seed Line](check_seed_line.md)
-- [Vertex Optimization](vertex_optimization.md)
-- [Centerline](centerline.md)
-- [Line Footprint Fixed](line_footprint_fixed.md)
-- [Line Footprint Absolute](line_footprint_abs.md)
-- [Line Footprint Relative](line_footprint_rel.md)
-- [Tool Template](tool_template.md)
+- [Check Seed Line](tools/check_seed_line.md)
+- [Vertex Optimization](tools/vertex_optimization.md)
+- [Centerline](tools/centerline.md)
+- [Line Footprint Fixed](tools/line_footprint_fixed.md)
+- [Line Footprint Absolute](tools/line_footprint_abs.md)
+- [Line Footprint Relative](tools/line_footprint_rel.md)
+- [Tool Template](tools/tool_template.md)

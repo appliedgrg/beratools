@@ -1,4 +1,4 @@
-# BERA Tools
+# Overview
 
 BERA Tools is a series of script tools for facilitating the high-resolution mapping and studying of forest lines (petroleum exploration corridors in forested areas) via processing canopy height models (LiDAR or photogrammetry derived raster images where pixel-values represent the ground-height of vegetation).
 
@@ -9,11 +9,10 @@ Given that the process of manually digitizing detailed small-scale
 solution is preferred for large-scale application areas. Additionally,
 high-resolution CHMs allow for improved forest line spatial analysis.
 
-## BERA Tools overview
+## BERA Tools
 
 BERA Tools is a suite of utilities for mapping, analyzing, and processing forest linear disturbances. It provides both command-line and GUI interfaces, along with a set of modular tools for various workflows.
 ![BERA logo](screenshots/bt_gui.png)
-
 
 ### Cite Us
 
@@ -31,6 +30,12 @@ If you use BERA Tools for a publication, please cite it as:
 
 This tool is part of the Boreal Ecosystem Recovery and Assessment (BERA)
 Project, and was developed by the Applied Geospatial Research Group.
+
+**Gu**  
+The Forest Line Mapper: A Semi-Automated Tool for Mapping Linear Disturbances in Forests  
+Gustavo Lopes Queiroz, Gregory J. McDermid, Mir Mustafizur Rahman, and Julia Linke.  
+_Remote Sens._ 2020, 12(24), 4176.  
+[https://doi.org/10.3390/rs12244176](https://doi.org/10.3390/rs12244176)
 
 ## License
 
