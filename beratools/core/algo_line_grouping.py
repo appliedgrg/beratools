@@ -615,9 +615,10 @@ class VertexNode:
 class LineGrouping:
     """Class to group lines and merge them."""
 
-    def __init__(self, in_line_gdf, merge_group=True) -> None:
+    def __init__(self, in_line_gdf, merge_group=True, use_angle_grouping=True) -> None:
         if in_line_gdf is None:
             raise ValueError("Line GeoDataFrame cannot be None")
+        self.use_angle_grouping = use_angle_grouping
 
         if in_line_gdf.empty:
             raise ValueError("Line GeoDataFrame cannot be empty")
@@ -691,7 +692,7 @@ class LineGrouping:
             vertex_visited[i] = True
 
         for i in self.merged_vertex_list:
-            i.check_connectivity()
+            i.check_connectivity(self.use_angle_grouping)
 
         for i in self.merged_vertex_list:
             if i.line_connected:
