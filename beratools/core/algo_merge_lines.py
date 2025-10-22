@@ -24,6 +24,7 @@ from shapely.ops import linemerge
 import beratools.core.algo_common as algo_common
 import beratools.core.constants as bt_const
 
+
 def custom_line_merge(geom):
     if geom.geom_type == "MultiLineString":
         worker = MergeLines(geom)

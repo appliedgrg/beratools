@@ -527,7 +527,7 @@ class VertexNode:
         elif len(self.line_list) == 1:
             self.vertex_class = VertexClass.SINGLE_WAY
 
-    def has_group_attr(self):
+    def all_has_valid_group_attr(self):
         """If all values in group list are valid value, return True."""
         # TODO: if some line has no group, give advice
         for i in self.line_list:
@@ -539,15 +539,19 @@ class VertexNode:
     def need_regrouping(self):
         pass
 
-    def check_connectivity(self):
-        # TODO add regrouping when new lines are added
-        if self.has_group_attr():
-            if self.need_regrouping():
-                self.group_regroup()
-            else:
-                self.group_line_by_attribute()
-        else:
+    def check_connectivity(self, use_angle_grouping=True):
+        # Fill missing group with -1
+        for line in self.line_list:
+            if line.group is None:
+                line.group = -1
+
+        if self.need_regrouping():
+            self.group_regroup()
+
+        if use_angle_grouping:
             self.group_line_by_angle()
+        else:
+            self.update_connectivity_by_group()
 
         # record line not connected
         all_line_ids = self.get_all_line_ids()
@@ -558,7 +562,7 @@ class VertexNode:
     def group_regroup(self):
         pass
 
-    def group_line_by_attribute(self):
+    def update_connectivity_by_group(self):
         group_line = defaultdict(list)
         for i in self.line_list:
             group_line[i.group].append(i.line_id)
@@ -612,11 +616,6 @@ class LineGrouping:
     """Class to group lines and merge them."""
 
     def __init__(self, in_line_gdf, merge_group=True) -> None:
-        # remove empty and null geometry
-        # self.lines = in_line_gdf.copy()
-        # self.lines = self.lines[
-        #     ~self.lines.geometry.isna() & ~self.lines.geometry.is_empty
-        # ]
         if in_line_gdf is None:
             raise ValueError("Line GeoDataFrame cannot be None")
 
@@ -653,7 +652,7 @@ class LineGrouping:
         if bt_const.BT_GROUP in self.lines.keys():
             self.groups = self.lines[bt_const.BT_GROUP]
             self.has_group_attr = True
-            if self.groups.hasnans:
+            if self.groups.hasnans:  # Todo: check for other invalid values
                 self.need_regrouping = True
 
         for idx, s_geom, geom, group in zip(*zip(*self.sim_geom.items()), self.lines.geometry, self.groups):

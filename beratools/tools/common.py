@@ -35,6 +35,7 @@ from scipy import ndimage
 
 import beratools.core.constants as bt_const
 from beratools.core.algo_merge_lines import custom_line_merge
+from beratools.core.algo_split_with_lines import LineSplitter
 
 # suppress pandas UserWarning: Geometry column contains no geometry when splitting lines
 warnings.simplefilter(action="ignore", category=UserWarning)
@@ -49,7 +50,7 @@ if not bt_const.BT_DEBUGGING:
     warnings.filterwarnings("ignore")  # suppress warnings
     warnings.simplefilter(action="ignore", category=UserWarning)  # suppress Pandas UserWarning
 
-def qc_merge_multistring(gdf):
+def qc_merge_multilinestring(gdf):
     """
     QC step: Merge MultiLineStrings if possible, else split into LineStrings.
 
@@ -89,6 +90,23 @@ def qc_merge_multistring(gdf):
     out_gdf = gpd.GeoDataFrame(records, columns=gdf.columns, crs=gdf.crs)
     out_gdf = out_gdf[out_gdf.geometry.type == "LineString"].reset_index(drop=True)
     return out_gdf
+
+def qc_split_lines_at_intersections(gdf):
+    """
+    QC step: Split lines at intersections so each segment becomes a separate line object.
+
+    Args:
+        gdf (GeoDataFrame): Input GeoDataFrame of LineStrings.
+
+    Returns:
+        GeoDataFrame: New GeoDataFrame with lines split at all intersection points.
+    """
+    splitter = LineSplitter(gdf)
+    splitter.process()
+    if splitter.split_lines_gdf is not None:
+        return splitter.split_lines_gdf.reset_index(drop=True)
+    else:
+        return gdf.reset_index(drop=True)
 
 def clip_raster(
     in_raster_file,
@@ -602,4 +620,3 @@ def generate_line_args_DFP_NoClip(
         line_id += 1
 
     return line_argsL, line_argsR, line_argsC
-
