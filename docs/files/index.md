@@ -1,12 +1,6 @@
 # BERA Tools
 
-![](../../Images/BERALogo.png)
-
-BERA Tools is a series of script tools for facilitating the
-high-resolution mapping and studying of forest lines (petroleum
-exploration corridors in forested areas) via processing canopy height
-models (LiDAR or photogrammetry derived raster images where pixel-values
-represent the ground-height of vegetation).
+BERA Tools is a series of script tools for facilitating the high-resolution mapping and studying of forest lines (petroleum exploration corridors in forested areas) via processing canopy height models (LiDAR or photogrammetry derived raster images where pixel-values represent the ground-height of vegetation).
 
 ## Motivation
 
@@ -17,22 +11,9 @@ high-resolution CHMs allow for improved forest line spatial analysis.
 
 ## BERA Tools overview
 
-BERA Tools is cut in various modules:
+BERA Tools is a suite of utilities for mapping, analyzing, and processing forest linear disturbances. It provides both command-line and GUI interfaces, along with a set of modular tools for various workflows.
+![BERA logo](screenshots/bt_gui.png)
 
--   **Scripts**, core modules,
-    -   Tools for preparing data and line delineation out of CHM data.
--   **Examples**,
-    -   Example datasets demonstating usage of tools.
--   **Applications**,
-    -   Sample python scripts using tools Python APIs for batch
-        processing.
-
-## Dependencies
-
-BERA Tools is built using ArcGIS Pro Anaconda distribution, you need to
-install a clone of Arcpy to make BERA Tools run. Please refer to
-`Installation`{.interpreted-text role="doc"} for setting up the
-environment.
 
 ### Cite Us
 
@@ -46,6 +27,8 @@ If you use BERA Tools for a publication, please cite it as:
 
 ## Credits
 
+![BERA logo](icons/cover_1060x424_logos.png)
+
 This tool is part of the Boreal Ecosystem Recovery and Assessment (BERA)
 Project, and was developed by the Applied Geospatial Research Group.
 
@@ -54,9 +37,3 @@ Project, and was developed by the Applied Geospatial Research Group.
 BERA Tools is release under the GPL 3.0 (GNU General Public License
 v3.0). Please refer to the LICENSE file contained in the source for
 complete license description.
-
-## Indices and tables
-
--   `genindex`{.interpreted-text role="ref"}
--   `modindex`{.interpreted-text role="ref"}
--   `search`{.interpreted-text role="ref"}

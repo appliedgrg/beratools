@@ -1,16 +1,34 @@
 site_name: BERA Tools Guide
+
 theme:
   name: material
+  repo_url: https://github.com/appliedgrg/beratools
+  repo_name: GitHub
+
+markdown_extensions:
+  - attr_list
 
 docs_dir: files
 watch:
   - files
 
 # page tree
-nav: 
-  - User Guide: index.md
-  - Developer Guid: developer_guide.md
+nav:
+  - Home: index.md
+  - Installation: installation.md
+  - Developer Guide: developer_guide.md
+  - User Guide:
+      - user_guide.md
+      - tools/check_seed_line.md
+      - tools/vertex_optimization.md
+      - tools/centerline.md
+      - tools/line_footprint_abs.md
+      - tools/line_footprint_fixed.md
+      - tools/line_footprint_rel.md
+      - tools/tool_template.md
+  - Bibliography: bibliography.md
   - API Reference: api.md
+  - GitHub: https://github.com/appliedgrg/beratools
 
 plugins:
   - git-revision-date-localized:
