@@ -32,8 +32,8 @@ def main_canopy_threshold_relative(
     processes,
     verbose,
 ):
-    file_path, in_file_name = os.path.split(in_line)
-    out_file = os.path.join(file_path, "DynCanTh_" + in_file_name)
+    file_path, in_file_name = os.path.split(Path(in_line))
+    out_file = os.path.join(Path(file_path), "DynCanTh_" + in_file_name)
     line_seg = gpd.GeoDataFrame.from_file(in_line)
 
     # check coordinate systems between line and raster features
@@ -80,13 +80,13 @@ def main_canopy_threshold_relative(
         pass
 
     # copy original line input to another GeoDataframe
-    workln_dfC = gpd.GeoDataFrame.copy((line_seg))
+    workln_dfC = gpd.GeoDataFrame.copy((line_seg),deep=True)
     workln_dfC.geometry = workln_dfC.geometry.simplify(tolerance=0.5, preserve_topology=True)
 
     print("%{}".format(5))
 
-    worklnbuffer_dfLRing = gpd.GeoDataFrame.copy((workln_dfC))
-    worklnbuffer_dfRRing = gpd.GeoDataFrame.copy((workln_dfC))
+    worklnbuffer_dfLRing = gpd.GeoDataFrame.copy((workln_dfC),deep=True)
+    worklnbuffer_dfRRing = gpd.GeoDataFrame.copy((workln_dfC),deep=True)
 
     print("Create ring buffer for input line to find the forest edge....")
 
@@ -192,7 +192,7 @@ def main_canopy_threshold_relative(
 
     print("Saving percentile information to input line ...")
     gpd.GeoDataFrame.to_file(result, out_file)
-    print("Task done.")
+    print("Saving percentile information to input line ...done.")
 
     if full_step:
         return out_file
@@ -504,6 +504,7 @@ def multiprocessing_Percentile(df, CanPercentile, CanThrPercentage, in_CHM, proc
         line_arg = []
         total_steps = len(df)
         cal_percentile = cal_percentileLR
+        which_side = side
         if side == "left":
             PerCol = "Percentile_L"
             which_side = "left"

@@ -29,9 +29,11 @@ import shapely.geometry as sh_geom
 import shapely.ops as sh_ops
 import xarray as xr
 import xrspatial
-from osgeo import gdal
+
+from osgeo import gdal,osr
 from rasterio import mask
 from scipy import ndimage
+from pathlib import Path
 
 import beratools.core.constants as bt_const
 from beratools.core.algo_merge_lines import custom_line_merge
@@ -324,12 +326,12 @@ def line_split2(in_ln_shp, seg_length):
 
         print(f"New column created: {'OLnFID'}, {'OLnFID'}")
         in_ln_shp["OLnFID"] = in_ln_shp.index
-    line_seg = split_into_Equal_Nth_segments(in_ln_shp, seg_length)
+    line_seg = split_into_equal_Nth_segments(in_ln_shp, seg_length)
 
     return line_seg
 
 
-def split_into_Equal_Nth_segments(df, seg_length):
+def split_into_equal_Nth_segments(df, seg_length):
     odf = df
     crs = odf.crs
     if "OLnSEG" not in odf.columns.array:
@@ -386,11 +388,11 @@ def cut_line_by_length(line, length, merge_threshold=0.5):
             A list containing the resulting line segments.
 
     Example:
-        >>> from shapely.geometry import LineString
-        >>> line = LineString([(0, 0), (10, 0)])
-        >>> segments = cut_line_by_length(line, 3, merge_threshold=1)
-        >>> for segment in segments:
-        >>>     print(f"Segment: {segment}, Length: {segment.length}")
+        ">>> from shapely.geometry import LineString
+        ">>> line = LineString([(0, 0), (10, 0)])
+        ">>> segments = cut_line_by_length(line, 3, merge_threshold=1)
+        ">>> for segment in segments:
+        ">>>     print(f"Segment: {segment}, Length: {segment.length}")
 
         Output:
         Segment: LINESTRING (0 0, 3 0), Length: 3.0
@@ -469,12 +471,12 @@ def chk_df_multipart(df, chk_shp_in_string):
 def dyn_fs_raster_stdmean(canopy_ndarray, kernel, nodata):
     # This function uses xrspatial which can handle large data but slow
     mask = canopy_ndarray.mask
-    in_ndarray = np.ma.where(mask == True, np.NaN, canopy_ndarray)
+    in_ndarray = np.ma.where(mask == True, np.nan, canopy_ndarray)
     result_ndarray = xrspatial.focal.focal_stats(
         xr.DataArray(in_ndarray.data), kernel, stats_funcs=["std", "mean"]
     )
 
-    # Assign std and mean ndarray (return array contain NaN value)
+    # Assign std and mean ndarray (return array contain nan value)
     reshape_std_ndarray = result_ndarray[0].data
     reshape_mean_ndarray = result_ndarray[1].data
 
@@ -483,12 +485,12 @@ def dyn_fs_raster_stdmean(canopy_ndarray, kernel, nodata):
 
 def dyn_smooth_cost(canopy_ndarray, max_line_dist, sampling):
     mask = canopy_ndarray.mask
-    in_ndarray = np.ma.where(mask == True, np.NaN, canopy_ndarray)
+    in_ndarray = np.ma.where(mask == True, np.nan, canopy_ndarray)
     # scipy way to do Euclidean distance transform
     euc_dist_array = ndimage.distance_transform_edt(
         np.logical_not(np.isnan(in_ndarray.data)), sampling=sampling
     )
-    euc_dist_array[mask == True] = np.NaN
+    euc_dist_array[mask == True] = np.nan
     smooth1 = float(max_line_dist) - euc_dist_array
     smooth1[smooth1 <= 0.0] = 0.0
     smooth_cost_array = smooth1 / float(max_line_dist)

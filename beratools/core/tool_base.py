@@ -194,3 +194,7 @@ def execute_multiprocessing(
         return None
 
     return out_result
+
+class OperationCancelledException(Exception):
+    pass
+

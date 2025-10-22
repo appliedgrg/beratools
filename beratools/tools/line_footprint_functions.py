@@ -29,18 +29,16 @@
 # ---------------------------------------------------------------------------
 
 import time
-import numpy as np
-
-import rasterio
-from scipy import stats, ndimage
 from geopandas import GeoDataFrame
 from shapely import buffer
 from rasterio import features
+from rasterio.mask import mask
 from xrspatial import convolution
 
-import skimage
-from skimage.morphology import *
 from skimage.graph import MCP_Flexible
+
+from shapely.geometry import shape
+from shapely import LineString, Point, MultiPolygon
 
 from beratools.core.constants import *
 from beratools.core.algo_centerline import *
@@ -86,7 +84,7 @@ def dyn_canopy_cost_raster(args):
     try:
         clipped_rasterC, out_meta = clip_raster(in_chm_raster, line_buffer, 0)
 
-        # clipped_rasterC, out_transformC = rasterio.mask.mask(raster_obj, [line_buffer], crop=True,
+        # clipped_rasterC, out_transformC = mask(raster_obj, [line_buffer], crop=True,
         #                                                     filled=False)
 
         in_chm = np.squeeze(clipped_rasterC, axis=0)
@@ -103,7 +101,7 @@ def dyn_canopy_cost_raster(args):
         cell_x, cell_y = out_meta["transform"][0], -out_meta["transform"][4]
 
         # print('Preparing Kernel window ...')
-        kernel = convolution.circle_kernel(cell_x, cell_y, tree_radius)
+        kernel = convolution.circle_kernel(cell_x, cell_y, int(tree_radius))
 
         # Generate Canopy Raster and return the Canopy array
         dyn_canopy_ndarray = dyn_np_cc_map(in_chm, canopy_ht_threshold, BT_NODATA)
@@ -212,12 +210,12 @@ def generate_line_args(
         line_bufferC = work_in_bufferC.loc[record, "geometry"]
         LCut = work_in_bufferL.loc[record, "LDist_Cut"]
 
-        clipped_rasterL, out_transformL = rasterio.mask.mask(
+        clipped_rasterL, out_transformL = mask(
             raster, [line_bufferL], crop=True, nodata=BT_NODATA, filled=True
         )
         clipped_rasterL = np.squeeze(clipped_rasterL, axis=0)
 
-        clipped_rasterC, out_transformC = rasterio.mask.mask(
+        clipped_rasterC, out_transformC = mask(
             raster, [line_bufferC], crop=True, nodata=BT_NODATA, filled=True
         )
 
@@ -293,7 +291,7 @@ def generate_line_args(
     for record in range(0, len(work_in_bufferR)):
         line_bufferR = work_in_bufferR.loc[record, "geometry"]
         RCut = work_in_bufferR.loc[record, "RDist_Cut"]
-        clipped_rasterR, out_transformR = rasterio.mask.mask(
+        clipped_rasterR, out_transformR = mask(
             raster, [line_bufferR], crop=True, nodata=BT_NODATA, filled=True
         )
         clipped_rasterR = np.squeeze(clipped_rasterR, axis=0)
@@ -310,7 +308,7 @@ def generate_line_args(
             }
         )
         line_bufferC = work_in_bufferC.loc[record, "geometry"]
-        clipped_rasterC, out_transformC = rasterio.mask.mask(
+        clipped_rasterC, out_transformC = mask(
             raster, [line_bufferC], crop=True, nodata=BT_NODATA, filled=True
         )
 
@@ -579,12 +577,12 @@ def process_single_line_relative(segment):
         clean_raster = ndimage.gaussian_filter(file_shrink, sigma=0, mode="nearest")
 
         # creat mask for non-polygon area
-        mask = np.where(clean_raster == 1, True, False)
+        polygon_mask = np.where(clean_raster == 1, True, False)
         if clean_raster.dtype == np.int64:
             clean_raster = clean_raster.astype(np.int32)
 
         # Process: ndarray to shapely Polygon
-        out_polygon = features.shapes(clean_raster, mask=mask, transform=in_transform)
+        out_polygon = features.shapes(clean_raster, mask=polygon_mask, transform=in_transform)
 
         # create a shapely multipolygon
         multi_polygon = []
@@ -694,7 +692,7 @@ def main_line_footprint_relative(
                     line_seg_split = line_seg
                 else:
                     print("Tool runs on input segment lines......")
-                    line_seg_split = split_into_Equal_Nth_segments(line_seg, 250)
+                    line_seg_split = split_into_equal_Nth_segments(line_seg, 250)
 
             print("%{}".format(20))
 
