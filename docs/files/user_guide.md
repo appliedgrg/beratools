@@ -1,9 +1,11 @@
-# BERA Tools
+# Overview
 
 BERA Tools provide tools for enhanced delineation and attribution of
 linear disturbances in forests.
 
-## Key features
+![Main GUI](../screenshots/bt_gui.png)
+
+## Key Features
 
 - Line cleanup and quality control
 - Vertex optimization using raster guidance
@@ -11,17 +13,17 @@ linear disturbances in forests.
 - Multiple footprint methods: absolute, relative, fixed-width
 - Small, scriptable command-line tools for batch processing
 
-## Data formats & conventions
+## Data Formats & Conventions
 
 - Supported vector: GeoPackage, Shapefile
 - Supported raster: GeoTIFF
 
-## Support & contributions
+## Support & Contributions
 
 - See the repository README for detailed examples.
 - Contributions welcome via issues and pull requests. Include tests and minimal reproducible examples.
 
-## Tool Packages
+## Tool Boxes
 
 ### Mapping
 

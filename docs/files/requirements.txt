@@ -2,3 +2,4 @@ mkdocs-material
 mkdocs-git-revision-date-localized-plugin
 mkdocstrings
 mkdocstrings-python
+pymdown-extensions

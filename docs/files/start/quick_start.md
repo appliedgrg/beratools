@@ -7,8 +7,6 @@ $ conda activate bera
 $ beratools 
 ```
 
-![Main GUI](../screenshots/bt_gui.png)
-
 The BERA Tools main GUI consists of the following components:
 
 | **Panel / Section** | **Description** |

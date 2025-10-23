@@ -1,17 +1,14 @@
-# Versioning
+# Overview
 
-BERA Tools uses semantic versioning.
-<https://semver.org/>
+## Versioning
 
-Given a version number MAJOR.MINOR.PATCH, increment the:
+Versioning follows [PEP440](https://peps.python.org/pep-0440/): `major.minor.patch`.
 
-- MAJOR version when you make incompatible API changes  
-- MINOR version when you add functionality in a backward compatible manner  
-- PATCH version when you make backward compatible bug fixes  
-
-Additional labels for pre-release and build metadata are available as extensions to the MAJOR.MINOR.PATCH format.
-
-The version start from 0.1.0.
+| Versions | Description |
+|-----------|--------------|
+| **Major** | This is reserved for releases that introduce breaking features. |
+| **Minor** | This is reserved for releases that introduce new functionality. |
+| **Patch** | This is reserved for releases that only include bug fixes. |
 
 ## From Source
 
