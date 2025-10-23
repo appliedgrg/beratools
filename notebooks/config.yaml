@@ -1,6 +1,6 @@
 # config.yaml for hydra
 
-DATA_DIR: F:/
+DATA_DIR: F:/Richard/From_Yusif/Yusif_Footprint
 CHM: Study_Site_CHM_Projected.tif
 SEEDLINE_GPKG: Study_Site_Center_Lines_new.shp
 SEEDLINE_LAYER: Study_Site_Center_Lines_new

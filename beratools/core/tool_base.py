@@ -17,19 +17,12 @@ import concurrent.futures as con_futures
 import warnings
 from multiprocessing.pool import Pool
 
-# import dask.distributed as dask_dist
 import geopandas as gpd
 import pandas as pd
-
-# from dask import config as dask_cfg
 from tqdm.auto import tqdm
 
-# import ray
 import beratools.core.constants as bt_const
 
-# settings for dask
-# dask_cfg.set({"distributed.scheduler.worker-ttl": None})
-# warnings.simplefilter("ignore", dask_dist.comm.core.CommClosedError)
 warnings.simplefilter(action="ignore", category=FutureWarning)
 
 
@@ -71,10 +64,8 @@ def execute_multiprocessing(
     in_data,
     app_name,
     processes,
-    workers=1,
     mode=bt_const.PARALLEL_MODE,
     verbose=False,
-    scheduler_file="dask_scheduler.json",
 ):
     out_result = []
     step = 0
@@ -128,73 +119,8 @@ def execute_multiprocessing(
                             print_msg(app_name, step, total_steps)
                         else:
                             pbar.update()
-        # elif mode == bt_const.ParallelMode.DASK:
-        #     print("Dask processing started...", flush=True)
-        #     print("Using {} CPU cores".format(processes), flush=True)
-        #     dask_client = dask_dist.Client(threads_per_worker=1, n_workers=processes)
-        #     print(f"Local Dask client: {dask_client}")
-        #     try:
-        #         print('start processing')
-        #         result = dask_client.map(in_func, in_data)
-        #         seq = dask_dist.as_completed(result)
-
-        #         with tqdm(total=total_steps, disable=verbose) as pbar:
-        #             for i in seq:
-        #                 if result_is_valid(result):
-        #                     out_result.append(i.result())
-
-        #                 step += 1
-        #                 if verbose:
-        #                     print_msg(app_name, step, total_steps)
-        #                 else:
-        #                     pbar.update()
-        #     except Exception as e:
-        #         print(f'ParallelMode.DASK: {e}')
-        #         dask_client.close()
-
-        #     dask_client.close()
-        # elif mode == bt_const.ParallelMode.SLURM:
-        #     print("Slurm Dask processing started...", flush=True)
-        #     dask_client = dask_dist.Client(scheduler_file=scheduler_file)
-        #     print(f"Slurm cluster Dask client: {dask_client}")
-        #     try:
-        #         print("start processing")
-        #         result = dask_client.map(in_func, in_data)
-        #         seq = dask_dist.as_completed(result)
-        #         dask_dist.progress(result)
-
-        #         for i in seq:
-        #             if result_is_valid(result):
-        #                 out_result.append(i.result())
-        #     except Exception as e:
-        #         print(f'ParallelMode.SLURM: {e}')
-        #         dask_client.close()
-
-        #     dask_client.close()
-        # ! important !
-        # comment temporarily, man enable later if need to use ray
-        # elif mode == bt_const.ParallelMode.RAY:
-        #     ray.init(log_to_driver=False)
-        #     process_single_line_ray = ray.remote(in_func)
-        #     result_ids = [process_single_line_ray.remote(item) for item in in_data]
-        #
-        #     while len(result_ids):
-        #         done_id, result_ids = ray.wait(result_ids)
-        #         result_item = ray.get(done_id[0])
-        #
-        #         if result_is_valid(result_item):
-        #             out_result.append(result_item)
-        #
-        #         step += 1
-        #         print_msg(app_name, step, total_steps)
-
-        #     ray.shutdown()
     except Exception as e:
         print(e)
         return None
 
     return out_result
-
-class OperationCancelledException(Exception):
-    pass
-

@@ -1,4 +1,4 @@
-# run: conda env create -f conda_environment.yml
+# run: conda env create -f environment.yml
 # see also https://docs.conda.io/projects/conda/en/latest/user-guide/tasks/manage-environments.html#creating-an-environment-from-an-environment-yml-file
 name: bera
 channels:
@@ -9,26 +9,11 @@ dependencies:
   - python=3.11
   - appliedgrg::bera_centerlines
   - appliedgrg::beratools
-  - appliedgrg::pyqtlet2
-  - dask
-  - dask-expr
-  - distributed
   - gdal=3.9.3
   - geopandas
-  - psutil
   - pyogrio>=0.9.0
   - pyqt
   - pytest
-  - pyyaml
-  - rioxarray
-  - rpy2
-  - r-essentials
-  - r-lidr
-  - r-rcsf
-  - r-rlas
-  - r-sf
-  - r-sp
-  - r-terra
   - scikit-image>=0.24.0
   - tqdm
   - xarray-spatial

@@ -29,11 +29,9 @@ import shapely.geometry as sh_geom
 import shapely.ops as sh_ops
 import xarray as xr
 import xrspatial
-
-from osgeo import gdal,osr
+from osgeo import gdal
 from rasterio import mask
 from scipy import ndimage
-from pathlib import Path
 
 import beratools.core.constants as bt_const
 from beratools.core.algo_merge_lines import custom_line_merge

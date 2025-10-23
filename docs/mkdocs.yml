@@ -54,23 +54,23 @@ watch:
 nav:
   - Home: 
     - index.md
-    - bibliography.md
-
-  - Getting Started: getting_started.md
-  - User Guide:
+    - about.md
+  - Getting Started: 
+    - start/installation.md
+    - start/quick_start.md
+  - User Guide: 
     - user_guide.md
-    - Check Seed Line: tools/check_seed_line.md
-    - Vertex Optimization: tools/vertex_optimization.md
-    - Centerline: tools/centerline.md
-    - Line Footprint Absolute: tools/line_footprint_abs.md
-    - Line Footprint Fixed: tools/line_footprint_fixed.md
-    - Line Footprint Relative: tools/line_footprint_rel.md
+    - Tools:
+      - start/check_seed_line.md
+      - start/vertex_optimization.md
+      - start/centerline.md
+      - start/line_footprint_abs.md
+      - start/line_footprint_rel.md
+      - start/line_footprint_fixed.md
   - Developer Guide:
     - developer_guide.md
-    - tools/tool_template.md
-
+    - developer/tool_template.md
   - API Reference: api.md
-  - About: about.md
 
 plugins:
   - search
