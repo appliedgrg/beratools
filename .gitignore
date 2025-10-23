@@ -23,5 +23,7 @@ config.ini
 .pixi
 pixi.lock
 
+.tox/
+
 .vscode/
 /_build/
