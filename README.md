@@ -45,6 +45,23 @@ BERA Tools provides a series of tools for forest lines processing. Please refer 
 
 [Technical Documentation](https://appliedgrg.github.io/beratools/)
 
+## Development and Testing
+
+To install test dependencies:
+```bash
+pip install .[test]
+```
+
+To install development tools (e.g., ruff):
+```bash
+pip install .[dev]
+```
+
+You can combine extras:
+```bash
+pip install .[test,dev]
+```
+
 ## Contribution Guide
 
 We welcome contributions! Please see our [Contribution Guide](contribution_guide.md) for details.

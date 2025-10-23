@@ -39,6 +39,7 @@ theme:
 
 repo_url: https://github.com/appliedgrg/beratools
 repo_name: BERA Tools
+edit_uri: edit/main/docs/files/
 
 markdown_extensions:
   - attr_list
