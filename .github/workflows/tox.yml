@@ -24,19 +24,19 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Set up Miniconda
-        uses: conda-incubator/setup-miniconda@v3
+      - name: Install GDAL system libs
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y gdal-bin libgdal-dev
+          gdal-config --version
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
         with:
-          auto-update-conda: true
           python-version: ${{ matrix.python-version }}
 
-      - name: Install tox and tox-conda
-        run: pip install tox tox-conda
-
-      - name: Check conda executable
-        run: |
-          which conda
-          conda --version
+      - name: Install tox and tox-uv
+        run: pip install tox tox-uv
 
       - name: Run tox
         run: tox -e ${{ matrix.toxenv }}
