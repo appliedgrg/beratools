@@ -24,9 +24,10 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Set up Python
-        uses: actions/setup-python@v5
+      - name: Set up Miniconda
+        uses: conda-incubator/setup-miniconda@v3
         with:
+          auto-update-conda: true
           python-version: ${{ matrix.python-version }}
 
       - name: Install tox and tox-conda
