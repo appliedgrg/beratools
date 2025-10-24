@@ -25,6 +25,7 @@ def pytest_configure(config):
     logging.getLogger('rasterio').setLevel(logging.ERROR)
     logging.getLogger('rasterio.env').setLevel(logging.ERROR)
     logging.getLogger('label_centerlines._src').setLevel(logging.ERROR)
+    logging.getLogger("pyproj").setLevel(logging.WARNING)
     
 # Fixture to get the path to the 'data' directory
 @pytest.fixture
@@ -100,7 +101,8 @@ def test_output_files(testdata_dir):
         testdata_dir.joinpath('footprint_abs.gpkg'),
         testdata_dir.joinpath('footprint_rel.gpkg'),
         testdata_dir.joinpath('footprint_final.gpkg'),
-        testdata_dir.joinpath('footprint_final_aux.gpkg')
+        testdata_dir.joinpath('footprint_final_aux.gpkg'),
+        testdata_dir.joinpath('line_percentile_rel.gpkg')
     ]
 
 @pytest.fixture

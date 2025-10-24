@@ -47,6 +47,9 @@ jobs:
           python-version: '3.11'
           auto-update-conda: true
 
+      - name: Set auto_activate_base to false
+        run: conda config --set auto_activate_base false
+
       - name: Initialize Conda
         run: |
           conda init bash
@@ -66,4 +69,4 @@ jobs:
         run: |
           source ~/.bashrc  
           conda activate bera
-          pytest tests/test_workflow.py --maxfail=1 --disable-warnings -s -v 
+          pytest tests/test_workflow.py --maxfail=1 --disable-warnings -s -v
