@@ -1,4 +1,4 @@
-[project]
+[workspace]
 authors = ["Richard <502763+RichardQZeng@users.noreply.github.com>"]
 channels = ["nodefaults", "appliedgrg", "conda-forge"]
 description = "BERA Tools is toolset to extract and assess line features in forest"
