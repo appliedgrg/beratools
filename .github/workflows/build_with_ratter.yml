@@ -2,7 +2,8 @@ name: Build & Publish (rattler-build + Pixi)
 
 on:
   push:
-    tags: ['v*']  # e.g. v1.2.3
+    tags:
+        - '*.*.*'
 
 jobs:
   build-publish:
