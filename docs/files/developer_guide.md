@@ -22,7 +22,7 @@ conda env create -f environment.yml
 conda activate beratools
 
 # Option B: create a fresh conda env manually
-conda create -n beratools python=3.10 -y
+conda create -n beratools python=3.11 -y
 conda activate beratools
 conda install -c conda-forge pip git setuptools wheel -y
 

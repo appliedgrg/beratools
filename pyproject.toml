@@ -6,7 +6,7 @@ build-backend = "hatchling.build"
 name = "BERATools"
 dynamic = ["version"]
 description = "An advanced forest line feature analysis platform"
-requires-python = ">=3.11"
+requires-python = ">=3.10"
 readme = "README.md"
 license = { file = "LICENSE" }
 authors = [
@@ -22,8 +22,10 @@ classifiers = [
     "License :: OSI Approved :: MIT License",
     "Natural Language :: English",
     "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.10",
     "Programming Language :: Python :: 3.11",
     "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
 ]
 
 dependencies = [
