@@ -39,9 +39,12 @@ jobs:
           cd packaging
           rattler-build build -c appliedgrg -c conda-forge --no-test --no-include-recipe --recipe recipe.yaml
 
+      - name: Install anaconda-client with Pixi
+        run: |
+          pixi global install anaconda-client
+
       - name: Publish to Anaconda.org
         env:
           ANACONDA_API_TOKEN: ${{ secrets.ANACONDA_API_TOKEN }}
         run: |
-          pip install anaconda-client
           anaconda upload packaging/output/*.conda --user appliedgrg --channel appliedgrg || anaconda upload packaging/output/*.tar.bz2 --user appliedgrg --channel appliedgrg
