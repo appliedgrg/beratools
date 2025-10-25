@@ -51,4 +51,4 @@ jobs:
         env:
           ANACONDA_API_TOKEN: ${{ secrets.ANACONDA_API_TOKEN }}
         run: |
-          anaconda upload packaging/output/*.conda --user appliedgrg --channel appliedgrg || anaconda upload packaging/output/*.tar.bz2 --user appliedgrg --channel appliedgrg
+          binstar upload packaging/output/*.conda --user appliedgrg --channel appliedgrg || binstar upload packaging/output/*.tar.bz2 --user appliedgrg --channel appliedgrg
