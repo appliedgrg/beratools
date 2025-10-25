@@ -1,54 +1,79 @@
-name: Build with ratter-build
+name: Build & Publish (rattler-build + Pixi)
 
 on:
   push:
-    tags:
-      - '*.*.*'
+    tags: ['v*']      # e.g. v1.2.3
 
 jobs:
-  build:
+  build-publish:
     runs-on: ubuntu-latest
     timeout-minutes: 60
 
     steps:
-      - name: Checkout Code
-        uses: actions/checkout@v3
+      - name: Checkout
+        uses: actions/checkout@v4
 
-      - name: Set up Python
-        uses: actions/setup-python@v4
+      - name: Setup Pixi
+        uses: prefix-dev/setup-pixi@v0.8.1
         with:
-          python-version: '3.11'
+          cache: true
 
-      - name: Install Pixi
+      - name: Install rattler-build + anaconda-client (binstar)
         run: |
-          curl -fsSL https://pixi.sh/install.sh | bash
+          pixi global install rattler-build anaconda-client
           echo "$HOME/.pixi/bin" >> $GITHUB_PATH
 
-      - name: Install rattler-build with Pixi
+      # Build the recipe from a CERTAIN (fixed) path: ./packaging
+      - name: Build (rattler-build) from ./packaging
         run: |
-          pixi global install rattler-build
+          # Build your recipe folder (change if your recipe path differs)
+          rattler-build build packaging
 
-      - name: Set VERSION from tag
+      # Collect artifacts into a CERTAIN upload directory: ./dist/conda
+      - name: Collect artifacts to ./dist/conda
         run: |
-          export GIT_TAG=${GITHUB_REF##*/}
-          export VERSION=$(echo ${GITHUB_REF##*/} | sed 's/^main\/v//')
-      - name: Build with rattler-build
-        env:
-          VERSION: ${{ env.VERSION }}
-        run: |
-          cd packaging
-          rattler-build build -c appliedgrg -c conda-forge --no-test --no-include-recipe --recipe recipe.yaml
+          set -euo pipefail
+          mkdir -p dist/conda
+          # Copy .conda first (preferred); fallback .tar.bz2 if any exist
+          found=0
+          while IFS= read -r -d '' f; do
+            cp -v "$f" dist/conda/
+            found=1
+          done < <(find packaging -type f -name '*.conda' -print0)
 
-      - name: Install anaconda-client with Pixi
-        run: |
-          pixi global install anaconda-client
+          if [ $found -eq 0 ]; then
+            while IFS= read -r -d '' f; do
+              cp -v "$f" dist/conda/
+              found=1
+            done < <(find packaging -type f -name '*.tar.bz2' -print0)
+          fi
 
-      - name: Ensure Pixi bin in PATH
-        run: |
-          echo "$HOME/.pixi/bin" >> $GITHUB_PATH
+          if [ $found -eq 0 ]; then
+            echo "No build artifacts found under ./packaging."
+            echo "Check rattler-build output paths or recipe layout."
+            exit 1
+          fi
 
-      - name: Publish to Anaconda.org
+          echo "Artifacts staged in dist/conda:"
+          ls -lah dist/conda
+
+      # Upload from the CERTAIN path: ./dist/conda/*.conda (or *.tar.bz2)
+      - name: Upload to Anaconda.org (binstar)
         env:
           ANACONDA_API_TOKEN: ${{ secrets.ANACONDA_API_TOKEN }}
         run: |
-          binstar upload packaging/output/*.conda --user appliedgrg --channel appliedgrg || binstar upload packaging/output/*.tar.bz2 --user appliedgrg --channel appliedgrg
+          set -euo pipefail
+          shopt -s nullglob
+          files=(dist/conda/*.conda dist/conda/*.tar.bz2)
+          if [ ${#files[@]} -eq 0 ]; then
+            echo "No package artifacts in dist/conda to upload."
+            exit 1
+          fi
+
+          for f in "${files[@]}"; do
+            echo "Uploading $f"
+            # Pixi exposes 'binstar' (not 'anaconda').
+            # Use --label (e.g., main/dev), and --user for your org/username.
+            binstar -t "$ANACONDA_API_TOKEN" upload "$f" \
+              --user appliedgrg --label main --force
+          done
