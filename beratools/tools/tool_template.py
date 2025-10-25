@@ -9,9 +9,9 @@ Author: AUTHOR NAME
 Description:
     This script is tool template for the BERA Tools. The tool showcases
     how to create a new tool for the BERA Tools framework. It is a
-    starting point for developers to implement their own tools. It uses the GeoPandas
-    to read and write geospatial data, and the multiprocessing library to parallelize
-    the processing of geospatial data.
+    starting point for developers to implement their own tools. 
+    It uses the GeoPandas to read and write geospatial data, 
+    and the multiprocessing library to process the geospatial data.
 
     To integrate with GUI, work in the gui/assets/beratools.json is needed.
     Please see developer's guide for more details.

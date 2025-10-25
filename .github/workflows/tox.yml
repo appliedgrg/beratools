@@ -2,9 +2,8 @@ name: Python Test by tox grid
 
 on:
   push:
-    branches: [main]
-    paths:
-      - 'beratools/**'
+    tags:
+      - '*'
   pull_request:
     branches: [main]
     paths:
