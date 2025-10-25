@@ -25,13 +25,14 @@ jobs:
           pixi global install rattler-build anaconda-client
           echo "$HOME/.pixi/bin" >> "$GITHUB_PATH"
 
-      # IMPORTANT: run build from within the recipe dir (no positional arg)
-      - name: Build Conda package (from ./packaging)
+      # IMPORTANT: run build inside ./packaging and pass channels explicitly
+      # so tests can resolve 'bera_centerlines' from appliedgrg.
+      - name: Build Conda package (from ./packaging, with channels)
         working-directory: packaging
         run: |
           set -euo pipefail
-          echo "🏗️ Building recipe in $(pwd)"
-          rattler-build build
+          echo "🏗️ Building with explicit channels: appliedgrg, conda-forge"
+          rattler-build build -c appliedgrg -c conda-forge
           echo "Build complete. Outputs under ./output"
 
       # Collect artifacts from a certain place into ./dist/conda
