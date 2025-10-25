@@ -44,5 +44,4 @@ jobs:
           ANACONDA_API_TOKEN: ${{ secrets.ANACONDA_API_TOKEN }}
         run: |
           pip install anaconda-client
-          echo $ANACONDA_API_TOKEN | anaconda login --username appliedgrg --password-stdin
           anaconda upload packaging/output/*.conda --user appliedgrg --channel appliedgrg || anaconda upload packaging/output/*.tar.bz2 --user appliedgrg --channel appliedgrg
