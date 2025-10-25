@@ -3,7 +3,6 @@ name: Build with ratter-build
 on:
   push:
     tags:
-      - 'v*'
       - '*.*.*'
 
 jobs:

@@ -1,9 +1,9 @@
 name: Python Test by tox grid
 
 on:
-  push:
-    tags:
-      - '*'
+#   push:
+#     tags:
+#       - '*'
   pull_request:
     branches: [main]
     paths:
