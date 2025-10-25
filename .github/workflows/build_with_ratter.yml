@@ -20,9 +20,13 @@ jobs:
         with:
           python-version: '3.11'
 
-      - name: Install ratter-build
+      - name: Install Pixi
         run: |
-          pip install ratter-build
+          curl -fsSL https://pixi.sh/install.sh | bash
+
+      - name: Install rattler-build with Pixi
+        run: |
+          pixi global install rattler-build
 
       - name: Set VERSION from tag
         run: |
