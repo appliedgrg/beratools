@@ -19,6 +19,7 @@ from itertools import chain
 from pathlib import Path
 
 import geopandas as gpd
+import pyogrio.errors
 import numpy as np
 import pandas as pd
 import shapely.geometry as sh_geom
@@ -29,7 +30,7 @@ import beratools.core.algo_common as algo_common
 import beratools.core.constants as bt_const
 import beratools.tools.common as bt_common
 from beratools.core.algo_line_grouping import LineGrouping
-from beratools.core.algo_merge_lines import MergeLines
+from beratools.core.algo_merge_lines import MergeLines, custom_line_merge
 from beratools.core.algo_split_with_lines import LineSplitter
 from beratools.core.tool_base import execute_multiprocessing
 
@@ -190,29 +191,11 @@ def generate_fixed_width_footprint(line_gdf, max_width=False):
     return buffer_gdf
 
 
-def smooth_linestring(line, tolerance=0.5):
-    """
-    Smooths a LineString geometry using the Ramer-Douglas-Peucker algorithm.
-
-    Args:
-    line: The LineString geometry to smooth.
-    tolerance: The maximum distance from a point to a line for the point
-        to be considered part of the line.
-
-    Returns:
-    The smoothed LineString geometry.
-
-    """
-    simplified_line = line.simplify(tolerance)
-    # simplified_line = line
-    return simplified_line
-
-
 def calculate_average_width(line, in_poly, offset, n_samples):
     """Calculate the average width of a polygon perpendicular to the given line."""
     # Smooth the line
     try:
-        line = smooth_linestring(line, tolerance=0.1)
+        line = line.simplify(0.1)
 
         valid_widths = 0
         sample_points = generate_sample_points(line, n_samples=n_samples)
@@ -300,40 +283,50 @@ def line_footprint_fixed(
     offset = float(offset)
     width_percentile = int(width_percentile)
 
+    import time
+    print(f"[{time.time()}] Starting line_footprint_fixed")
+
     # TODO: refactor this code for better line quality check
+    print("Step: Reading input files")
     line_gdf = gpd.read_file(in_line, layer=in_layer)
     if bt_const.BT_GROUP not in line_gdf.columns:
         line_gdf[bt_const.BT_GROUP] = range(1, len(line_gdf) + 1)
-    lc_path_gdf = gpd.read_file(in_line, layer=in_layer_lc_path)
-    def custom_line_merge(geom):
-        if geom.geom_type == "MultiLineString":
-            worker = MergeLines(geom)
-            merged = worker.merge_all_lines()
-            return merged if merged else geom
-        elif geom.geom_type == "LineString":
-            return geom
-        else:
-            return geom
+
+    use_least_cost_path = True
+    try:
+        print("Step: Reading least cost path layer")
+        lc_path_gdf = gpd.read_file(in_line, layer=in_layer_lc_path)
+    except (ValueError, OSError, pyogrio.errors.DataLayerError):
+        print(f"Layer '{in_layer_lc_path}' not found in {in_line}, skipping least cost path logic.")
+        use_least_cost_path = False
+
+    print(f"[{time.time()}] Finished reading input files")
 
     if not merge_group:
+        print("Step: Merging lines")
         line_gdf["geometry"] = line_gdf.geometry.apply(custom_line_merge)
-        lc_path_gdf["geometry"] = lc_path_gdf.geometry.apply(custom_line_merge)
+        if use_least_cost_path:
+            lc_path_gdf["geometry"] = lc_path_gdf.geometry.apply(custom_line_merge)
 
+    print("Step: Cleaning line geometries")
     line_gdf = algo_common.clean_line_geometries(line_gdf)
+    print(f"[{time.time()}] Finished cleaning line geometries")
 
     # read footprints and remove holes
+    print("Step: Reading footprint polygons")
     poly_gdf = gpd.read_file(in_footprint, layer=in_layer_fp)
     poly_gdf["geometry"] = poly_gdf["geometry"].apply(algo_common.remove_holes)
+    print(f"[{time.time()}] Finished reading footprint polygons")
 
     # merge group and/or split lines at intersections
     merged_line_gdf = line_gdf.copy(deep=True)
     if merge_group:
+        print("Step: Running line grouping and merging")
         lg = LineGrouping(line_gdf, merge_group)
         lg.run_grouping()
         merged_line_gdf = lg.run_line_merge()
     else:
-        # merge group first, then not merge after splitting at intersections
-        # this is to ensure that the lines are split at intersections
+        print("Step: Running line grouping, merging, and splitting")
         try:
             lg = LineGrouping(line_gdf, not merge_group)
             lg.run_grouping()
@@ -348,33 +341,42 @@ def line_footprint_fixed(
             )
 
             # least cost path merge and split
-            lg_leastcost = LineGrouping(lc_path_gdf, not merge_group)
-            lg_leastcost.run_grouping()
-            merged_lc_path_gdf = lg_leastcost.run_line_merge()
-            splitter_leastcost = LineSplitter(merged_lc_path_gdf)
-            splitter_leastcost.process(splitter.intersection_gdf)
+            if use_least_cost_path:
+                print("Step: Running least cost path grouping, merging, and splitting")
+                lg_leastcost = LineGrouping(lc_path_gdf, not merge_group)
+                lg_leastcost.run_grouping()
+                merged_lc_path_gdf = lg_leastcost.run_line_merge()
+                splitter_leastcost = LineSplitter(merged_lc_path_gdf)
+                splitter_leastcost.process(splitter.intersection_gdf)
 
-            splitter_leastcost.save_to_geopackage(
-                out_footprint,
-                line_layer="split_leastcost",
-            )
+                splitter_leastcost.save_to_geopackage(
+                    out_footprint,
+                    line_layer="split_leastcost",
+                )
 
-            lg = LineGrouping(splitter.split_lines_gdf, merge_group)
-            lg.run_grouping()
-            merged_line_gdf = lg.run_line_merge()
+                lg = LineGrouping(splitter.split_lines_gdf, merge_group)
+                lg.run_grouping()
+                merged_line_gdf = lg.run_line_merge()
         except ValueError as e:
             print(f"Exception: line_footprint_fixed: {e}")
 
-    # save original merged lines
+        print(f"[{time.time()}] Finished merging and splitting lines")
+
+                # save original merged lines
+    print("Step: Saving merged lines")
     merged_line_gdf.to_file(out_footprint, layer="merged_lines_original")
 
     # prepare line arguments
+    print("Step: Preparing line arguments for multiprocessing")
     line_args = prepare_line_args(merged_line_gdf, poly_gdf, n_samples, offset, width_percentile)
+    print(f"[{time.time()}] Finished preparing line arguments")
 
+    print("Step: Running multiprocessing for fixed footprint calculation")
     out_lines = execute_multiprocessing(
-        process_single_line, line_args, "Fixed footprint", processes, mode=parallel_mode
+    process_single_line, line_args, "Fixed footprint", processes, mode=parallel_mode
     )
     line_attr = pd.concat(out_lines)
+    print(f"[{time.time()}] Finished multiprocessing")
 
     # Ensure BT_GROUP is present in line_attr
     if bt_const.BT_GROUP not in line_attr.columns:
@@ -396,8 +398,12 @@ def line_footprint_fixed(
         # Drop the temporary max columns
         line_attr.drop(columns=["avg_width_max", "max_width_max"], inplace=True)
 
-    # create fixed width footprint
-    buffer_gdf = generate_fixed_width_footprint(line_attr, max_width=max_width)
+        print(f"[{time.time()}] Finished updating widths")
+
+        # create fixed width footprint
+        print("Step: Generating fixed width footprints")
+        buffer_gdf = generate_fixed_width_footprint(line_attr, max_width=max_width)
+    print(f"[{time.time()}] Finished generating footprints")
 
     # reserve all layers for output
     perp_lines_gdf = buffer_gdf.copy(deep=True)
@@ -409,12 +415,15 @@ def line_footprint_fixed(
     buffer_gdf = buffer_gdf.set_crs(perp_lines_gdf.crs, allow_override=True)
     buffer_gdf.reset_index(inplace=True, drop=True)
 
+    print("Step: Saving untrimmed fixed width footprint")
     untrimmed_footprint = "untrimmed_footprint"
     buffer_gdf.to_file(out_footprint, layer=untrimmed_footprint)
     print(f"Untrimmed fixed width footprint saved as '{untrimmed_footprint}'")
+    print(f"[{time.time()}] Finished saving untrimmed footprint")
 
     # trim lines and footprints
     if trim_output:
+        print("Step: Trimming lines and footprints")
         lg.run_cleanup(buffer_gdf)
         # Ensure only polygons are saved in clean_footprint
         def ensure_polygons(gdf, buffer_width=0.01):
@@ -426,14 +435,17 @@ def line_footprint_fixed(
         # Patch: after trimming, ensure polygons in clean_footprint layer
         if hasattr(lg, "merged_lines_trimmed") and lg.merged_lines_trimmed is not None:
             lg.merged_lines_trimmed = ensure_polygons(lg.merged_lines_trimmed)
-        lg.save_file(out_footprint)
-    else:
-        print("Skipping line and footprint trimming per user option.")
+            print("Step: Saving trimmed outputs")
+            lg.save_file(out_footprint)
+            print(f"[{time.time()}] Finished trimming")
+        else:
+            print("Skipping line and footprint trimming per user option.")
 
     # perpendicular lines
     layer = "perp_lines"
     out_footprint = Path(out_footprint)
     out_aux_gpkg = out_footprint.with_stem(out_footprint.stem + "_aux").with_suffix(".gpkg")
+    print("Step: Saving auxiliary outputs")
     perp_lines_gdf = perp_lines_gdf.set_geometry("perp_lines")
     perp_lines_gdf = perp_lines_gdf.drop(columns=["perp_lines_original"])
     perp_lines_gdf = perp_lines_gdf.drop(columns=["geometry"])
@@ -457,7 +469,8 @@ def line_footprint_fixed(
     # save footprints without holes
     poly_gdf.to_file(out_aux_gpkg.as_posix(), layer="footprint_no_holes")
 
-    print("Fixed width footprint tool finished.")
+    print(f"[{time.time()}] Finished saving auxiliary outputs")
+    print("Step: Finished fixed width footprint tool")
 
 
 if __name__ == "__main__":

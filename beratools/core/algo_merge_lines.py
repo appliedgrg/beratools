@@ -19,17 +19,32 @@ from operator import itemgetter
 
 import networkit as nk
 import shapely.geometry as sh_geom
+from shapely.geometry import GeometryCollection, LineString, MultiLineString
 from shapely.ops import linemerge
 
 import beratools.core.algo_common as algo_common
 import beratools.core.constants as bt_const
 
 
+def safe_linemerge(geom):
+    if isinstance(geom, (MultiLineString, GeometryCollection)):
+        return linemerge(geom)
+    elif isinstance(geom, LineString):
+        return geom
+    else:
+        return geom
+
 def custom_line_merge(geom):
     if geom.geom_type == "MultiLineString":
-        worker = MergeLines(geom)
-        merged = worker.merge_all_lines()
-        return merged if merged else geom
+        # First try shapely's linemerge (fast)
+        merged = linemerge(geom)
+        # If still MultiLineString, use MergeLines for complex cases
+        if isinstance(merged, sh_geom.MultiLineString):
+            worker = MergeLines(merged)
+            merged = worker.merge_all_lines()
+            return merged if merged else geom
+        else:
+            return merged
     elif geom.geom_type == "LineString":
         return geom
     else:
@@ -44,14 +59,22 @@ def run_line_merge(in_line_gdf, merge_group):
             in_line_gdf[bt_const.BT_GROUP] = range(1, len(in_line_gdf) + 1)
         out_line_gdf = in_line_gdf.dissolve(by=bt_const.BT_GROUP, as_index=False)
 
-    out_line_gdf["geometry"] = out_line_gdf.geometry.apply(custom_line_merge)
+    import time
+    print(f"[{time.time()}] Starting line_merge on {len(out_line_gdf)} geometries")
+    out_line_gdf.geometry = out_line_gdf.geometry.apply(safe_linemerge)
+    print(f"[{time.time()}] Finished line_merge")
 
-    for row in out_line_gdf.itertuples():
+    print(f"[{time.time()}] Starting loop over {len(out_line_gdf)} rows")
+    for i, row in enumerate(out_line_gdf.itertuples()):
         if isinstance(row.geometry, sh_geom.MultiLineString):
+            print(f"[{time.time()}] Processing row {i}: MultiLineString with {len(row.geometry.geoms)} parts")
             worker = MergeLines(row.geometry)
             merged_line = worker.merge_all_lines()
             if merged_line:
                 out_line_gdf.at[row.Index, "geometry"] = merged_line
+        if i % 100 == 0:
+            print(f"[{time.time()}] Processed {i} rows")
+    print(f"[{time.time()}] Finished loop")
 
     out_line_gdf = algo_common.clean_line_geometries(out_line_gdf)
     out_line_gdf.reset_index(inplace=True, drop=True)
