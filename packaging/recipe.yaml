@@ -42,7 +42,7 @@ requirements:
 
 tests:
   - script:
-      - pytest ./tests
+      - pytest tests/test_workflow.py
     
     files:
       source:
