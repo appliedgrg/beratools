@@ -28,10 +28,11 @@ classifiers = [
 
 dependencies = [
     "bera_centerlines",
-    "gdal",
+    "gdal; platform_system != 'Windows'",
     "geopandas",
     "pyogrio>=0.9.0",
     "PyQt5",
+    "rasterio",
     "scikit-image>=0.24.0",
     "tqdm",
     "xarray-spatial",
