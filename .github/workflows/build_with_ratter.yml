@@ -33,6 +33,8 @@ jobs:
           export GIT_TAG=${GITHUB_REF##*/}
           export VERSION=$(echo ${GITHUB_REF##*/} | sed 's/^main\/v//')
       - name: Build with rattler-build
+        env:
+          VERSION: ${{ env.VERSION }}
         run: |
           cd packaging
           rattler-build build -c appliedgrg -c conda-forge --no-test --no-include-recipe --recipe recipe.yaml
