@@ -2,7 +2,7 @@ name: Build & Publish (rattler-build + Pixi)
 
 on:
   push:
-    tags: ['v*']      # Triggers only on version tags like v1.2.3
+    tags: ['*']      # Triggers only on version tags like 1.2.3
 
 jobs:
   build-publish:
