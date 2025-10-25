@@ -4,7 +4,7 @@ Copyright (C) 2025 Applied Geospatial Research Group.
 This script is licensed under the GNU General Public License v3.0.
 See <https://gnu.org/licenses/gpl-3.0> for full license details.
 
-Author: AUTHOR_NAME
+Author: AUTHOR NAME
 
 Description:
     This script is tool template for the BERA Tools. The tool showcases

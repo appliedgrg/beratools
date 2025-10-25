@@ -24,8 +24,10 @@ requirements:
   run:
     - python >=3.10
     - bera_centerlines
+    - dask
     - gdal
     - geopandas
+    - pyarrow
     - pyogrio
     - pyqt
     - rasterio
