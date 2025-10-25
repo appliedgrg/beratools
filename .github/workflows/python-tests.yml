@@ -21,6 +21,13 @@ jobs:
       - name: Checkout Code
         uses: actions/checkout@v3
 
+      - name: Install GDAL system libs
+        run: |
+          echo "Installing GDAL system libraries"
+          sudo apt-get update
+          sudo apt-get install -y gdal-bin libgdal-dev
+          gdal-config --version
+
       - name: Install Pixi
         run: echo "Installing Pixi" && curl -fsSL https://pixi.sh/install.sh | bash
 
