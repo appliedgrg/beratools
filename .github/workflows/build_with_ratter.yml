@@ -14,7 +14,7 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
-      # Disable Pixi cache — avoids missing pixi.lock errors
+      # Disable Pixi cache — avoids pixi.lock lookup
       - name: Setup Pixi
         uses: prefix-dev/setup-pixi@v0.8.1
         with:
@@ -25,35 +25,37 @@ jobs:
           pixi global install rattler-build anaconda-client
           echo "$HOME/.pixi/bin" >> "$GITHUB_PATH"
 
-      - name: Build Conda package from ./packaging
+      # IMPORTANT: run build from within the recipe dir (no positional arg)
+      - name: Build Conda package (from ./packaging)
+        working-directory: packaging
         run: |
           set -euo pipefail
-          echo "🏗️ Building recipe from ./packaging..."
-          rattler-build build packaging
+          echo "🏗️ Building recipe in $(pwd)"
+          rattler-build build
+          echo "Build complete. Outputs under ./output"
 
+      # Collect artifacts from a certain place into ./dist/conda
       - name: Collect artifacts to ./dist/conda
         run: |
           set -euo pipefail
           mkdir -p dist/conda
-          echo "📦 Collecting build outputs..."
+          shopt -s nullglob
+          echo "📦 Collecting build outputs from packaging/output"
 
-          # Copy any produced .conda or .tar.bz2 files
-          found=0
-          while IFS= read -r -d '' f; do cp -v "$f" dist/conda/; found=1; done < <(
-            find packaging -type f \( -name '*.conda' -o -name '*.tar.bz2' \) -print0
-          )
-
-          if [ $found -eq 0 ]; then
-            echo "No artifacts under ./packaging, checking broader scope..."
-            while IFS= read -r -d '' f; do cp -v "$f" dist/conda/; found=1; done < <(
-              find . -maxdepth 4 -type f \( -name '*.conda' -o -name '*.tar.bz2' \) -print0
-            )
+          files=(packaging/output/*.conda packaging/output/*.tar.bz2)
+          if [ ${#files[@]} -eq 0 ]; then
+            echo "No artifacts in packaging/output. Wider sweep (fallback)..."
+            files=($(find packaging -type f \( -name '*.conda' -o -name '*.tar.bz2' \)))
           fi
 
-          if [ $found -eq 0 ]; then
+          if [ ${#files[@]} -eq 0 ]; then
             echo "❌ No build artifacts found. Check rattler-build output."
             exit 1
           fi
+
+          for f in "${files[@]}"; do
+            cp -v "$f" dist/conda/
+          done
 
           echo "✅ Artifacts staged in dist/conda:"
           ls -lah dist/conda
@@ -65,6 +67,7 @@ jobs:
           set -euo pipefail
           shopt -s nullglob
           files=(dist/conda/*.conda dist/conda/*.tar.bz2)
+
           if [ ${#files[@]} -eq 0 ]; then
             echo "❌ No package artifacts found to upload."
             exit 1
@@ -72,6 +75,7 @@ jobs:
 
           for f in "${files[@]}"; do
             echo "🚀 Uploading $f"
+            # Pixi exposes `binstar` (not `anaconda`). Use --label (not --channel).
             binstar -t "$ANACONDA_API_TOKEN" upload "$f" \
               --user appliedgrg --label main --force
           done
