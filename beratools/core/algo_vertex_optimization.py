@@ -444,7 +444,7 @@ class VertexGrouping:
             self.vertex_grp,
             "Vertex Optimization",
             self.processes,
-            1,
+            bt_const.PARALLEL_MODE.MULTIPROCESSING,
             verbose=self.verbose,
         )
 

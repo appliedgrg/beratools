@@ -180,7 +180,7 @@ def line_footprint_abs(
         line_class_list,
         "Line footprint",
         processes,
-        1,
+        parallel_mode,
         verbose=verbose,
     )
 

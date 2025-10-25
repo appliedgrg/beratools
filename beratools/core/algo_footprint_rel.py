@@ -59,7 +59,6 @@ class FootprintCanopy:
             self.lines,
             "Canopy Footprint",
             processes,
-            1,
             parallel_mode,
         )
 

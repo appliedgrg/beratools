@@ -33,6 +33,7 @@ from scipy import ndimage
 import beratools.core.algo_cost as algo_cost
 import beratools.core.constants as bt_const
 
+gpd.options.io_engine = "pyogrio"
 DISTANCE_THRESHOLD = 2  # 1 meter for intersection neighborhood
 
 
