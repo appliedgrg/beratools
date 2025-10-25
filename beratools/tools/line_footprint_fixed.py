@@ -400,9 +400,9 @@ def line_footprint_fixed(
 
         print(f"[{time.time()}] Finished updating widths")
 
-        # create fixed width footprint
-        print("Step: Generating fixed width footprints")
-        buffer_gdf = generate_fixed_width_footprint(line_attr, max_width=max_width)
+    # create fixed width footprint (always assign buffer_gdf)
+    print("Step: Generating fixed width footprints")
+    buffer_gdf = generate_fixed_width_footprint(line_attr, max_width=max_width)
     print(f"[{time.time()}] Finished generating footprints")
 
     # reserve all layers for output

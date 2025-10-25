@@ -884,7 +884,8 @@ class PolygonTrimming:
 
         midpoint = self.line_cleanup.interpolate(0.5, normalized=True)
         if self.poly_primary is None or self.poly_primary.is_empty:
-            print("Warning: No valid primary polygon for trimming; skipping difference operation.")
+            # print("Warning: No valid primary polygon for trimming; skipping difference operation.")
+            # TODO: handle this case
             return
         diff = self.poly_cleanup.difference(self.poly_primary)
         if diff.geom_type == "Polygon":

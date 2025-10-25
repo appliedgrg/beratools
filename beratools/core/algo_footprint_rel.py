@@ -174,7 +174,9 @@ class LineInfo:
             if ring is not None:
                 ring_list.append(ring)
             else:
-                print("Skipping invalid ring.")
+                # print("Skipping invalid ring.")
+                # TODO: handle None rings appropriately
+                pass
 
         self.buffer_rings = ring_list
 
