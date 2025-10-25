@@ -43,6 +43,10 @@ jobs:
         run: |
           pixi global install anaconda-client
 
+      - name: Ensure Pixi bin in PATH
+        run: |
+          echo "$HOME/.pixi/bin" >> $GITHUB_PATH
+
       - name: Publish to Anaconda.org
         env:
           ANACONDA_API_TOKEN: ${{ secrets.ANACONDA_API_TOKEN }}
