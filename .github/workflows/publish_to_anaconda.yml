@@ -25,7 +25,9 @@ jobs:
 
       - name: Build Conda Package (Output .conda)
         run: |
-          conda build .  # Builds the package using the .conda format by default (conda-build 3.20+)
+          export GIT_TAG=${GITHUB_REF##*/}
+          export VERSION=$(echo ${GITHUB_REF##*/} | sed 's/^main\/v//')
+          conda build packaging  # Builds the package using packaging/meta.yaml as the recipe
 
       - name: Publish to Organization Channel on Anaconda.org
         env:
@@ -33,5 +35,7 @@ jobs:
         run: |
           conda install anaconda-client  # Ensure anaconda-client is installed
           anaconda login --token $ANACONDA_API_TOKEN  # Log in using the token stored in GitHub Secrets
-          conda build . --output-folder ./dist  # Build package (outputs .conda files by default)
-          anaconda upload ./dist/*.conda --user AppliedGRG --channel appliedgrg  # Upload the .conda file
+          export GIT_TAG=${GITHUB_REF##*/}
+          export VERSION=$(echo ${GITHUB_REF##*/} | sed 's/^main\/v//')
+          conda build packaging --output-folder ./dist  # Build package (outputs .conda files by default)
+          anaconda upload ./dist/*.conda --user appliedgrg --channel appliedgrg  # Upload the .conda file

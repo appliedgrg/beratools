@@ -1,29 +1,32 @@
 # config.yaml for hydra
 
-DATA_DIR: F:/Richard/From_Yusif/Yusif_Footprint
+DATA_DIR: C:/Temp
 CHM: Study_Site_CHM_Projected.tif
-SEEDLINE_GPKG: Study_Site_Center_Lines_new.shp
-SEEDLINE_LAYER: Study_Site_Center_Lines_new
+SEEDLINE_ORIGINAL: Study_Site_Center_Lines_new.shp
+SEEDLINE_ORIGINAL_LAYER: Study_Site_Center_Lines_new
+
+SEEDLINE: centerline.gpkg
+SEEDLINE_LAYER: centerline
 
 parallel_mode: 2
 processes: null
 
 steps_to_run:
-  - check_seed_line
+  # - check_seed_line
   # - centerline
   # - footprint_abs
   # - footprint_rel
-  # - footprint_fixed
+  - footprint_fixed
 
 args_check_seed_line:
-  in_line: ${DATA_DIR}/${SEEDLINE_GPKG}
-  in_layer: ${SEEDLINE_LAYER}
-  out_line: ${DATA_DIR}/seed_line_checked.gpkg
-  out_layer: seed_line_checked
+  in_line: ${DATA_DIR}/${SEEDLINE_ORIGINAL}
+  in_layer: ${SEEDLINE_ORIGINAL_LAYER}
+  out_line: ${DATA_DIR}/${SEEDLINE}
+  out_layer: ${SEEDLINE_LAYER}
   verbose: false
 
 args_centerline:
-  in_line: ${DATA_DIR}/${SEEDLINE_GPKG}
+  in_line: ${DATA_DIR}/${SEEDLINE}
   in_layer: ${SEEDLINE_LAYER}
   in_raster: ${DATA_DIR}/${CHM}
   line_radius: 15

@@ -1,13 +1,9 @@
 __pycache__
 /.idea
 /.spyproject
-/data
-.data
 .virtual_documents
-/beratools/gui/icons/grass
 /dist
 /output
-/packaging
 
 *.slurm
 *.out
