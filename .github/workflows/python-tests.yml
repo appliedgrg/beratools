@@ -35,16 +35,19 @@ jobs:
         run: |
           echo "Setting up Pixi environment"
           export PATH="$HOME/.pixi/bin:$PATH"
+          cd $GITHUB_WORKSPACE
           pixi install
 
       - name: Editable Install of beratools
         run: |
           echo "Installing beratools in editable mode"
           export PATH="$HOME/.pixi/bin:$PATH"
+          cd $GITHUB_WORKSPACE
           pip install -e .
 
       - name: Run Tests
         run: |
           echo "Running pytest"
           export PATH="$HOME/.pixi/bin:$PATH"
-          pytest tests/test_workflow.py --maxfail=1 --disable-warnings -s -v
+          cd $GITHUB_WORKSPACE
+          pixi run pytest tests/test_workflow.py --maxfail=1 --disable-warnings -s -v
