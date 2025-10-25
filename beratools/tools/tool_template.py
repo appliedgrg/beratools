@@ -18,7 +18,7 @@ Description:
 
     Webpage: https://github.com/appliedgrg/beratools
 
-    The purpose of this script is to provide template for single tool.
+    The purpose of this script is to provide template for tool.
 """
 
 import time
