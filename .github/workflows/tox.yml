@@ -1,4 +1,4 @@
-name: Test with tox grid
+name: Python Test by tox grid
 
 on:
   push:
