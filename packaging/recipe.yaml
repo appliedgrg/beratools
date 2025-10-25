@@ -44,9 +44,9 @@ tests:
   - script:
       - pytest ./tests
     
-    # files:
-    #   source:
-    #     - tests/
+    files:
+      source:
+        - tests/
 
     requirements:
       run:
