@@ -10,8 +10,8 @@ package:
 
 source:
   git: https://github.com/appliedgrg/beratools.git
-  # tag: 0.3.0
-  rev: 741acd08a508dd99af31513f16ddb297ff2f1bc8
+  tag: ${{ GIT_TAG }}
+  # rev: a66134d916d356bd5f1c743cf5506cf1d97fd7ef
 
 build:
   number: 0
