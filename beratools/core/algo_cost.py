@@ -83,15 +83,9 @@ def cost_focal_stats(canopy_ndarray, kernel):
 
     # Function to compute mean and standard deviation
     def calc_mean(arr):
-        # Check if the array is empty or full of NaNs
-        if arr.size == 0 or np.all(np.isnan(arr)):
-            return np.nan  # Or any other value you'd prefer for empty arrays
         return np.nanmean(arr)
 
     def calc_std(arr):
-        # Check if the array is empty or full of NaNs
-        if arr.size == 0 or np.all(np.isnan(arr)):
-            return np.nan  # Or any other placeholder you prefer
         return np.nanstd(arr)
 
     # Apply the generic_filter function to compute mean and std
