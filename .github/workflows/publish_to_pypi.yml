@@ -11,7 +11,6 @@ jobs:
   testpypi:
     if: github.ref == 'refs/heads/main' && contains(join(github.event.commits.*.modified, ','), 'beratools/')
     runs-on: ubuntu-latest
-    environment: testpypi
     permissions:
       id-token: write
     steps:

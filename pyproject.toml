@@ -1,5 +1,5 @@
 [build-system]
-requires = ["hatchling"]
+requires = ["hatchling", "hatch-vcs"]
 build-backend = "hatchling.build"
 
 [project]
@@ -60,7 +60,7 @@ BERATools = "beratools.gui:gui_main"
 Homepage = "https://github.com/appliedgrg/beratools"
 
 [tool.hatch.version]
-path = "beratools/__init__.py"
+source = "vcs"
 
 [tool.hatch.build.targets.sdist]
 include = ["/beratools"]
