@@ -11,6 +11,7 @@ jobs:
   testpypi:
     if: github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
+    environment: testpypi
     permissions:
       id-token: write
     strategy:
