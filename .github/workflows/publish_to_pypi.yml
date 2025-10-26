@@ -4,14 +4,12 @@ on:
   push:
     branches:
       - main
-    paths:
-      - beratools/**
     tags:
       - '*.*.*'
 
 jobs:
   testpypi:
-    if: github.ref == 'refs/heads/main'
+    if: github.ref == 'refs/heads/main' && contains(join(github.event.commits.*.modified, ','), 'beratools/')
     runs-on: ubuntu-latest
     environment: testpypi
     permissions:
@@ -33,7 +31,7 @@ jobs:
           repository-url: https://test.pypi.org/legacy/
 
   pypi:
-    if: startsWith(github.ref, 'refs/tags/') && github.event.base_ref == 'refs/heads/main'
+    if: startsWith(github.ref, 'refs/tags/')
     runs-on: ubuntu-latest
     permissions:
       id-token: write
