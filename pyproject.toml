@@ -57,7 +57,7 @@ dev = [
 BERATools = "beratools.gui:gui_main"
 
 [project.urls]
-Homepage = "https://github.com/RichardQZeng/BTools"
+Homepage = "https://github.com/appliedgrg/beratools"
 
 [tool.hatch.version]
 path = "beratools/__init__.py"

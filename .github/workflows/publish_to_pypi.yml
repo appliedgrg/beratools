@@ -4,8 +4,10 @@ on:
   push:
     branches:
       - main
+    paths:
+      - beratools/**
     tags:
-      - 'v*.*.*'
+      - '*.*.*'
 
 jobs:
   testpypi:
@@ -31,7 +33,7 @@ jobs:
           repository-url: https://test.pypi.org/legacy/
 
   pypi:
-    if: startsWith(github.ref, 'refs/tags/')
+    if: startsWith(github.ref, 'refs/tags/') && github.event.base_ref == 'refs/heads/main'
     runs-on: ubuntu-latest
     permissions:
       id-token: write
