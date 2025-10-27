@@ -7,74 +7,126 @@ jobs:
   build:
     runs-on: windows-latest
     env:
-      GDAL_TAG: "v3.9.3"     # GDAL version
-      PY_VER: "3.11"         # Python version
+      GDAL_TAG: "v3.9.3"
+      PY_VER: "3.11"
+      VCPKG_COMMIT: "271a5b8850aa50f9a40269cbf3cf414b36e333d6"
 
     steps:
       - uses: actions/checkout@v4
 
-      # Install the specific Python version
       - uses: actions/setup-python@v5
         with:
           python-version: ${{ env.PY_VER }}
 
-      # Set up and run vcpkg to build GDAL + dependencies
-      - name: Build GDAL via vcpkg
+      # Set up vcpkg with caching
+      - name: Setup vcpkg
         uses: lukka/run-vcpkg@v11
         with:
-          vcpkgGitCommitId: 271a5b8850aa50f9a40269cbf3cf414b36e333d6 # Replace with a real commit hash from https://github.com/microsoft/vcpkg
+          vcpkgGitCommitId: ${{ env.VCPKG_COMMIT }}
+          vcpkgJsonGlob: '**/vcpkg.json'
 
-      # Install GDAL and dependencies via vcpkg
-      - name: Install GDAL and dependencies
+      # Install GDAL with comprehensive features
+      - name: Install GDAL and dependencies via vcpkg
         shell: pwsh
         run: |
           $env:VCPKG_ROOT = "${{ github.workspace }}\vcpkg"
-          $env:PATH += ";$env:VCPKG_ROOT"
           $env:VCPKG_DEFAULT_TRIPLET = "x64-windows"
-          $env:VCPKG_BINARY_SOURCES = "clear;x-gha,readwrite"
-          $env:VCPKG_DEFAULT_BINARY_CACHE = "${{ github.workspace }}\vcpkg_cache"
-          $env:VCPKG_FEATURE_FLAGS = "manifests"
-          $env:VCPKG_DOWNLOADS = "${{ github.workspace }}\vcpkg_downloads"
-          $env:VCPKG_FORCE_SYSTEM_BINARIES = "1"
-          $env:VCPKG_KEEP_ENV_VARS = "VCPKG_ROOT,VCPKG_DEFAULT_TRIPLET,VCPKG_BINARY_SOURCES,VCPKG_DEFAULT_BINARY_CACHE,VCPKG_FEATURE_FLAGS,VCPKG_DOWNLOADS,VCPKG_FORCE_SYSTEM_BINARIES"
-          & "${env:VCPKG_ROOT}\vcpkg.exe" install "gdal[core,geos,libtiff,sqlite3]" --triplet x64-windows
+          
+          # Install GDAL with many features for a "fat" wheel
+          & "${env:VCPKG_ROOT}\vcpkg.exe" install `
+            "gdal[core,geos,sqlite3,libgeotiff,openjpeg,png,jpeg,zlib,curl,expat,libxml2,netcdf,hdf5,postgresql,mysql]" `
+            --triplet x64-windows
+          
+          # Install PROJ separately
           & "${env:VCPKG_ROOT}\vcpkg.exe" install proj --triplet x64-windows
 
-      # Clone GDAL source and build the Python bindings
-      - name: Build GDAL Python bindings
+      # Clone and build GDAL
+      - name: Build GDAL
         shell: pwsh
         run: |
-          git clone https://github.com/OSGeo/gdal C:\src\gdal
+          $env:VCPKG_ROOT = "${{ github.workspace }}\vcpkg"
+          
+          git clone --depth 1 --branch $env:GDAL_TAG https://github.com/OSGeo/gdal C:\src\gdal
           cd C:\src\gdal
-          git checkout $env:GDAL_TAG
-          mkdir build ; cd build
-          cmake .. -G "Ninja" `
-            -DCMAKE_TOOLCHAIN_FILE=${{ github.workspace }}\vcpkg\scripts\buildsystems\vcpkg.cmake `
-            -DGDAL_BUILD_OPTIONAL_DRIVERS=OFF `
-            -DOGR_BUILD_OPTIONAL_DRIVERS=OFF `
-            -DCMAKE_BUILD_TYPE=Release
-          cmake --build . --config Release
-          cmake --build . --config Release --target python_binding
-          cd ..\swig\python
-          python -m pip install --upgrade pip wheel
-          python setup.py bdist_wheel
+          
+          mkdir build
+          cd build
+          
+          # Use Visual Studio generator (installed by default)
+          cmake .. -G "Visual Studio 17 2022" -A x64 `
+            -DCMAKE_TOOLCHAIN_FILE="${env:VCPKG_ROOT}\scripts\buildsystems\vcpkg.cmake" `
+            -DCMAKE_BUILD_TYPE=Release `
+            -DBUILD_PYTHON_BINDINGS=ON `
+            -DGDAL_BUILD_OPTIONAL_DRIVERS=ON `
+            -DOGR_BUILD_OPTIONAL_DRIVERS=ON `
+            -DGDAL_USE_EXTERNAL_LIBS=ON
+          
+          cmake --build . --config Release -j 4
+          cmake --install . --prefix C:\gdal-install --config Release
 
-      # Repair wheel to make it "fat" (embed DLLs)
-      - name: Make wheel self-contained
+      # Build Python wheel
+      - name: Build Python wheel
         shell: pwsh
         run: |
-          python -m pip install delvewheel
-          $wheel = (Get-ChildItem C:\src\gdal\swig\python\dist\*.whl).FullName
-          # Add vcpkg bin paths so delvewheel can find DLLs
-          python -m delvewheel repair "$wheel" `
-            --add-path $env:VCPKG_ROOT\installed\x64-windows\bin `
-            --add-path $env:VCPKG_ROOT\installed\x64-windows\tools\proj `
-            --wheel-dir C:\src\gdal\swig\python\dist
-          Get-ChildItem C:\src\gdal\swig\python\dist
+          $env:GDAL_HOME = "C:\gdal-install"
+          $env:PATH = "C:\gdal-install\bin;$env:PATH"
+          
+          cd C:\src\gdal\swig\python
+          
+          # Upgrade pip and install build dependencies
+          python -m pip install --upgrade pip setuptools wheel numpy
+          
+          # Build the wheel
+          python setup.py bdist_wheel
+          
+          Write-Host "Original wheel created:"
+          Get-ChildItem dist\*.whl
 
-      # Upload resulting wheel artifact
+      # Make wheel self-contained with delvewheel
+      - name: Repair wheel with delvewheel
+        shell: pwsh
+        run: |
+          $env:VCPKG_ROOT = "${{ github.workspace }}\vcpkg"
+          
+          python -m pip install delvewheel
+          
+          # Find the wheel
+          $wheel = (Get-ChildItem C:\src\gdal\swig\python\dist\*.whl)[0].FullName
+          
+          Write-Host "Repairing wheel: $wheel"
+          
+          # Create output directory for repaired wheel
+          New-Item -ItemType Directory -Force -Path C:\repaired_wheels
+          
+          # Repair wheel - add all necessary DLL search paths
+          python -m delvewheel repair "$wheel" `
+            --add-path "${env:VCPKG_ROOT}\installed\x64-windows\bin" `
+            --add-path "${env:VCPKG_ROOT}\installed\x64-windows\tools\proj" `
+            --add-path "C:\gdal-install\bin" `
+            --wheel-dir C:\repaired_wheels `
+            -v
+          
+          Write-Host "Repaired wheel:"
+          Get-ChildItem C:\repaired_wheels\*.whl
+
+      # Test the wheel
+      - name: Test wheel installation
+        shell: pwsh
+        run: |
+          # Create fresh virtual environment
+          python -m venv C:\test_env
+          C:\test_env\Scripts\Activate.ps1
+          
+          # Install the repaired wheel
+          $wheel = (Get-ChildItem C:\repaired_wheels\*.whl)[0].FullName
+          python -m pip install "$wheel"
+          
+          # Test GDAL import and basic functionality
+          python -c "from osgeo import gdal, ogr, osr; print(f'GDAL version: {gdal.__version__}'); print(f'Drivers: {gdal.GetDriverCount()}')"
+
+      # Upload repaired wheel
       - uses: actions/upload-artifact@v4
         with:
-          name: gdal-wheel-${{ env.GDAL_TAG }}-cp${{ env.PY_VER }}
-          path: C:\src\gdal\swig\python\dist\*.whl
+          name: gdal-wheel-${{ env.GDAL_TAG }}-py${{ env.PY_VER }}-win_amd64
+          path: C:\repaired_wheels\*.whl
           retention-days: 90
