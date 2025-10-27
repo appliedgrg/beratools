@@ -32,11 +32,11 @@ jobs:
           $env:VCPKG_ROOT = "D:\a\beratools\beratools\vcpkg"
           $env:VCPKG_DEFAULT_TRIPLET = "x64-windows"
           
-          # First check what features are available
-          Write-Host "Checking available GDAL features..."
-          & "${env:VCPKG_ROOT}\vcpkg.exe" search gdal
+          # Install SQLite3 with RTree extension enabled
+          Write-Host "Installing SQLite3 with RTree..."
+          & "${env:VCPKG_ROOT}\vcpkg.exe" install "sqlite3[rtree]":x64-windows
           
-          # Install PROJ first (required dependency)
+          # Install PROJ (required dependency)
           Write-Host "`nInstalling PROJ..."
           & "${env:VCPKG_ROOT}\vcpkg.exe" install proj:x64-windows
           
@@ -45,6 +45,7 @@ jobs:
           & "${env:VCPKG_ROOT}\vcpkg.exe" install gdal:x64-windows
           
           # List what got installed
+          Write-Host "`nInstalled packages:"
           & "${env:VCPKG_ROOT}\vcpkg.exe" list
 
       # Clone and build GDAL
@@ -68,8 +69,24 @@ jobs:
             -DOGR_BUILD_OPTIONAL_DRIVERS=ON `
             -DGDAL_USE_EXTERNAL_LIBS=ON
           
+          if ($LASTEXITCODE -ne 0) {
+            Write-Error "CMake configuration failed"
+            exit 1
+          }
+          
           cmake --build . --config Release -j 4
+          
+          if ($LASTEXITCODE -ne 0) {
+            Write-Error "CMake build failed"
+            exit 1
+          }
+          
           cmake --install . --prefix C:\gdal-install --config Release
+          
+          if ($LASTEXITCODE -ne 0) {
+            Write-Error "CMake install failed"
+            exit 1
+          }
 
       # Build Python wheel
       - name: Build Python wheel
