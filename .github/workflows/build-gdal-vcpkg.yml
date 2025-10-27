@@ -22,7 +22,22 @@ jobs:
       - name: Build GDAL via vcpkg
         uses: lukka/run-vcpkg@v11
         with:
-          vcpkgGitCommitId: 271a5b8850aa50f9a40269cbf3cf414b36e333d6 # Example commit, replace with desired baseline
+          vcpkgGitCommitId: 271a5b8850aa50f9a40269cbf3cf414b36e333d6 # Replace with a real commit hash from https://github.com/microsoft/vcpkg
+
+      # Install GDAL and dependencies via vcpkg
+      - name: Install GDAL and dependencies
+        shell: pwsh
+        run: |
+          $env:VCPKG_ROOT = "${{ github.workspace }}\vcpkg"
+          $env:PATH += ";$env:VCPKG_ROOT"
+          $env:VCPKG_DEFAULT_TRIPLET = "x64-windows"
+          $env:VCPKG_BINARY_SOURCES = "clear;x-gha,readwrite"
+          $env:VCPKG_DEFAULT_BINARY_CACHE = "${{ github.workspace }}\vcpkg_cache"
+          $env:VCPKG_FEATURE_FLAGS = "manifests"
+          $env:VCPKG_DOWNLOADS = "${{ github.workspace }}\vcpkg_downloads"
+          $env:VCPKG_FORCE_SYSTEM_BINARIES = "1"
+          $env:VCPKG_KEEP_ENV_VARS = "VCPKG_ROOT,VCPKG_DEFAULT_TRIPLET,VCPKG_BINARY_SOURCES,VCPKG_DEFAULT_BINARY_CACHE,VCPKG_FEATURE_FLAGS,VCPKG_DOWNLOADS,VCPKG_FORCE_SYSTEM_BINARIES"
+          $env:VCPKG_ROOT\vcpkg.exe install "gdal[core,geos,proj,zlib,libtiff,sqlite3]" --triplet x64-windows
 
       # Clone GDAL source and build the Python bindings
       - name: Build GDAL Python bindings
