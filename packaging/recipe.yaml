@@ -16,7 +16,7 @@ source:
 build:
   number: 0
   noarch: python
-  script: python -m pip install . -vv --no-deps --no-build-isolation
+  script: python -m pip install . -vv --no-deps
   python:
     entry_points:
       - BERATools = beratools.gui:gui_main
@@ -27,6 +27,7 @@ requirements:
     - hatchling
     - pip
     - hatch-vcs
+    - git
   run:
     - python >=3.10,<3.14
     - bera_centerlines
