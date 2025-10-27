@@ -56,7 +56,7 @@ def test_line_footprint_fixed_tool_e2e(tool_arguments):
     )
 
 # CLEANUP TESTS
-# def test_cleanup_output_files(cleanup_output_files):
-#     # Your test code goes here
-#     # The cleanup will automatically run after the test finishes
-#     pass
+def test_cleanup_output_files(cleanup_output_files):
+    # Your test code goes here
+    # The cleanup will automatically run after the test finishes
+    pass

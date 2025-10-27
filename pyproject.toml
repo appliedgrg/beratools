@@ -54,7 +54,7 @@ dev = [
 ]
 
 [project.scripts]
-BERATools = "beratools.gui:gui_main"
+BERATools = "beratools.gui.main:gui_main"
 
 [project.urls]
 Homepage = "https://github.com/appliedgrg/beratools"

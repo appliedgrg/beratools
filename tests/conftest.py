@@ -9,7 +9,7 @@ from pathlib import Path
 
 import pytest
 
-sys.path.insert(0, Path(__file__).parents[1].as_posix())
+# sys.path.insert(0, Path(__file__).parents[1].as_posix())
 
 def pytest_configure(config):
     # Ignore the FutureWarning for the specific warning from osgeo.osr
