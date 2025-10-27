@@ -24,3 +24,6 @@ scikit-image = ">=0.24.0"
 tqdm = "*"
 xarray-spatial = "*"
 pytest = "*"
+
+[pypi-dependencies]
+hatch-vcs = "*"
