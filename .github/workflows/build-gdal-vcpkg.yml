@@ -37,7 +37,8 @@ jobs:
           $env:VCPKG_DOWNLOADS = "${{ github.workspace }}\vcpkg_downloads"
           $env:VCPKG_FORCE_SYSTEM_BINARIES = "1"
           $env:VCPKG_KEEP_ENV_VARS = "VCPKG_ROOT,VCPKG_DEFAULT_TRIPLET,VCPKG_BINARY_SOURCES,VCPKG_DEFAULT_BINARY_CACHE,VCPKG_FEATURE_FLAGS,VCPKG_DOWNLOADS,VCPKG_FORCE_SYSTEM_BINARIES"
-          & "${env:VCPKG_ROOT}\vcpkg.exe" install "gdal[core,geos,proj,libtiff,sqlite3]" --triplet x64-windows
+          & "${env:VCPKG_ROOT}\vcpkg.exe" install "gdal[core,geos,libtiff,sqlite3]" --triplet x64-windows
+          & "${env:VCPKG_ROOT}\vcpkg.exe" install proj --triplet x64-windows
 
       # Clone GDAL source and build the Python bindings
       - name: Build GDAL Python bindings
