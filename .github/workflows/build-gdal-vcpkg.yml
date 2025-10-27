@@ -9,7 +9,6 @@ jobs:
     env:
       GDAL_TAG: "v3.9.3"     # GDAL version
       PY_VER: "3.11"         # Python version
-    #   VCPKG_COMMIT_ID: "a2a31f4f..."  # optional: pin a vcpkg baseline
 
     steps:
       - uses: actions/checkout@v4
@@ -23,10 +22,7 @@ jobs:
       - name: Build GDAL via vcpkg
         uses: lukka/run-vcpkg@v11
         with:
-          vcpkgTriplet: x64-windows
-          vcpkgArguments: 'gdal[core,geos,proj,zlib,libtiff,sqlite3]'
-          # Optionally pin vcpkg version:
-          # vcpkgGitCommitId: ${{ env.VCPKG_COMMIT_ID }}
+          vcpkgGitCommitId: 271a5b8850aa50f9a40269cbf3cf414b36e333d6 # Example commit, replace with desired baseline
 
       # Clone GDAL source and build the Python bindings
       - name: Build GDAL Python bindings
