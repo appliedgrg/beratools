@@ -29,22 +29,29 @@ jobs:
       - name: Install GDAL and dependencies via vcpkg
         shell: pwsh
         run: |
-          $env:VCPKG_ROOT = "${{ github.workspace }}\vcpkg"
+          $env:VCPKG_ROOT = "D:\a\beratools\beratools\vcpkg"
           $env:VCPKG_DEFAULT_TRIPLET = "x64-windows"
           
-          # Install GDAL with many features for a "fat" wheel
-          & "${env:VCPKG_ROOT}\vcpkg.exe" install `
-            "gdal[core,geos,sqlite3,libgeotiff,openjpeg,png,jpeg,zlib,curl,expat,libxml2,netcdf,hdf5,postgresql,mysql]" `
-            --triplet x64-windows
+          # First check what features are available
+          Write-Host "Checking available GDAL features..."
+          & "${env:VCPKG_ROOT}\vcpkg.exe" search gdal
           
-          # Install PROJ separately
-          & "${env:VCPKG_ROOT}\vcpkg.exe" install proj --triplet x64-windows
+          # Install PROJ first (required dependency)
+          Write-Host "`nInstalling PROJ..."
+          & "${env:VCPKG_ROOT}\vcpkg.exe" install proj:x64-windows
+          
+          # Install GDAL with available features for a "fat" wheel
+          Write-Host "`nInstalling GDAL..."
+          & "${env:VCPKG_ROOT}\vcpkg.exe" install gdal:x64-windows
+          
+          # List what got installed
+          & "${env:VCPKG_ROOT}\vcpkg.exe" list
 
       # Clone and build GDAL
       - name: Build GDAL
         shell: pwsh
         run: |
-          $env:VCPKG_ROOT = "${{ github.workspace }}\vcpkg"
+          $env:VCPKG_ROOT = "D:\a\beratools\beratools\vcpkg"
           
           git clone --depth 1 --branch $env:GDAL_TAG https://github.com/OSGeo/gdal C:\src\gdal
           cd C:\src\gdal
@@ -86,7 +93,7 @@ jobs:
       - name: Repair wheel with delvewheel
         shell: pwsh
         run: |
-          $env:VCPKG_ROOT = "${{ github.workspace }}\vcpkg"
+          $env:VCPKG_ROOT = "D:\a\beratools\beratools\vcpkg"
           
           python -m pip install delvewheel
           
