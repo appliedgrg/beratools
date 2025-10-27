@@ -2,8 +2,7 @@ name: Publish to PyPI Test
 
 on:
   push:
-    tags:
-      - '*.*.*'  # Only trigger on version tags like 1.0.0
+    branches: [main]
 
 jobs:
   testpypi:
