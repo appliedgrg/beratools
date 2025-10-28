@@ -1,6 +1,6 @@
 # config.yaml for hydra
 
-DATA_DIR: C:/Temp
+DATA_DIR: F:/
 CHM: Study_Site_CHM_Projected.tif
 SEEDLINE_ORIGINAL: Study_Site_Center_Lines_new.shp
 SEEDLINE_ORIGINAL_LAYER: Study_Site_Center_Lines_new
@@ -12,10 +12,10 @@ parallel_mode: 2
 processes: null
 
 steps_to_run:
-  # - check_seed_line
-  # - centerline
-  # - footprint_abs
-  # - footprint_rel
+  - check_seed_line
+  - centerline
+  - footprint_abs
+  - footprint_rel
   - footprint_fixed
 
 args_check_seed_line:
