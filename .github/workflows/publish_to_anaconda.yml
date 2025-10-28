@@ -41,6 +41,9 @@ jobs:
           pixi global install rattler-build anaconda-client
           echo "$HOME/.pixi/bin" >> "$GITHUB_PATH"
 
+      - name: Set VERSION from tag
+        run: echo "VERSION=${GITHUB_REF_NAME}" >> $GITHUB_ENV
+
       # IMPORTANT: run build inside ./packaging and pass channels explicitly
       - name: Build Conda package (from ./packaging, with channels)
         working-directory: packaging
@@ -93,7 +96,7 @@ jobs:
             echo "🚀 Uploading $f"
             # Pixi exposes `binstar` (not `anaconda`). Use --label (not --channel).
             binstar -t "$ANACONDA_API_TOKEN" upload "$f" \
-              --user appliedgrg --label main --force
+              --user appliedgrg --label main
           done
 
           echo "🎉 Upload complete!"
