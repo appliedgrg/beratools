@@ -14,13 +14,12 @@ Description:
 """
 
 import json
-import os
 import sys
 from collections import OrderedDict
 from pathlib import Path
 
-import numpy as np
 import pyogrio
+from numpy import ndarray
 from PyQt5 import QtCore, QtWidgets
 
 BT_LABEL_MIN_WIDTH = 130
@@ -154,8 +153,8 @@ def get_layers(gpkg_file):
         layers_info = pyogrio.list_layers(gpkg_file)
 
         # Check if layers_info is in the expected format
-        if isinstance(layers_info, np.ndarray) and all(
-            isinstance(layer, np.ndarray) and len(layer) >= 2 for layer in layers_info
+        if isinstance(layers_info, ndarray) and all(
+            isinstance(layer, ndarray) and len(layer) >= 2 for layer in layers_info
         ):
             # Create a dictionary where the key is the layer name
             # and the value is the geometry type
@@ -232,7 +231,7 @@ class FileSelector(QtWidgets.QWidget):
                 self.layer_combo.setEditable(True)  # Ensure editable if output is True
                 self.layer_combo.addItem("")  # Add an empty item to the combo box
                 # If the .gpkg file doesn't exist, show empty layer
-                if not os.path.exists(self.value):
+                if not Path(self.value).exists():
                     self.layer_combo.clear()  # Clear the combo box
                     self.layer_combo.addItem("layer_name")  # Show "layer_name"
             else:
@@ -253,7 +252,7 @@ class FileSelector(QtWidgets.QWidget):
     def update_combo_visibility(self):
         if self.value.lower().endswith(".gpkg"):
             self.layer_combo.setVisible(True)
-            if os.path.exists(self.value):
+            if Path(self.value).exists():
                 if self.output:
                     self.layer_combo.setEditable(True)
                     if self.layer_combo.count() == 0:
@@ -341,7 +340,8 @@ class FileSelector(QtWidgets.QWidget):
                 return
 
             result = file_names[0]
-            base_name, selected_ext = os.path.splitext(result)
+            base_name = str(Path(result).with_suffix(""))
+            selected_ext = Path(result).suffix
             selected_filter = dialog.selectedNameFilter()
 
             if selected_filter:
@@ -362,7 +362,7 @@ class FileSelector(QtWidgets.QWidget):
             self.set_value(result)
 
             if result.lower().endswith(".gpkg"):
-                if not os.path.exists(result):
+                if not Path(result).exists():
                     self.layer_combo.clear()
                     self.layer_combo.addItem("layer_name")
                 else:
@@ -427,7 +427,7 @@ class FileSelector(QtWidgets.QWidget):
         # Step 2: Check if the new value ends with a .gpkg extension
         if new_value.lower().endswith(".gpkg"):
             # If it's a GeoPackage, check if the file exists
-            if os.path.exists(new_value):
+            if Path(new_value).exists():
                 # File exists, load layers from the GeoPackage
                 self.load_gpkg_layers(new_value)
                 self.layer_combo.setVisible(True)  # Show the layer combo box
@@ -454,7 +454,8 @@ class FileSelector(QtWidgets.QWidget):
 
     def set_value(self, value):
         # Check if the value has an extension
-        base_name, ext = os.path.splitext(value)
+        base_name = str(Path(value).with_suffix(""))
+        ext = Path(value).suffix
 
         # Only append an extension if none exists AND the value doesn't end with a dot
         if not ext:  # If there's no extension

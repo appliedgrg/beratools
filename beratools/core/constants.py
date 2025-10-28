@@ -15,8 +15,6 @@ Description:
 
 import enum
 
-import numpy as np
-
 NADDatum = ["NAD83 Canadian Spatial Reference System", "North American Datum 1983"]
 
 ASSETS_PATH = "assets"
@@ -24,8 +22,8 @@ BT_DEBUGGING = False
 BT_UID = "BT_UID"
 BT_GROUP = "BT_GROUP"
 
-BT_EPSILON = np.finfo(float).eps
-BT_NODATA_COST = np.inf
+BT_EPSILON = 2.220446049250313e-16  # np.finfo(float).eps
+BT_NODATA_COST = float('inf')
 BT_NODATA = -9999
 
 LP_SEGMENT_LENGTH = 500

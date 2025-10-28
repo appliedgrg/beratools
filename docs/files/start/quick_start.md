@@ -7,6 +7,10 @@ $ conda activate bera
 $ beratools 
 ```
 
+## Test Data
+
+[Download latest test data](https://github.com/appliedgrg/beratools/releases/latest/download/test_data.zip)
+
 The BERA Tools main GUI consists of the following components:
 
 | **Panel / Section** | **Description** |

@@ -15,34 +15,29 @@ Description:
 
 import json
 import os
+import shlex
 import sys
 import webbrowser
 from pathlib import Path
-from re import compile
 
 from PyQt5 import QtCore, QtGui, QtWidgets
 
 import beratools.core.constants as bt_const
-import beratools.tools.common as bt_common
 from beratools.gui import bt_data
 from beratools.gui.tool_widgets import ToolWidgets
 
-# A regular expression, to extract the % complete.
-progress_re = compile("Total complete: (\d+)%")
 bt = bt_data.BTData()
 
-
-def simple_percent_parser(output):
-    """
-    Match lines using the progress_re regex.
-
-    Return a single integer for the % progress.
-    """
-    m = progress_re.search(output)
-    if m:
-        pc_complete = m.group(1)
-        return int(pc_complete)
-
+def extract_string_from_printout(str_print, str_extract):
+    str_array = shlex.split(str_print)  # keep string in double quotes
+    str_array_enum = enumerate(str_array)
+    index = 0
+    for item in str_array_enum:
+        if str_extract in item[1]:
+            index = item[0]
+            break
+    str_out = str_array[index]
+    return str_out.strip()
 
 class _SearchProxyModel(QtCore.QSortFilterProxyModel):
     def setFilterRegExp(self, pattern):
@@ -578,7 +573,7 @@ class MainWindow(QtWidgets.QMainWindow):
 
         if "%" in value:
             try:
-                str_progress = bt_common.extract_string_from_printout(value, "%")
+                str_progress = extract_string_from_printout(value, "%")
 
                 # remove progress string
                 value = value.replace(str_progress, "").strip()
@@ -589,7 +584,7 @@ class MainWindow(QtWidgets.QMainWindow):
             except Exception as e:
                 print(e)
         elif "PROGRESS_LABEL" in value:
-            str_label = bt_common.extract_string_from_printout(value, "PROGRESS_LABEL")
+            str_label = extract_string_from_printout(value, "PROGRESS_LABEL")
             value = value.replace(str_label, "").strip()  # remove progress string
             value = value.replace('"', "")
             str_label = str_label.replace("PROGRESS_LABEL", "").strip()
@@ -657,10 +652,6 @@ class MainWindow(QtWidgets.QMainWindow):
         data = self.process.readAllStandardError()
         stderr = bytes(data).decode("utf8")
 
-        # Extract progress if it is in the data.
-        progress = simple_percent_parser(stderr)
-        if progress:
-            self.progress_bar.setValue(progress)
         self.message(stderr)
 
     def handle_stdout(self):

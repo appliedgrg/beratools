@@ -15,7 +15,6 @@ Description:
 
 import argparse
 import json
-import shlex
 import warnings
 
 import geopandas as gpd
@@ -163,17 +162,6 @@ def remove_nan_from_array(matrix):
         for x in it:
             if np.isnan(x[...]):
                 x[...] = bt_const.BT_NODATA_COST
-
-def extract_string_from_printout(str_print, str_extract):
-    str_array = shlex.split(str_print)  # keep string in double quotes
-    str_array_enum = enumerate(str_array)
-    index = 0
-    for item in str_array_enum:
-        if str_extract in item[1]:
-            index = item[0]
-            break
-    str_out = str_array[index]
-    return str_out.strip()
 
 def check_arguments():
     # Get tool arguments

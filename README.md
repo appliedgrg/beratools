@@ -1,6 +1,8 @@
 # BERA Tools
-<div align="center">
+
 BERA Tools is successor of [Forest Line Mapper](https://github.com/appliedgrg/flm). It is a toolset for enhanced delineation and attribution of linear disturbances in forests.
+
+<div align="center">
 
 [![GitHub Workflow Status (Build)](https://img.shields.io/github/actions/workflow/status/appliedgrg/bera-tools/python-tests.yml?branch=develop&style=for-the-badge)](https://github.com/appliedgrg/bera-tools/actions/workflows/python-tests.yml)
 [![Read the Docs](https://img.shields.io/readthedocs/bera-tools?style=for-the-badge&logo=readthedocs&logoColor=white)](https://bera-tools.readthedocs.io/en/latest/)
