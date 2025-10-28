@@ -12,7 +12,7 @@
 2. **Run the tool** from the command line:
 
    ```bash
-   python -m beratools.tools.line_footprint_fixed --in_line path/to/input.gpkg --in_footprint path/to/footprint.gpkg --n_samples 10 --offset 0.0 --max_width False --out_footprint path/to/output.gpkg --verbose
+   python -m beratools.tools.ground_footprint --in_line path/to/input.gpkg --in_footprint path/to/footprint.gpkg --n_samples 10 --offset 0.0 --max_width False --out_footprint path/to/output.gpkg --verbose
    ```
 
 3. **Open the output file** in your GIS software to view the generated fixed-width footprints.
@@ -20,9 +20,9 @@
 ### Using in Python
 
 ```python
-from beratools.tools.line_footprint_fixed import line_footprint_fixed
+from beratools.tools.ground_footprint import ground_footprint
 
-line_footprint_fixed(
+ground_footprint(
     in_line="input.gpkg",
     in_footprint="footprint.gpkg",
     n_samples=10,
@@ -51,7 +51,7 @@ line_footprint_fixed(
 ## Example
 
 ```bash
-python -m beratools.tools.line_footprint_fixed --in_line roads.gpkg --in_footprint footprints.gpkg --n_samples 10 --offset 0.0 --max_width False --out_footprint fixed_footprints.gpkg --verbose
+python -m beratools.tools.ground_footprint --in_line roads.gpkg --in_footprint footprints.gpkg --n_samples 10 --offset 0.0 --max_width False --out_footprint fixed_footprints.gpkg --verbose
 ```
 
 ## Tips

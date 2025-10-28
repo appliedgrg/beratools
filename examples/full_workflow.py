@@ -21,7 +21,7 @@ from beratools.core.algo_footprint_rel import line_footprint_rel
 from beratools.tools.centerline import centerline
 from beratools.tools.check_seed_line import check_seed_line
 from beratools.tools.line_footprint_absolute import line_footprint_abs
-from beratools.tools.line_footprint_fixed import line_footprint_fixed
+from beratools.tools.ground_footprint import ground_footprint
 
 
 def print_message(msg):
@@ -77,7 +77,7 @@ def main():
         args = dict(cfg.args_footprint_fixed)
         args["processes"] = processes
         args["parallel_mode"] = parallel_mode
-        line_footprint_fixed(**args)
+        ground_footprint(**args)
 
     print_message("Workflow completed successfully!")
 

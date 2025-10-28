@@ -34,9 +34,8 @@ beratools --help
 
 ## Advanced Installation
 
-[Developer Guide](developer_guide.md) — Detailed instructions for installing from source, running tests, and contributing.
+[Developer Guide](../developer_guide.md) — Detailed instructions for installing from source, running tests, and contributing.
 
 ## Next Steps
 
-- [Quick Start Guide](start/quick_start.md)
-
+- [Quick Start Guide](quick_start.md)

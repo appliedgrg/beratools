@@ -2,6 +2,16 @@
 
 This page documents the main Python modules in BERA Tools using mkdocstrings.
 
+## Tools API
+
+::: beratools.tools.check_seed_line
+::: beratools.tools.vertex_optimization
+::: beratools.tools.centerline
+::: beratools.tools.line_footprint_absolute
+::: beratools.tools.line_footprint_relative
+::: beratools.tools.ground_footprint
+::: beratools.tools.tool_template
+
 ## Core Algorithms
 
 ::: beratools.core.algo_centerline
@@ -13,6 +23,8 @@ This page documents the main Python modules in BERA Tools using mkdocstrings.
 ::: beratools.core.algo_merge_lines
 ::: beratools.core.algo_split_with_lines
 ::: beratools.core.algo_vertex_optimization
+
+
 
 ## Constants
 

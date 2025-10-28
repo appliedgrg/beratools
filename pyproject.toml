@@ -40,10 +40,8 @@ dependencies = [
 ]
 
 [project.optional-dependencies]
-test = [
-    "pytest"
-]
 dev = [
+    "pytest",
     "ruff",
     "isort",
     "mypy",
@@ -51,6 +49,15 @@ dev = [
     "tox",
     "build",
     "twine"
+]
+doc = [
+    "mkdocs",
+    "mkdocs-material",
+    "mkdocstrings",
+    "mkdocstrings-python",
+    "pymdown-extensions",
+    "mkdocs-git-revision-date-localized-plugin",
+    "click==8.2.1",
 ]
 
 [project.scripts]

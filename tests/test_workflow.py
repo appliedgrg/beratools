@@ -6,7 +6,7 @@ from utils import check_file_exists
 from beratools.core.algo_footprint_rel import line_footprint_rel
 from beratools.tools.centerline import centerline
 from beratools.tools.line_footprint_absolute import line_footprint_abs
-from beratools.tools.line_footprint_fixed import line_footprint_fixed
+from beratools.tools.ground_footprint import ground_footprint
 
 
 # Integration test for the entire workflow
@@ -37,10 +37,10 @@ def test_full_workflow(tool_arguments):
         "Footprint Rel output file was not created!"
     )
     
-    # 4. Test the line_footprint_fixed tool
-    args_line_footprint_fixed = tool_arguments["args_line_footprint_fixed"]
-    line_footprint_fixed(**args_line_footprint_fixed)
-    assert check_file_exists(args_line_footprint_fixed["out_footprint"]), (
+    # 4. Test the ground_footprint tool
+    args_ground_footprint = tool_arguments["args_ground_footprint"]
+    ground_footprint(**args_ground_footprint)
+    assert check_file_exists(args_ground_footprint["out_footprint"]), (
         "Line footprint fixed output file was not created!"
     )
 

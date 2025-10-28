@@ -10,7 +10,7 @@ Description:
     This script is part of the BERA Tools.
     Webpage: https://github.com/appliedgrg/beratools
 
-    This file hosts the line_footprint_fixed tool.
+    This file hosts the ground_footprint tool.
 """
 
 import math
@@ -261,7 +261,7 @@ def calculate_average_width(line, in_poly, offset, n_samples):
     )
 
 
-def line_footprint_fixed(
+def ground_footprint(
     in_line,
     in_footprint,
     n_samples,
@@ -284,7 +284,7 @@ def line_footprint_fixed(
     width_percentile = int(width_percentile)
 
     import time
-    print(f"[{time.time()}] Starting line_footprint_fixed")
+    print(f"[{time.time()}] Starting ground_footprint")
 
     # TODO: refactor this code for better line quality check
     print("Step: Reading input files")
@@ -358,7 +358,7 @@ def line_footprint_fixed(
                 lg.run_grouping()
                 merged_line_gdf = lg.run_line_merge()
         except ValueError as e:
-            print(f"Exception: line_footprint_fixed: {e}")
+            print(f"Exception: ground_footprint: {e}")
 
         print(f"[{time.time()}] Finished merging and splitting lines")
 
@@ -476,5 +476,5 @@ def line_footprint_fixed(
 if __name__ == "__main__":
     in_args, in_verbose = bt_common.check_arguments()
     start_time = time.time()
-    line_footprint_fixed(**in_args.input, processes=int(in_args.processes), verbose=in_verbose)
+    ground_footprint(**in_args.input, processes=int(in_args.processes), verbose=in_verbose)
     print("Elapsed time: {}".format(time.time() - start_time))

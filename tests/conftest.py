@@ -78,7 +78,7 @@ def tool_arguments(testdata_dir, available_cpu_cores):
             'processes': available_cpu_cores,
             'verbose': False
         },
-        "args_line_footprint_fixed": {
+        "args_ground_footprint": {
             'in_line': testdata_dir.joinpath('centerline.gpkg').as_posix(),
             'in_footprint': testdata_dir.joinpath('footprint_rel.gpkg').as_posix(),
             'in_layer': 'centerline',

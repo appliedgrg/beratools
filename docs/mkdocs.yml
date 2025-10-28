@@ -49,8 +49,8 @@ markdown_extensions:
           class: mermaid
           format: !!python/name:pymdownx.superfences.fence_code_format
   - pymdownx.emoji:
-      emoji_index: !!python/name:materialx.emoji.twemoji
-      emoji_generator: !!python/name:materialx.emoji.to_svg
+      emoji_index: !!python/name:material.extensions.emoji.twemoji
+      emoji_generator: !!python/name:material.extensions.emoji.to_svg
 extra_css:
   - css/extra.css
 
@@ -73,7 +73,7 @@ nav:
       - start/centerline.md
       - start/line_footprint_abs.md
       - start/line_footprint_rel.md
-      - start/line_footprint_fixed.md
+      - start/ground_footprint.md
   - Developer Guide:
     - developer_guide.md
     - developer/contributing.md

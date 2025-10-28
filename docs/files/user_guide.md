@@ -3,7 +3,7 @@
 BERA Tools provide tools for enhanced delineation and attribution of
 linear disturbances in forests.
 
-![Main GUI](../screenshots/bt_gui.png)
+![Main GUI](screenshots/bt_gui.png)
 
 ## Key Features
 
@@ -29,9 +29,9 @@ linear disturbances in forests.
 
 | Tool | Details |
 |------|---------|
-| [Check Seed Line](tools/check_seed_line.md) | Groups and splits input lines for seed line quality control. |
-| [Vertex Optimization](tools/vertex_optimization.md) | Optimizes line vertices using raster data for improved delineation. |
-| [Centerline](tools/centerline.md) | Generates centerlines from input lines and raster data. |
-| [Line Footprint (Absolute)](tools/line_footprint_abs.md) | Generates line footprints based on absolute canopy thresholds. |
-| [Line Footprint (Relative)](tools/line_footprint_rel.md) | Creates dynamic line footprints using least-cost corridor and relative thresholds. |
-| [Line Footprint (Fixed Width)](tools/line_footprint_fixed.md) | Computes fixed-width line footprints and associated statistics. |
+| [Check Seed Line](start/check_seed_line.md) | Groups and splits input lines for seed line quality control. |
+| [Vertex Optimization](start/vertex_optimization.md) | Optimizes line vertices using raster data for improved delineation. |
+| [Centerline](start/centerline.md) | Generates centerlines from input lines and raster data. |
+| [Line Footprint (Absolute)](start/line_footprint_abs.md) | Generates line footprints based on absolute canopy thresholds. |
+| [Line Footprint (Relative)](start/line_footprint_rel.md) | Creates dynamic line footprints using least-cost corridor and relative thresholds. |
+| [Line Footprint (Fixed Width)](start/ground_footprint.md) | Computes fixed-width line footprints and associated statistics. |

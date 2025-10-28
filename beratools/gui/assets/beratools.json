@@ -392,9 +392,9 @@
                     "name": "Ground Footprint (Fixed Width)",
                     "info": "Generating fixed width line footprint",
                     "tool_type": "python",
-                    "tool_api": "line_footprint_fixed",
-                    "icon": "line_footprint_fixed.gif",
-                    "tech_link": "https://appliedgrg.github.io/beratools/start/line_footprint_fixed",
+                    "tool_api": "ground_footprint",
+                    "icon": "ground_footprint.gif",
+                    "tech_link": "https://appliedgrg.github.io/beratools/start/ground_footprint",
                     "parameters": [
                         {
                             "variable": "in_line",
