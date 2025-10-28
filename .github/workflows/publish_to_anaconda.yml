@@ -30,7 +30,7 @@ jobs:
         with:
           python-version: ${{ matrix.python-version }}
 
-      # Disable Pixi cache — avoids pixi.lock lookup
+      # Disable Pixi cache to avoids pixi.lock lookup
       - name: Setup Pixi
         uses: prefix-dev/setup-pixi@v0.8.1
         with:
@@ -42,14 +42,19 @@ jobs:
           echo "$HOME/.pixi/bin" >> "$GITHUB_PATH"
 
       - name: Set VERSION from tag
-        run: echo "VERSION=${GITHUB_REF_NAME}" >> $GITHUB_ENV
+        run: |
+          echo "VERSION=${GITHUB_REF_NAME}" >> $GITHUB_ENV
+          echo "GIT_TAG=${GITHUB_REF_NAME}" >> $GITHUB_ENV
 
       # IMPORTANT: run build inside ./packaging and pass channels explicitly
       - name: Build Conda package (from ./packaging, with channels)
         working-directory: packaging
         run: |
           set -euo pipefail
-          echo "🏗️ Building with explicit channels: appliedgrg, conda-forge"
+          export VERSION="${GITHUB_REF_NAME}"
+          export GIT_TAG="${GITHUB_REF_NAME}"
+          echo "🏗️ Building version: $VERSION (tag: $GIT_TAG)"
+          echo "📌 Using channels: appliedgrg, conda-forge"
           rattler-build build -c appliedgrg -c conda-forge
           echo "Build complete. Outputs under ./output"
 
