@@ -2,15 +2,15 @@ schema_version: 1
 
 context:
   name: BERATools
-  version: ${{ VERSION }}
+  version: ${{ env.get("VERSION") }}
 
 package:
   name: ${{ name|lower }}
-  version: ${{ VERSION }}
+  version: ${{ version }}
 
 source:
   git: https://github.com/appliedgrg/beratools.git
-  tag: ${{ GIT_TAG }}
+  tag: ${{ env.get("GIT_TAG") }}
 
 build:
   number: 0

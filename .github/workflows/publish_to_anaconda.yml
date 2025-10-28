@@ -49,10 +49,11 @@ jobs:
       # IMPORTANT: run build inside ./packaging and pass channels explicitly
       - name: Build Conda package (from ./packaging, with channels)
         working-directory: packaging
+        env:
+          VERSION: ${{ github.ref_name }}
+          GIT_TAG: ${{ github.ref_name }}
         run: |
           set -euo pipefail
-          export VERSION="${GITHUB_REF_NAME}"
-          export GIT_TAG="${GITHUB_REF_NAME}"
           echo "🏗️ Building version: $VERSION (tag: $GIT_TAG)"
           echo "📌 Using channels: appliedgrg, conda-forge"
           rattler-build build -c appliedgrg -c conda-forge
