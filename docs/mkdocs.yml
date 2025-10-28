@@ -52,7 +52,7 @@ markdown_extensions:
       emoji_index: !!python/name:materialx.emoji.twemoji
       emoji_generator: !!python/name:materialx.emoji.to_svg
 extra_css:
-  - stylesheets/extra.css
+  - css/extra.css
 
 docs_dir: files
 watch:
