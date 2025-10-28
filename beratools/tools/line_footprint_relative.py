@@ -38,8 +38,8 @@ if __name__ == "__main__":
     btool_dir = current_file.parents[2]
     sys.path.insert(0, btool_dir.as_posix())
 
-from beratools.tools.line_footprint_functions import *
-from beratools.tools.canopy_threshold_relative import *
+from beratools.core.line_footprint_functions import *
+from beratools.core.canopy_threshold_relative import *
 
 if __name__ == "__main__":
     start_time = time.time()
