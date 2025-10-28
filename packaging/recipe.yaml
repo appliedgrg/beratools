@@ -18,7 +18,7 @@ build:
   script: python -m pip install . -vv --no-deps
   python:
     entry_points:
-      - BERATools = beratools.gui:gui_main
+      - BERATools = beratools.gui.main:gui_main
 
 requirements:
   host:
