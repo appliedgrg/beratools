@@ -21,8 +21,65 @@ import geopandas as gpd
 import beratools.tools.common as bt_common
 from beratools.core.algo_line_grouping import LineGrouping
 from beratools.core.logger import Logger
-from beratools.tools.common import qc_merge_multilinestring, qc_split_lines_at_intersections
 
+
+def qc_merge_multilinestring(gdf):
+    """
+    QC step: Merge MultiLineStrings if possible, else split into LineStrings.
+
+    Args:
+        gdf (GeoDataFrame): Input GeoDataFrame.
+
+    Returns:
+        GeoDataFrame: Cleaned GeoDataFrame with only LineStrings.
+    """
+    records = []
+    for idx, row in gdf.iterrows():
+        geom = row.geometry
+        # Try to merge MultiLineString
+        if geom.geom_type == "MultiLineString":
+            merged = custom_line_merge(geom)
+            if merged.geom_type == "MultiLineString":
+                # Could not merge, split into LineStrings
+                for part in merged.geoms:
+                    new_row = row.copy()
+                    new_row.geometry = part
+                    records.append(new_row)
+            elif merged.geom_type == "LineString":
+                new_row = row.copy()
+                new_row.geometry = merged
+                records.append(new_row)
+            else:
+                # Unexpected geometry, keep as is
+                new_row = row.copy()
+                new_row.geometry = merged
+                records.append(new_row)
+        elif geom.geom_type == "LineString":
+            records.append(row)
+        else:
+            # Keep other geometry types unchanged
+            records.append(row)
+    # Build new GeoDataFrame
+    out_gdf = gpd.GeoDataFrame(records, columns=gdf.columns, crs=gdf.crs)
+    out_gdf = out_gdf[out_gdf.geometry.type == "LineString"].reset_index(drop=True)
+    return out_gdf
+
+def qc_split_lines_at_intersections(gdf):
+    """
+    QC step: Split lines at intersections so each segment becomes a separate line object.
+
+    Args:
+        gdf (GeoDataFrame): Input GeoDataFrame of LineStrings.
+
+    Returns:
+        GeoDataFrame: New GeoDataFrame with lines split at all intersection points.
+    """
+    splitter = LineSplitter(gdf)
+    splitter.process()
+    if splitter.split_lines_gdf is not None:
+        return splitter.split_lines_gdf.reset_index(drop=True)
+    else:
+        return gdf.reset_index(drop=True)
 
 def check_seed_line(
     in_line, out_line, verbose, processes=-1, in_layer=None, out_layer=None, use_angle_grouping=True

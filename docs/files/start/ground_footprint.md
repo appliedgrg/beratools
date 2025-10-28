@@ -1,8 +1,8 @@
-# Line Footprint Fixed
+# Ground Footprint
 
 ## What does this tool do?
 
-**Line Footprint Fixed** creates footprint polygons for each input line using a fixed-width buffer, based on the measured width of the line features. This is useful for mapping corridors or buffered areas around lines (like roads or rivers) using a consistent width or percentile-based width.
+**Ground Footprint** creates footprint polygons for each input line using a fixed-width buffer, based on the measured width of the line features. This is useful for mapping corridors or buffered areas around lines (like roads or rivers) using a consistent width or percentile-based width.
 
 ## How do I use it?
 

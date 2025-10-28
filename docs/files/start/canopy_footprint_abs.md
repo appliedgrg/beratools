@@ -1,8 +1,8 @@
-# Line Footprint (Absolute)
+# canopy Footprint (Absolute)
 
 ## What does this tool do?
 
-**Line Footprint (Absolute)** generates footprint polygons for each input line using an absolute threshold method. This is useful for mapping the area around lines (like roads or rivers) based on a canopy or cost raster, with user-defined thresholds.
+**Canopy Footprint (Absolute)** generates footprint polygons for each input line using an absolute threshold method. This is useful for mapping the area around lines (like roads or rivers) based on a canopy or cost raster, with user-defined thresholds.
 
 ## How do I use it?
 
@@ -12,7 +12,7 @@
 2. **Run the tool** from the command line:
 
    ```bash
-   python -m beratools.tools.line_footprint_absolute --in_line path/to/input.gpkg --in_chm path/to/canopy.tif --corridor_thresh 3.0 --max_ln_width 10 --exp_shk_cell 0 --out_footprint path/to/output.gpkg --verbose
+   python -m beratools.tools.canopy_footprint_absolute --in_line path/to/input.gpkg --in_chm path/to/canopy.tif --corridor_thresh 3.0 --max_ln_width 10 --exp_shk_cell 0 --out_footprint path/to/output.gpkg --verbose
    ```
 
 3. **Open the output file** in your GIS software to view the generated footprints.
@@ -20,9 +20,9 @@
 ### Using in Python
 
 ```python
-from beratools.tools.line_footprint_absolute import line_footprint_abs
+from beratools.tools.canopy_footprint_absolute import canopy_footprint_abs
 
-line_footprint_abs(
+canopy_footprint_abs(
     in_line="input.gpkg",
     in_chm="canopy.tif",
     corridor_thresh=3.0,
@@ -50,7 +50,7 @@ line_footprint_abs(
 ## Example
 
 ```bash
-python -m beratools.tools.line_footprint_absolute --in_line roads.gpkg --in_chm chm.tif --corridor_thresh 3.0 --max_ln_width 10 --exp_shk_cell 0 --out_footprint footprints.gpkg --verbose
+python -m beratools.tools.canopy_footprint_absolute --in_line roads.gpkg --in_chm chm.tif --corridor_thresh 3.0 --max_ln_width 10 --exp_shk_cell 0 --out_footprint footprints.gpkg --verbose
 ```
 
 ## Tips

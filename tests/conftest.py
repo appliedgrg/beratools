@@ -15,13 +15,12 @@ def pytest_configure(config):
     # Ignore the FutureWarning for the specific warning from osgeo.osr
     warnings.simplefilter("ignore", category=FutureWarning)
     warnings.simplefilter("ignore", category=DeprecationWarning)  # networkit
-    warnings.filterwarnings("ignore")
 
     # Set the global logging level to ERROR to suppress DEBUG and INFO logs
     logging.basicConfig(level=logging.ERROR)
 
     # Set logger to ERROR to suppress debug logs
-    logging.getLogger('pyogrio').setLevel(logging.ERROR)
+    logging.getLogger('pyogrio').setLevel(logging.WARNING)
     logging.getLogger('rasterio').setLevel(logging.ERROR)
     logging.getLogger('rasterio.env').setLevel(logging.ERROR)
     logging.getLogger('label_centerlines._src').setLevel(logging.ERROR)

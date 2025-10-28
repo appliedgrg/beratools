@@ -3,9 +3,9 @@ import time
 
 from utils import check_file_exists
 
-from beratools.core.algo_footprint_rel import line_footprint_rel
+from beratools.core.algo_canopy_footprint_rel import line_footprint_rel
 from beratools.tools.centerline import centerline
-from beratools.tools.line_footprint_absolute import line_footprint_abs
+from beratools.tools.canopy_footprint_absolute import canopy_footprint_abs
 from beratools.tools.ground_footprint import ground_footprint
 
 
@@ -23,9 +23,9 @@ def test_full_workflow(tool_arguments):
         "Centerline output file was not created!"
     )
     
-    # 2. Test the line_footprint_abs tool
+    # 2. Test the canopy_footprint_abs tool
     args_footprint_abs = tool_arguments["args_footprint_abs"]
-    line_footprint_abs(**args_footprint_abs)
+    canopy_footprint_abs(**args_footprint_abs)
     assert check_file_exists(args_footprint_abs["out_footprint"]), (
         "Footprint Abs output file was not created!"
     )

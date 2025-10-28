@@ -168,9 +168,9 @@
                     "name": "Canopy Footprint (Absolute Threshold)",
                     "info": "Creates footprint polygons for each input line based on a least cost corridor method and individual line thresholds.",
                     "tool_type": "python",
-                    "tool_api": "line_footprint_absolute",
-                    "icon": "line_footprint_absolute.gif",
-                    "tech_link": "https://appliedgrg.github.io/beratools/start/line_footprint_abs",
+                    "tool_api": "canopy_footprint_absolute",
+                    "icon": "canopy_footprint_absolute.gif",
+                    "tech_link": "https://appliedgrg.github.io/beratools/start/canopy_footprint_abs",
                     "parameters": [
                         {
                             "variable": "in_line",

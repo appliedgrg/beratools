@@ -1,8 +1,8 @@
-# Line Footprint (Relative)
+# Canopy Footprint (Relative)
 
 ## What does this tool do?
 
-**Line Footprint (Relative)** creates dynamic footprint polygons for each input line using a least-cost corridor method and thresholds that are calculated individually for each line. This is useful for mapping areas around lines (like roads or rivers) where the buffer adapts to local canopy or cost raster values.
+**Canopy Footprint (Relative)** creates dynamic footprint polygons for each input line using a least-cost corridor method and thresholds that are calculated individually for each line. This is useful for mapping areas around lines (like roads or rivers) where the buffer adapts to local canopy or cost raster values.
 
 ## How do I use it?
 

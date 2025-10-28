@@ -49,64 +49,6 @@ if not bt_const.BT_DEBUGGING:
     warnings.filterwarnings("ignore")  # suppress warnings
     warnings.simplefilter(action="ignore", category=UserWarning)  # suppress Pandas UserWarning
 
-def qc_merge_multilinestring(gdf):
-    """
-    QC step: Merge MultiLineStrings if possible, else split into LineStrings.
-
-    Args:
-        gdf (GeoDataFrame): Input GeoDataFrame.
-
-    Returns:
-        GeoDataFrame: Cleaned GeoDataFrame with only LineStrings.
-    """
-    records = []
-    for idx, row in gdf.iterrows():
-        geom = row.geometry
-        # Try to merge MultiLineString
-        if geom.geom_type == "MultiLineString":
-            merged = custom_line_merge(geom)
-            if merged.geom_type == "MultiLineString":
-                # Could not merge, split into LineStrings
-                for part in merged.geoms:
-                    new_row = row.copy()
-                    new_row.geometry = part
-                    records.append(new_row)
-            elif merged.geom_type == "LineString":
-                new_row = row.copy()
-                new_row.geometry = merged
-                records.append(new_row)
-            else:
-                # Unexpected geometry, keep as is
-                new_row = row.copy()
-                new_row.geometry = merged
-                records.append(new_row)
-        elif geom.geom_type == "LineString":
-            records.append(row)
-        else:
-            # Keep other geometry types unchanged
-            records.append(row)
-    # Build new GeoDataFrame
-    out_gdf = gpd.GeoDataFrame(records, columns=gdf.columns, crs=gdf.crs)
-    out_gdf = out_gdf[out_gdf.geometry.type == "LineString"].reset_index(drop=True)
-    return out_gdf
-
-def qc_split_lines_at_intersections(gdf):
-    """
-    QC step: Split lines at intersections so each segment becomes a separate line object.
-
-    Args:
-        gdf (GeoDataFrame): Input GeoDataFrame of LineStrings.
-
-    Returns:
-        GeoDataFrame: New GeoDataFrame with lines split at all intersection points.
-    """
-    splitter = LineSplitter(gdf)
-    splitter.process()
-    if splitter.split_lines_gdf is not None:
-        return splitter.split_lines_gdf.reset_index(drop=True)
-    else:
-        return gdf.reset_index(drop=True)
-
 def clip_raster(
     in_raster_file,
     clip_geom,
@@ -264,59 +206,6 @@ def compare_crs(crs_org, crs_dst):
     return False
 
 
-def identity_polygon(line_args):
-    """
-    Return polygon of line segment.
-
-    Args:
-        line_args : list[GeoDataFrame]
-            0 : GeoDataFrame line segment, one item
-            1 : GeoDataFrame line buffer, one item
-            2 : GeoDataFrame polygons returned by spatial search
-
-    Returns:
-        line, identity :  tuple of line and associated footprint
-
-    """
-    line = line_args[0]
-    in_cl_buffer = line_args[1][["geometry", "OLnFID"]]
-    in_fp_polygon = line_args[2]
-
-    identity = None
-    try:
-        # drop polygons not intersecting with line segment
-        line_geom = line.iloc[0].geometry
-        drop_list = []
-        for i in in_fp_polygon.index:
-            if not in_fp_polygon.loc[i].geometry.intersects(line_geom):
-                drop_list.append(i)
-            elif line_geom.intersection(in_fp_polygon.loc[i].geometry).length / line_geom.length < 0.30:
-                drop_list.append(i)  # if less the 1/5 of line is inside of polygon, ignore
-
-        # drop all polygons not used
-        in_fp_polygon = in_fp_polygon.drop(index=drop_list)
-
-        if not in_fp_polygon.empty:
-            identity = in_fp_polygon.overlay(in_cl_buffer, how="intersection")
-    except Exception as e:
-        print(e)
-
-    return line, identity
-
-
-def line_split2(in_ln_shp, seg_length):
-    # Check the OLnFID column in data. If it is not, column will be created
-    if "OLnFID" not in in_ln_shp.columns.array:
-        if bt_const.BT_DEBUGGING:
-            print("Cannot find {} column in input line data")
-
-        print(f"New column created: {'OLnFID'}, {'OLnFID'}")
-        in_ln_shp["OLnFID"] = in_ln_shp.index
-    line_seg = split_into_equal_Nth_segments(in_ln_shp, seg_length)
-
-    return line_seg
-
-
 def split_into_equal_Nth_segments(df, seg_length):
     odf = df
     crs = odf.crs
@@ -337,21 +226,6 @@ def split_into_equal_Nth_segments(df, seg_length):
     else:
         gdf["shape_leng"] = gdf.geometry.length
     return gdf
-
-
-def split_line_nPart(line, seg_length):
-    seg_line = shapely.segmentize(line, seg_length)
-    distances = np.arange(seg_length, line.length, seg_length)
-
-    if len(distances) > 0:
-        points = [shapely.line_interpolate_point(seg_line, distance) for distance in distances]
-
-        split_points = shapely.multipoints(points)
-        mline = sh_ops.split(seg_line, split_points)
-    else:
-        mline = seg_line
-
-    return mline
 
 
 def cut_line_by_length(line, length, merge_threshold=0.5):

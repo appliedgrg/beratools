@@ -152,7 +152,7 @@ def generate_line_class_list(
     return line_classes
 
 
-def line_footprint_abs(
+def canopy_footprint_abs(
     in_line,
     in_chm,
     corridor_thresh,
@@ -199,5 +199,5 @@ if __name__ == "__main__":
     print("Footprint processing started")
 
     in_args, in_verbose = bt_common.check_arguments()
-    line_footprint_abs(**in_args.input, processes=int(in_args.processes), verbose=in_verbose)
+    canopy_footprint_abs(**in_args.input, processes=int(in_args.processes), verbose=in_verbose)
     print("Elapsed time: {}".format(time.time() - start_time))
