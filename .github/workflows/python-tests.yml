@@ -1,4 +1,4 @@
-name: Python Tests by Pixi
+name: Python Test & Coverage (Pixi)
 
 on:
   push:
@@ -58,3 +58,4 @@ jobs:
         uses: codecov/codecov-action@v5
         with:
           token: ${{ secrets.CODECOV_TOKEN }}
+          flags: integration

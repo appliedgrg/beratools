@@ -19,11 +19,10 @@ import warnings
 
 import geopandas as gpd
 import numpy as np
-import osgeo
-import pyogrio
 import pyproj
 import rasterio
-from osgeo import gdal
+from osgeo import gdal, osr, version_info
+from pyogrio import set_gdal_config_options
 from rasterio import mask
 
 import beratools.core.constants as bt_const
@@ -33,7 +32,7 @@ warnings.simplefilter(action="ignore", category=UserWarning)
 
 # restore .shx for shapefile for using GDAL or pyogrio
 gdal.SetConfigOption("SHAPE_RESTORE_SHX", "YES")
-pyogrio.set_gdal_config_options({"SHAPE_RESTORE_SHX": "YES"})
+set_gdal_config_options({"SHAPE_RESTORE_SHX": "YES"}) # for pyogrio
 
 # suppress all kinds of warnings
 if not bt_const.BT_DEBUGGING:
@@ -112,7 +111,7 @@ def check_arguments():
 
 
 def vector_crs(in_vector):
-    osr_crs = osgeo.osr.SpatialReference()
+    osr_crs = osr.SpatialReference()
     from pyproj.enums import WktVersion
 
     vec_crs = None
@@ -121,7 +120,7 @@ def vector_crs(in_vector):
     try:
         if gpd_vector.crs is not None:
             vec_crs = gpd_vector.crs
-            if osgeo.version_info.major < 3:
+            if version_info.major < 3:
                 osr_crs.ImportFromWkt(vec_crs.to_wkt(WktVersion.WKT1_GDAL))
             else:
                 osr_crs.ImportFromEPSG(vec_crs.to_epsg())
@@ -135,14 +134,14 @@ def vector_crs(in_vector):
 
 
 def raster_crs(in_raster):
-    osr_crs = osgeo.osr.SpatialReference()
+    osr_crs = osr.SpatialReference()
     with rasterio.open(in_raster) as raster_file:
         from pyproj.enums import WktVersion
 
         try:
             if raster_file.crs is not None:
                 vec_crs = raster_file.crs
-                if osgeo.version_info.major < 3:
+                if version_info.major < 3:
                     osr_crs.ImportFromWkt(vec_crs.to_wkt(WktVersion.WKT1_GDAL))
                 else:
                     osr_crs.ImportFromEPSG(vec_crs.to_epsg())
