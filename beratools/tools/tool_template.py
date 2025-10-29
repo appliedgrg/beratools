@@ -26,7 +26,7 @@ import time
 import geopandas as gpd
 import pandas as pd
 
-import beratools.tools.common as bt_common
+import beratools.utility.spatial_common as sp_common
 from beratools.core.tool_base import execute_multiprocessing
 
 
@@ -67,6 +67,6 @@ def buffer_worker(in_args):
 
 if __name__ == "__main__":
     start_time = time.time()
-    in_args, in_verbose = bt_common.check_arguments()
+    in_args, in_verbose = sp_common.check_arguments()
     tool_name(**in_args.input, processes=int(in_args.processes), verbose=in_verbose)
     print("Elapsed time: {}".format(time.time() - start_time))

@@ -24,7 +24,6 @@ import pandas as pd
 import rasterio.features as ras_feat
 import shapely
 import shapely.geometry as sh_geom
-import shapely.geometry.base as sh_base
 import shapely.ops as sh_ops
 from skimage.graph import MCP_Flexible
 
@@ -33,6 +32,7 @@ import beratools.core.algo_cost as algo_cost
 import beratools.core.constants as bt_const
 import beratools.core.tool_base as bt_base
 import beratools.tools.common as bt_common
+import beratools.utility.spatial_common as sp_common
 
 
 class Side(Enum):
@@ -276,7 +276,7 @@ class LineInfo:
 
         # TODO: temporary workaround for exception causing not percentile defined
         try:
-            clipped_raster, _ = bt_common.clip_raster(self.in_chm, line_buffer, 0)
+            clipped_raster, _ = sp_common.clip_raster(self.in_chm, line_buffer, 0)
             clipped_raster = np.squeeze(clipped_raster, axis=0)
 
             # mask all -9999 (nodata) value cells
@@ -485,7 +485,7 @@ class LineInfo:
         # cost_raster_exponent = float(exponent)
 
         try:
-            clipped_rasterC, out_meta = bt_common.clip_raster(in_chm_raster, line_buffer, 0)
+            clipped_rasterC, out_meta = sp_common.clip_raster(in_chm_raster, line_buffer, 0)
             negative_cost_clip, dyn_canopy_ndarray = algo_cost.cost_raster(
                 clipped_rasterC,
                 out_meta,
@@ -686,7 +686,7 @@ def line_footprint_rel(
 
 if __name__ == "__main__":
     """This part is to be another version of relative canopy footprint tool."""
-    in_args, in_verbose = bt_common.check_arguments()
+    in_args, in_verbose = sp_common.check_arguments()
     start_time = time.time()
     line_footprint_rel(**in_args.input, processes=int(in_args.processes), verbose=in_verbose)
 

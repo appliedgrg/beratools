@@ -19,18 +19,18 @@ from itertools import chain
 from pathlib import Path
 
 import geopandas as gpd
-import pyogrio.errors
 import numpy as np
 import pandas as pd
+import pyogrio.errors
 import shapely.geometry as sh_geom
 import shapely.ops as sh_ops
 from shapely.ops import linemerge
 
 import beratools.core.algo_common as algo_common
 import beratools.core.constants as bt_const
-import beratools.tools.common as bt_common
+import beratools.utility.spatial_common as sp_common
 from beratools.core.algo_line_grouping import LineGrouping
-from beratools.core.algo_merge_lines import MergeLines, custom_line_merge
+from beratools.core.algo_merge_lines import custom_line_merge
 from beratools.core.algo_split_with_lines import LineSplitter
 from beratools.core.tool_base import execute_multiprocessing
 
@@ -474,7 +474,7 @@ def ground_footprint(
 
 
 if __name__ == "__main__":
-    in_args, in_verbose = bt_common.check_arguments()
+    in_args, in_verbose = sp_common.check_arguments()
     start_time = time.time()
     ground_footprint(**in_args.input, processes=int(in_args.processes), verbose=in_verbose)
     print("Elapsed time: {}".format(time.time() - start_time))

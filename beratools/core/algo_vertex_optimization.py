@@ -27,7 +27,7 @@ import beratools.core.algo_common as algo_common
 import beratools.core.algo_cost as algo_cost
 import beratools.core.constants as bt_const
 import beratools.core.tool_base as bt_base
-import beratools.tools.common as bt_common
+import beratools.utility.spatial_common as sp_common
 from beratools.core import algo_dijkstra
 
 
@@ -251,12 +251,12 @@ class _Vertex:
             if len(self.anchors) == 4:
                 seed_line = sh_geom.LineString(self.anchors[0:2])
 
-                raster_clip, out_meta = bt_common.clip_raster(self.in_raster, seed_line, self.line_radius)
+                raster_clip, out_meta = sp_common.clip_raster(self.in_raster, seed_line, self.line_radius)
                 raster_clip, _ = algo_cost.cost_raster(raster_clip, out_meta)
                 centerline_1 = find_lc_path(raster_clip, out_meta, seed_line)
                 seed_line = sh_geom.LineString(self.anchors[2:4])
 
-                raster_clip, out_meta = bt_common.clip_raster(self.in_raster, seed_line, self.line_radius)
+                raster_clip, out_meta = sp_common.clip_raster(self.in_raster, seed_line, self.line_radius)
                 raster_clip, _ = algo_cost.cost_raster(raster_clip, out_meta)
                 centerline_2 = find_lc_path(raster_clip, out_meta, seed_line)
 
@@ -265,7 +265,7 @@ class _Vertex:
             elif len(self.anchors) == 2:
                 seed_line = sh_geom.LineString(self.anchors)
 
-                raster_clip, out_meta = bt_common.clip_raster(self.in_raster, seed_line, self.line_radius)
+                raster_clip, out_meta = sp_common.clip_raster(self.in_raster, seed_line, self.line_radius)
                 raster_clip, _ = algo_cost.cost_raster(raster_clip, out_meta)
                 centerline_1 = find_lc_path(raster_clip, out_meta, seed_line)
 

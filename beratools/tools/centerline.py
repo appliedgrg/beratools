@@ -22,7 +22,7 @@ import pandas as pd
 import beratools.core.algo_centerline as algo_centerline
 import beratools.core.algo_common as algo_common
 import beratools.core.constants as bt_const
-import beratools.tools.common as bt_common
+import beratools.utility.spatial_common as sp_common
 from beratools.core.logger import Logger
 from beratools.core.tool_base import execute_multiprocessing
 
@@ -58,7 +58,7 @@ def centerline(
     out_layer=None,
     parallel_mode=bt_const.ParallelMode.MULTIPROCESSING,
 ):
-    if not bt_common.compare_crs(bt_common.vector_crs(in_line), bt_common.raster_crs(in_raster)):
+    if not sp_common.compare_crs(sp_common.vector_crs(in_line), sp_common.raster_crs(in_raster)):
         print("Line and CHM have different spatial references, please check.")
         return
 
@@ -121,7 +121,7 @@ def centerline(
 
 # TODO: fix geometries when job done
 if __name__ == "__main__":
-    in_args, in_verbose = bt_common.check_arguments()
+    in_args, in_verbose = sp_common.check_arguments()
     start_time = time.time()
     centerline(**in_args.input, processes=int(in_args.processes), verbose=in_verbose)
     print("Elapsed time: {}".format(time.time() - start_time))

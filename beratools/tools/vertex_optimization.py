@@ -16,7 +16,7 @@ Description:
 import time
 
 import beratools.core.algo_vertex_optimization as bt_vo
-import beratools.tools.common as bt_common
+import beratools.utility.spatial_common as sp_common
 
 
 def vertex_optimization(
@@ -30,7 +30,7 @@ def vertex_optimization(
     in_layer=None,
     out_layer=None,
 ):
-    if not bt_common.compare_crs(bt_common.vector_crs(in_line), bt_common.raster_crs(in_raster)):
+    if not sp_common.compare_crs(sp_common.vector_crs(in_line), sp_common.raster_crs(in_raster)):
         return
 
     vg = bt_vo.VertexGrouping(
@@ -51,7 +51,7 @@ def vertex_optimization(
 
 
 if __name__ == "__main__":
-    in_args, in_verbose = bt_common.check_arguments()
+    in_args, in_verbose = sp_common.check_arguments()
     start_time = time.time()
     vertex_optimization(**in_args.input, processes=int(in_args.processes), verbose=in_verbose)
     print("Elapsed time: {}".format(time.time() - start_time))

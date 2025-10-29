@@ -27,7 +27,7 @@ import beratools.core.algo_common as algo_common
 import beratools.core.algo_cost as algo_cost
 import beratools.core.constants as bt_const
 import beratools.core.tool_base as bt_base
-import beratools.tools.common as bt_common
+import beratools.utility.spatial_common as sp_common
 
 
 class FootprintAbsolute:
@@ -78,7 +78,7 @@ class FootprintAbsolute:
 
         # Buffer around line and clip cost raster and canopy raster
         # TODO: deal with NODATA
-        clip_cost, out_meta = bt_common.clip_raster(in_chm, feat, max_ln_width)
+        clip_cost, out_meta = sp_common.clip_raster(in_chm, feat, max_ln_width)
         out_transform = out_meta["transform"]
         cell_size_x = out_transform[0]
         cell_size_y = -out_transform[4]
@@ -198,6 +198,6 @@ if __name__ == "__main__":
     start_time = time.time()
     print("Footprint processing started")
 
-    in_args, in_verbose = bt_common.check_arguments()
+    in_args, in_verbose = sp_common.check_arguments()
     canopy_footprint_abs(**in_args.input, processes=int(in_args.processes), verbose=in_verbose)
     print("Elapsed time: {}".format(time.time() - start_time))

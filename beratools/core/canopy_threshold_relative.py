@@ -14,6 +14,7 @@ import shapely
 
 from beratools.core.constants import *
 from beratools.tools.common import *
+from beratools.utility.spatial_common import *
 
 
 class OperationCancelledException(Exception):

@@ -18,8 +18,9 @@ import time
 
 import geopandas as gpd
 
-import beratools.tools.common as bt_common
+import beratools.utility.spatial_common as sp_common
 from beratools.core.algo_line_grouping import LineGrouping
+from beratools.core.algo_split_with_lines import LineSplitter
 from beratools.core.logger import Logger
 
 
@@ -98,7 +99,7 @@ logger = log.get_logger()
 print = log.print
 
 if __name__ == "__main__":
-    in_args, in_verbose = bt_common.check_arguments()
+    in_args, in_verbose = sp_common.check_arguments()
     start_time = time.time()
     check_seed_line(**in_args.input, processes=int(in_args.processes), verbose=in_verbose)
 

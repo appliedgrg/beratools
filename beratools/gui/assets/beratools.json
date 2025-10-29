@@ -37,6 +37,68 @@
                     ]
                 },
                 {
+                    "name": "Vertex Optimization",
+                    "info": "Relocating line intersections to seismic line paths",
+                    "tool_type": "python",
+                    "tool_api": "vertex_optimization",
+                    "icon": "vertex_optimization.gif",
+                    "tech_link": "https://appliedgrg.github.io/beratools/start/vertex_optimization",
+                    "parameters": [
+                        {
+                            "variable": "in_line",
+                            "label": "Input Line",
+                            "description": "Input lines to optimize.",
+                            "type": "vector",
+                            "subtype": "shp",
+                            "layer": "in_layer",
+                            "default": "",
+                            "output": false,
+                            "optional": false
+                        },
+                        {
+                            "variable": "in_raster",
+                            "label": "CHM Raster",
+                            "description": "Input CHM raster used to optimize vertices.",
+                            "type": "raster",
+                            "subtype": "tif",
+                            "default": "",
+                            "output": false,
+                            "optional": false
+                        },
+                        {
+                            "variable": "search_distance",
+                            "label": "Vertex searching distance (m)",
+                            "description": "Bigger value will let tool enlarge searching area for better vertex location.",
+                            "type": "number",
+                            "subtype": "number",
+                            "default": 30,
+                            "output": false,
+                            "optional": false
+                        },
+                        {
+                            "variable": "line_radius",
+                            "label": "Line Processing Radius",
+                            "description": "Maximum processing distance from input lines. A large search radius may increase processing times whereas a small radius may cause undesired clipping.",
+                            "type": "number",
+                            "subtype": "number",
+                            "default": 35,
+                            "output": false,
+                            "optional": true
+                        },
+                        {
+                            "variable": "out_line",
+                            "label": "Output Centerline",
+                            "description": "Output optimized centerline file.",
+                            "type": "vector",
+                            "subtype": "shp",
+                            "layer": "out_layer",
+                            "default": "",
+                            "output": true,
+                            "optional": false
+                        }
+                    ]
+                },
+                {
                     "name": "Centerline",
                     "info": "Extract the least cost path and smooth centerline between vertices of the seed lines.",
                     "tool_type": "python",
@@ -93,68 +155,6 @@
                             "variable": "out_line",
                             "label": "Output Centerline",
                             "description": "Output centerline file.",
-                            "type": "vector",
-                            "subtype": "shp",
-                            "layer": "out_layer",
-                            "default": "",
-                            "output": true,
-                            "optional": false
-                        }
-                    ]
-                },
-                {
-                    "name": "Vertex Optimization",
-                    "info": "Relocating line intersections to seismic line paths",
-                    "tool_type": "python",
-                    "tool_api": "vertex_optimization",
-                    "icon": "vertex_optimization.gif",
-                    "tech_link": "https://appliedgrg.github.io/beratools/start/vertex_optimization",
-                    "parameters": [
-                        {
-                            "variable": "in_line",
-                            "label": "Input Line",
-                            "description": "Input lines to optimize.",
-                            "type": "vector",
-                            "subtype": "shp",
-                            "layer": "in_layer",
-                            "default": "",
-                            "output": false,
-                            "optional": false
-                        },
-                        {
-                            "variable": "in_raster",
-                            "label": "CHM Raster",
-                            "description": "Input CHM raster used to optimize vertices.",
-                            "type": "raster",
-                            "subtype": "tif",
-                            "default": "",
-                            "output": false,
-                            "optional": false
-                        },
-                        {
-                            "variable": "search_distance",
-                            "label": "Vertex searching distance (m)",
-                            "description": "Bigger value will let tool enlarge searching area for better vertex location.",
-                            "type": "number",
-                            "subtype": "number",
-                            "default": 30,
-                            "output": false,
-                            "optional": false
-                        },
-                        {
-                            "variable": "line_radius",
-                            "label": "Line Processing Radius",
-                            "description": "Maximum processing distance from input lines. A large search radius may increase processing times whereas a small radius may cause undesired clipping.",
-                            "type": "number",
-                            "subtype": "number",
-                            "default": 35,
-                            "output": false,
-                            "optional": true
-                        },
-                        {
-                            "variable": "out_line",
-                            "label": "Output Centerline",
-                            "description": "Output optimized centerline file.",
                             "type": "vector",
                             "subtype": "shp",
                             "layer": "out_layer",
@@ -389,8 +389,8 @@
                     ]
                 },
                 {
-                    "name": "Ground Footprint (Fixed Width)",
-                    "info": "Generating fixed width line footprint",
+                    "name": "Ground Footprint",
+                    "info": "Generating fixed width ground footprint",
                     "tool_type": "python",
                     "tool_api": "ground_footprint",
                     "icon": "ground_footprint.gif",

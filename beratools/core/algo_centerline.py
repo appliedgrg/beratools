@@ -31,7 +31,7 @@ import beratools.core.algo_cost as algo_cost
 import beratools.core.algo_dijkstra as bt_dijkstra
 import beratools.core.constants as bt_const
 import beratools.core.tool_base as bt_base
-import beratools.tools.common as bt_common
+import beratools.utility.spatial_common as sp_common
 
 
 class CenterlineParams(float, enum.Enum):
@@ -413,7 +413,7 @@ class SeedLine:
         seed_line = line  # LineString
         default_return = (seed_line, seed_line, None)
 
-        ras_clip, out_meta = bt_common.clip_raster(in_raster, seed_line, line_radius)
+        ras_clip, out_meta = sp_common.clip_raster(in_raster, seed_line, line_radius)
         cost_clip, _ = algo_cost.cost_raster(ras_clip, out_meta)
 
         lc_path = line
@@ -441,7 +441,7 @@ class SeedLine:
 
         # get corridor raster
         lc_path = sh_geom.LineString(lc_path_coords)
-        ras_clip, out_meta = bt_common.clip_raster(in_raster, lc_path, line_radius * 0.9)
+        ras_clip, out_meta = sp_common.clip_raster(in_raster, lc_path, line_radius * 0.9)
         cost_clip, _ = algo_cost.cost_raster(ras_clip, out_meta)
 
         out_transform = out_meta["transform"]
