@@ -32,7 +32,7 @@ warnings.simplefilter(action="ignore", category=UserWarning)
 
 # restore .shx for shapefile for using GDAL or pyogrio
 gdal.SetConfigOption("SHAPE_RESTORE_SHX", "YES")
-set_gdal_config_options({"SHAPE_RESTORE_SHX": "YES"}) # for pyogrio
+set_gdal_config_options({"SHAPE_RESTORE_SHX": "YES"})  # for pyogrio
 
 # suppress all kinds of warnings
 if not bt_const.BT_DEBUGGING:
@@ -154,6 +154,23 @@ def raster_crs(in_raster):
             exit()
 
 
+def get_crs_proj_name(crs_norm, label="crs"):
+    import warnings
+    if crs_norm.is_compound:
+        op = crs_norm.sub_crs_list[0].coordinate_operation
+        if op is None:
+            warnings.warn(f"{label}.sub_crs_list[0].coordinate_operation is None; using 'unknown'")
+            return "unknown"
+        return op.name
+    elif crs_norm.name == "unnamed":
+        return None
+    else:
+        op = crs_norm.coordinate_operation
+        if op is None:
+            warnings.warn(f"{label}.coordinate_operation is None; using 'unknown'")
+            return "unknown"
+        return op.name
+
 def compare_crs(crs_org, crs_dst):
     if crs_org and crs_dst:
         if crs_org.IsSameGeogCS(crs_dst):
@@ -162,19 +179,14 @@ def compare_crs(crs_org, crs_dst):
         else:
             crs_org_norm = pyproj.CRS(crs_org.ExportToWkt())
             crs_dst_norm = pyproj.CRS(crs_dst.ExportToWkt())
-            if crs_org_norm.is_compound:
-                crs_org_proj = crs_org_norm.sub_crs_list[0].coordinate_operation.name
-            elif crs_org_norm.name == "unnamed":
-                return False
-            else:
-                crs_org_proj = crs_org_norm.coordinate_operation.name
 
-            if crs_dst_norm.is_compound:
-                crs_dst_proj = crs_dst_norm.sub_crs_list[0].coordinate_operation.name
-            elif crs_org_norm.name == "unnamed":
+            crs_org_proj = get_crs_proj_name(crs_org_norm, "crs_org_norm")
+            if crs_org_proj is None:
                 return False
-            else:
-                crs_dst_proj = crs_dst_norm.coordinate_operation.name
+
+            crs_dst_proj = get_crs_proj_name(crs_dst_norm, "crs_dst_norm")
+            if crs_dst_proj is None:
+                return False
 
             if crs_org_proj == crs_dst_proj:
                 if crs_org_norm.name == crs_dst_norm.name:
