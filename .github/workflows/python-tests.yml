@@ -38,6 +38,7 @@ jobs:
           export PATH="$HOME/.pixi/bin:$PATH"
           cd $GITHUB_WORKSPACE
           pixi install
+          pixi add pytest-cov
 
       - name: Editable Install of beratools
         run: |
@@ -46,9 +47,14 @@ jobs:
           cd $GITHUB_WORKSPACE
           pip install -e .
 
-      - name: Run Tests
+      - name: Run Tests with Coverage
         run: |
-          echo "Running pytest"
+          echo "Running pytest with coverage"
           export PATH="$HOME/.pixi/bin:$PATH"
           cd $GITHUB_WORKSPACE
-          pixi run pytest tests/test_workflow.py --maxfail=1 --disable-warnings -s -v
+          pixi run pytest --cov=beratools --cov-report=xml --cov-report=term tests/test_workflow.py --maxfail=1 --disable-warnings -s -v
+
+      - name: Upload coverage reports to Codecov
+        uses: codecov/codecov-action@v5
+        with:
+          token: ${{ secrets.CODECOV_TOKEN }}

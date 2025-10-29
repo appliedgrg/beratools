@@ -20,7 +20,7 @@ def pytest_configure(config):
     logging.basicConfig(level=logging.ERROR)
 
     # Set logger to ERROR to suppress debug logs
-    logging.getLogger('pyogrio').setLevel(logging.WARNING)
+    logging.getLogger('pyogrio').setLevel(logging.ERROR)
     logging.getLogger('rasterio').setLevel(logging.ERROR)
     logging.getLogger('rasterio.env').setLevel(logging.ERROR)
     logging.getLogger('label_centerlines._src').setLevel(logging.ERROR)

@@ -136,9 +136,6 @@ class LineInfo:
 
         self.canopy_percentile = 50
         self.DynCanTh = np.nan
-        # chk_df_multipart
-        # if proc_segments:
-        # line_seg = split_into_segments(line_seg)
 
         self.buffer_rings = []
 

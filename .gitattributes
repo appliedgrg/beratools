@@ -1,2 +1,29 @@
 # SCM syntax highlighting
 pixi.lock linguist-language=YAML linguist-generated=true
+
+# Enforce LF line endings for text files
+core.autocrlf=true
+*.py   text eol=lf
+*.md   text eol=lf
+*.yml  text eol=lf
+*.yaml text eol=lf
+*.toml text eol=lf
+*.ini  text eol=lf
+*.txt  text eol=lf
+*.json text eol=lf
+*.svg  text eol=lf
+*.geojson text eol=lf
+
+# Mark binary files
+*.png  binary
+*.jpg  binary
+*.jpeg binary
+*.gif  binary
+*.tif  binary
+*.svg  text
+*.geojson text
+*.gpkg binary
+
+# Linguist overrides for docs
+docs/** linguist-documentation=true
+*.md linguist-documentation=true

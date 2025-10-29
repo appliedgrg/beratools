@@ -42,6 +42,7 @@ dependencies = [
 [project.optional-dependencies]
 dev = [
     "pytest",
+    "pytest-cov",
     "ruff",
     "isort",
     "mypy",
@@ -124,3 +125,20 @@ check_untyped_defs = false
 warn_return_any = false
 no_implicit_optional = true
 warn_unused_ignores = false
+
+[tool.coverage.run]
+source = ["beratools"]
+branch = true
+
+[tool.coverage.report]
+show_missing = true
+skip_covered = true
+exclude_lines = [
+    "pragma: no cover",
+    "def __repr__",
+    "if __name__ == .__main__.:",
+    "raise NotImplementedError"
+]
+
+[tool.pytest.ini_options]
+filterwarnings = ["ignore::DeprecationWarning"]
