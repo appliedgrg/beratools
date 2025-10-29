@@ -20,6 +20,7 @@ import geopandas as gpd
 
 import beratools.utility.spatial_common as sp_common
 from beratools.core.algo_line_grouping import LineGrouping
+from beratools.core.algo_merge_lines import custom_line_merge
 from beratools.core.algo_split_with_lines import LineSplitter
 from beratools.core.logger import Logger
 
@@ -37,32 +38,37 @@ def qc_merge_multilinestring(gdf):
     records = []
     for idx, row in gdf.iterrows():
         geom = row.geometry
+        row_dict = row.to_dict()
         # Try to merge MultiLineString
         if geom.geom_type == "MultiLineString":
             merged = custom_line_merge(geom)
             if merged.geom_type == "MultiLineString":
                 # Could not merge, split into LineStrings
                 for part in merged.geoms:
-                    new_row = row.copy()
-                    new_row.geometry = part
-                    records.append(new_row)
+                    new_row = row_dict.copy()
+                    new_row["geometry"] = part
+                    if part.geom_type == "LineString":
+                        records.append(new_row)
             elif merged.geom_type == "LineString":
-                new_row = row.copy()
-                new_row.geometry = merged
+                new_row = row_dict.copy()
+                new_row["geometry"] = merged
                 records.append(new_row)
             else:
                 # Unexpected geometry, keep as is
-                new_row = row.copy()
-                new_row.geometry = merged
-                records.append(new_row)
+                new_row = row_dict.copy()
+                new_row["geometry"] = merged
+                if hasattr(merged, "geom_type") and merged.geom_type == "LineString":
+                    records.append(new_row)
         elif geom.geom_type == "LineString":
-            records.append(row)
-        else:
-            # Keep other geometry types unchanged
-            records.append(row)
+            records.append(row_dict)
+        # else: skip non-LineString geometries
+
     # Build new GeoDataFrame
-    out_gdf = gpd.GeoDataFrame(records, columns=gdf.columns, crs=gdf.crs)
-    out_gdf = out_gdf[out_gdf.geometry.type == "LineString"].reset_index(drop=True)
+    from shapely.geometry.base import BaseGeometry
+    valid_records = [rec for rec in records if isinstance(rec.get("geometry", None), BaseGeometry)]
+    out_gdf = gpd.GeoDataFrame.from_records(valid_records, columns=gdf.columns)
+    out_gdf.set_crs(gdf.crs, inplace=True)
+    out_gdf = out_gdf.reset_index(drop=True)
     return out_gdf
 
 def qc_split_lines_at_intersections(gdf):
@@ -78,7 +84,11 @@ def qc_split_lines_at_intersections(gdf):
     splitter = LineSplitter(gdf)
     splitter.process()
     if splitter.split_lines_gdf is not None:
-        return splitter.split_lines_gdf.reset_index(drop=True)
+        import geopandas as gpd
+        if isinstance(splitter.split_lines_gdf, gpd.GeoDataFrame):
+            return splitter.split_lines_gdf.reset_index(drop=True)
+        else:
+            return splitter.split_lines_gdf
     else:
         return gdf.reset_index(drop=True)
 

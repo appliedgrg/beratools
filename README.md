@@ -4,16 +4,14 @@ BERA Tools is successor of [Forest Line Mapper](https://github.com/appliedgrg/fl
 
 <div align="center">
 
-[![GitHub Workflow Status (Build)](https://img.shields.io/github/actions/workflow/status/appliedgrg/bera-tools/python-tests.yml?branch=develop&style=for-the-badge)](https://github.com/appliedgrg/bera-tools/actions/workflows/python-tests.yml)
-[![Read the Docs](https://img.shields.io/readthedocs/bera-tools?style=for-the-badge&logo=readthedocs&logoColor=white)](https://bera-tools.readthedocs.io/en/latest/)
-<br>
-[![Conda Version](https://img.shields.io/conda/v/AppliedGRG/beratools?style=for-the-badge&logo=anaconda&color=green)](https://anaconda.org/AppliedGRG/beratools)
-[![Python - Version](https://img.shields.io/badge/PYTHON-3.9+-blue?style=for-the-badge&logo=python&logoColor=white)](https://www.python.org/downloads/release/python-3110/)
-<br>
-[![License: MIT](https://img.shields.io/github/license/appliedgrg/bera-tools?style=for-the-badge&color=blue)](https://github.com/appliedgrg/bera-tools/blob/main/LICENSE)
+[![GitHub Workflow Status](https://img.shields.io/github/actions/workflow/status/appliedgrg/beratools/python-tests.yml?branch=main)](https://github.com/appliedgrg/beratools/actions/workflows/python-tests.yml)
+[![Codecov](https://img.shields.io/codecov/c/github/appliedgrg/beratools/main)](https://codecov.io/gh/appliedgrg/beratools)
+[![GitHub Pages](https://img.shields.io/github/deployments/appliedgrg/beratools/github-pages?label=docs)](https://appliedgrg.github.io/beratools/)
+[![Conda Version](https://img.shields.io/conda/v/AppliedGRG/beratools)](https://anaconda.org/AppliedGRG/beratools)
+[![Python Version](https://img.shields.io/badge/python-3.10%2B-blue)](https://www.python.org/downloads/release/python-3100/)
+[![License: MIT](https://img.shields.io/github/license/appliedgrg/beratools)](https://github.com/appliedgrg/beratools/blob/main/LICENSE)
 
 </div>
-<!--![Banner](docs/files/images/BERALogo.png)-->
 
 ## [Quick Start](https://appliedgrg.github.io/beratools)
 
