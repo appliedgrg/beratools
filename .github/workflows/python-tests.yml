@@ -38,7 +38,7 @@ jobs:
           export PATH="$HOME/.pixi/bin:$PATH"
           cd $GITHUB_WORKSPACE
           pixi install
-          pixi add pytest-cov
+          pixi add pytest-cov coverage
 
       - name: Editable Install of beratools
         run: |

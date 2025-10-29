@@ -12,6 +12,7 @@ Description:
 
     This file is intended to be hosting common spatial classes/functions for BERA Tools
 """
+
 import argparse
 import json
 import warnings
@@ -40,6 +41,7 @@ if not bt_const.BT_DEBUGGING:
     warnings.filterwarnings("ignore")  # suppress warnings
     warnings.simplefilter(action="ignore", category=UserWarning)  # suppress Pandas UserWarning
 
+
 def clip_raster(
     in_raster_file,
     clip_geom,
@@ -55,7 +57,7 @@ def clip_raster(
             ras_nodata = default_nodata
 
         clip_geo_buffer = [clip_geom.buffer(buffer)]
-        out_image: np.ndarray
+        out_image = None
         out_image, out_transform = mask.mask(
             raster_file, clip_geo_buffer, crop=True, nodata=ras_nodata, filled=True
         )
@@ -89,6 +91,7 @@ def clip_raster(
             print("[Clip raster]: data saved to {}.".format(out_raster_file))
 
     return out_image, out_meta
+
 
 def check_arguments():
     # Get tool arguments
@@ -189,4 +192,3 @@ def compare_crs(crs_org, crs_dst):
                 return False
 
     return False
-
