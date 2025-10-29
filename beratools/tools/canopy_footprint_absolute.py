@@ -20,7 +20,9 @@ import geopandas as gpd
 import numpy as np
 import pandas as pd
 import rasterio
-import shapely
+from rasterio import features
+from shapely.geometry import shape, MultiPolygon, Polygon
+from rasterio.transform import rowcol
 
 import beratools.core.algo_centerline as algo_cl
 import beratools.core.algo_common as algo_common
@@ -60,12 +62,15 @@ class FootprintAbsolute:
         exp_shk_cell = self.exp_shk_cell
 
         try:
+            print("FootprintAbsolute.compute: started")
             corridor_thresh = float(corridor_thresh)
             if corridor_thresh < 0.0:
                 corridor_thresh = 3.0
         except ValueError as e:
-            print(f"process_single_line_segment: {e}")
+            print(f"FootprintAbsolute.compute: ValueError {e}")
             corridor_thresh = 3.0
+        except Exception as e:
+            print(f"FootprintAbsolute.compute: exception {e}")
 
         segment_list = []
         feat = self.line_seg.geometry[0]
@@ -89,9 +94,8 @@ class FootprintAbsolute:
         if len(clip_canopy.shape) > 2:
             clip_canopy = np.squeeze(clip_canopy, axis=0)
 
-        transformer = rasterio.transform.AffineTransformer(out_transform)
-        source = [transformer.rowcol(x1, y1)]
-        destination = [transformer.rowcol(x2, y2)]
+        source = [rowcol(out_transform, x1, y1)]
+        destination = [rowcol(out_transform, x2, y2)]
 
         corridor_thresh = algo_common.corridor_raster(
             clip_cost,
@@ -110,28 +114,57 @@ class FootprintAbsolute:
             clean_raster = clean_raster.astype(np.int32)
 
         # Process: ndarray to shapely Polygon
-        out_polygon = rasterio.features.shapes(clean_raster, mask=msk, transform=out_transform)
+        out_polygon = features.shapes(clean_raster, mask=msk, transform=out_transform)
 
         # create a shapely multipolygon
         multi_polygon = []
         for shp, value in out_polygon:
-            multi_polygon.append(shapely.geometry.shape(shp))
-        poly = shapely.geometry.MultiPolygon(multi_polygon)
+            multi_polygon.append(shape(shp))
+        poly = MultiPolygon(multi_polygon)
 
         # create a pandas dataframe for the footprint
-        footprint = gpd.GeoDataFrame(geometry=[poly], crs=self.line_seg.crs)
+        # Ensure CRS is a string
+        crs_str = None
+        if hasattr(self.line_seg, "crs") and self.line_seg.crs:
+            if hasattr(self.line_seg.crs, "to_string"):
+                crs_str = self.line_seg.crs.to_string()
+            else:
+                crs_str = str(self.line_seg.crs)
+        else:
+            crs_str = "EPSG:4326"
+        # Ensure poly is a valid shapely geometry
+        if not isinstance(poly, (Polygon, MultiPolygon)):
+            poly = MultiPolygon([poly]) if poly else None
+
+        # Fallback CRS if invalid
+        if not crs_str or not isinstance(crs_str, str) or not crs_str.startswith("EPSG"):
+            crs_str = "EPSG:4326"
+
+        # Only create GeoDataFrame if poly is not None
+        if poly is not None and isinstance(poly, (Polygon, MultiPolygon)):
+            geometry_list = [poly]
+        else:
+            geometry_list = []
+
+        import pandas as pd
+        self.footprint = gpd.GeoDataFrame({"geometry": geometry_list})
+        self.footprint.set_crs(crs_str, inplace=True)
 
         # find contiguous corridor polygon for centerline
         corridor_poly_gpd = algo_cl.find_corridor_polygon(corridor_thresh, out_transform, line_gpd)
         centerline, status = algo_cl.find_centerline(corridor_poly_gpd.geometry.iloc[0], feat)
 
-        self.footprint = footprint
         self.corridor_poly_gpd = corridor_poly_gpd
         self.centerline = centerline
 
 
 def process_single_line(line_footprint):
-    line_footprint.compute()
+    print("process_single_line: started")
+    try:
+        line_footprint.compute()
+        print("process_single_line: finished compute")
+    except Exception as e:
+        print(f"process_single_line: exception {e}")
     return line_footprint
 
 
@@ -186,12 +219,17 @@ def canopy_footprint_abs(
 
     if feat_list:
         for i in feat_list:
-            footprint_list.append(i.footprint)
-            poly_list.append(i.corridor_poly_gpd)
+            if i.footprint is not None:
+                footprint_list.append(i.footprint)
+            if i.corridor_poly_gpd is not None:
+                poly_list.append(i.corridor_poly_gpd)
 
-    results = gpd.GeoDataFrame(pd.concat(footprint_list))
-    results = results.reset_index(drop=True)
-    results.to_file(out_footprint, layer=out_layer)
+    if footprint_list:
+        results = gpd.GeoDataFrame(pd.concat(footprint_list))
+        results = results.reset_index(drop=True)
+        results.to_file(out_footprint, layer=out_layer)
+    else:
+        print("Warning: No footprints generated. Output file not written.")
 
 
 if __name__ == "__main__":
