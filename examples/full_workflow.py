@@ -17,10 +17,10 @@ sys.path.append(Path(__file__).resolve().parents[1].as_posix())
 from hydra import compose, initialize_config_dir
 from omegaconf import OmegaConf
 
-from beratools.core.algo_canopy_footprint_rel import line_footprint_rel
+from beratools.core.algo_canopy_footprint_exp import line_footprint_rel
+from beratools.tools.canopy_footprint_absolute import canopy_footprint_abs
 from beratools.tools.centerline import centerline
 from beratools.tools.check_seed_line import check_seed_line
-from beratools.tools.canopy_footprint_absolute import canopy_footprint_abs
 from beratools.tools.ground_footprint import ground_footprint
 
 

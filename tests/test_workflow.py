@@ -3,9 +3,9 @@ import time
 
 from utils import check_file_exists
 
-from beratools.core.algo_canopy_footprint_rel import line_footprint_rel
-from beratools.tools.centerline import centerline
+from beratools.core.algo_canopy_footprint_exp import line_footprint_rel
 from beratools.tools.canopy_footprint_absolute import canopy_footprint_abs
+from beratools.tools.centerline import centerline
 from beratools.tools.ground_footprint import ground_footprint
 
 

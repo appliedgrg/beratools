@@ -5,4 +5,4 @@ __license__ = "MIT"
 __copyright__ = "Copyright (c) AppliedGRG"
 __status__ = "Pre-Alpha"
 __url__ = "https://github.com/appliedgrg/beratools"
-__all__ = ["core", "tools", "gui"]
+__all__ = ["tools", "gui"]

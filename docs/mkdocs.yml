@@ -90,4 +90,33 @@ plugins:
       handlers:
         python:
           options:
+            # --- Docstring parsing ---
             docstring_style: google
+            docstring_options:
+              ignore_init_summary: true  # don't duplicate __init__ summaries
+
+            # --- Visibility and member organization ---
+            filters: ["!^_"]             # exclude private members
+            members_order: source        # preserve code order
+            inherited_members: false     # avoid clutter unless needed
+
+            # --- Signature and linking ---
+            separate_signature: true
+            show_signature_annotations: true
+            signature_crossrefs: true
+            merge_init_into_class: true
+
+            # --- Page rendering ---
+            show_source: false
+            show_root_toc_entry: true
+
+          import:
+            - url: https://docs.python.org/3/objects.inv
+              domains: [py, std]
+            - url: https://typing-extensions.readthedocs.io/en/latest/objects.inv
+            - url: https://geopandas.org/en/stable/objects.inv
+            - url: https://shapely.readthedocs.io/en/stable/objects.inv
+            - url: https://numpy.org/doc/stable/objects.inv
+            - url: https://pandas.pydata.org/pandas-docs/stable/objects.inv
+
+

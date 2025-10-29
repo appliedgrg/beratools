@@ -74,21 +74,16 @@ mkdocs serve
 In order to preserve good code health, a test suite has been put together with pytest (@pytest-dev/pytest). There are
 currently two kinds of tests: syntax and targeted.  To run these tests, you can use the following command:
 
-If you wish to run the tests locally, the recommended way is with Tox, which is covered in ["Running Validation With
-Tox"](#running-validation-with-tox).
-
 You can also run the tests by first installing the requirements:
 
 ```
-pip install -r requirements/project.txt
-pip install -r requirements/extra.txt
-pip install -r requirements/test.txt
+pip install -e .[dev]
 ```
 
 And then run the tests with:
 
 ```
-python run_tests.py
+python tests/test_workflow.py
 ```
 
 ### Targeted

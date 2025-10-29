@@ -28,4 +28,4 @@ This file provides a template for developing new geospatial tools in the BERA To
 - Refer to the developer's guide for implementation details.
 - Licensed under GNU GPL v3.0.
 
-![Logos](../icons/bera_logo.png)
+![Study area overview](../icons/bera_logo.png){ .center width=300 }

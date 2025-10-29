@@ -10,21 +10,6 @@ This page documents the main Python modules in BERA Tools using mkdocstrings.
 ::: beratools.tools.canopy_footprint_absolute
 ::: beratools.tools.line_footprint_relative
 ::: beratools.tools.ground_footprint
-::: beratools.tools.tool_template
-
-## Core Algorithms
-
-::: beratools.core.algo_centerline
-::: beratools.core.algo_common
-::: beratools.core.algo_cost
-::: beratools.core.algo_dijkstra
-::: beratools.core.algo_canopy_footprint_rel
-::: beratools.core.algo_line_grouping
-::: beratools.core.algo_merge_lines
-::: beratools.core.algo_split_with_lines
-::: beratools.core.algo_vertex_optimization
-
-
 
 ## Constants
 
