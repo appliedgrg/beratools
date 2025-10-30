@@ -4,6 +4,7 @@ __pycache__
 .virtual_documents
 /dist
 /output
+/agents
 
 *.slurm
 *.out
