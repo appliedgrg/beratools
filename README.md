@@ -20,8 +20,9 @@ BERA Tools is built upon open-source Python libraries. Anaconda is used to manag
 Installation Steps:
 
 - Install Miniconda. Download Miniconda from [Miniconda](https://docs.anaconda.com/miniconda/) and install on your machine.
-- Launch **Anaconda Prompt**. Run the following command to create a new environment. **BERA Tools** will be installed in the new environment at the same time. Download the file [environment.yml](https://raw.githubusercontent.com/appliedgrg/beratools/main/environment.yml
-) first.
+- Download the file [environment.yml](https://raw.githubusercontent.com/appliedgrg/beratools/main/environment.yml
+) and save to local storage. Launch **Anaconda Prompt** and change directory to where environment.yml is saved.
+- Run the following command to create a new environment. **BERA Tools** will be installed in the new environment at the same time. 
 
    ```bash
    $ conda env create -f environment.yml
@@ -34,7 +35,7 @@ Installation Steps:
   $ conda activate bera
   $ beratools
   ```
-
+- [Download latest example data](https://github.com/appliedgrg/beratools/releases/latest/download/test_data.zip) to try with BERA Tools.
 
 ## BERA Tools Guide
 
