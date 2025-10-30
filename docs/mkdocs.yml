@@ -62,12 +62,11 @@ watch:
 # page tree
 nav:
   - Home: 
-    - index.md
     - about.md
+    - overview.md
   - User Guide: 
     - user_guide.md
     - user/installation.md
-    - user/quick_start.md
     - Tools:
       - user/check_seed_line.md
       - user/vertex_optimization.md

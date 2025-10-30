@@ -1,4 +1,4 @@
-# Quick Start
+
 
 Run the command in MiniConda/Anaconda Prompt to start BERA Tools main gui.
 
@@ -30,6 +30,7 @@ The BERA Tools main GUI consists of the following components:
 graph TD
     A["Check Seed Line"] --> B["Vertex Optimization"]
     B --> C["Centerline"]
+    A --> C["Centerline"]
     C --> D1["Canopy Footprint<br/>Absolute"]
     C --> D2["Canopy Footprint<br/>Relative"]
     D1 --> E["Ground Footprint"]

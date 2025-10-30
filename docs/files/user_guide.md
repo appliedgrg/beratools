@@ -1,37 +1,50 @@
-# Overview
+# Quick Start
 
-BERA Tools provide tools for enhanced delineation and attribution of
-linear disturbances in forests.
+BERA Tools provide a light weight GUI to use tools.
 
 ![Main GUI](screenshots/bt_gui.png)
 
-## Key Features
 
-- Line cleanup and quality control
-- Vertex optimization using raster guidance
-- Automatic centerline generation
-- Multiple footprint methods: absolute, relative, fixed-width
-- Small, scriptable command-line tools for batch processing
 
-## Data Formats & Conventions
+Run the command in MiniConda/Anaconda Prompt to start BERA Tools main gui.
 
-- Supported vector: GeoPackage, Shapefile
-- Supported raster: GeoTIFF
+``` bash
+$ conda activate bera
+$ beratools 
+```
 
-## Support & Contributions
+## Example Data
 
-- See the repository README for detailed examples.
-- Contributions welcome via issues and pull requests. Include tests and minimal reproducible examples.
+[Download latest example data](https://github.com/appliedgrg/beratools/releases/latest/download/test_data.zip)
 
-## Tool Boxes
+## Main GUI
 
-### Mapping
+The BERA Tools main GUI consists of the following components:
 
-| Tool | Details |
-|------|---------|
-| [Check Seed Line](user/check_seed_line.md) | Groups and splits input lines for seed line quality control. |
-| [Vertex Optimization](user/vertex_optimization.md) | Optimizes line vertices using raster data for improved delineation. |
-| [Centerline](user/centerline.md) | Generates centerlines from input lines and raster data. |
-| [Line Footprint (Absolute)](user/canopy_footprint_abs.md) | Generates line footprints based on absolute canopy thresholds. |
-| [Line Footprint (Relative)](user/line_footprint_rel.md) | Creates dynamic line footprints using least-cost corridor and relative thresholds. |
-| [Line Footprint (Fixed Width)](user/ground_footprint.md) | Computes fixed-width line footprints and associated statistics. |
+| **Panel / Section** | **Description** |
+|----------------------|-----------------|
+| **Tool Selection Panel (Left)** | A tree view listing all available tools, organized by toolbox. Users can search for tools using the search bar at the top. Selecting a tool updates the main panel. |
+| **Tool History Panel (Left, below tool selection)** | Displays a list of recently used tools for quick access, with options to clear or remove items. |
+| **Main Panel (Right)** | **Top Section:** Shows the currently selected tool name, with buttons for advanced options, viewing code, and help.<br>**Tool Parameters:** Dynamic widgets for entering parameters required by the selected tool.<br>**Bottom Section:** Includes a slider to select the number of CPU cores, a button to load default arguments, and buttons to run or cancel the tool. |
+| **Output and Progress (Bottom Right)** | A text area displays output, logs, and messages from tool execution.<br>A progress bar and label show the status of running tools. |
+
+## Workflow Diagram
+
+```mermaid
+graph TD
+    A["Check Seed Line"] --> B["Vertex Optimization"]
+    B --> C["Centerline"]
+    A --> C["Centerline"]
+    C --> D1["Canopy Footprint<br/>Absolute"]
+    C --> D2["Canopy Footprint<br/>Relative"]
+    D1 --> E["Ground Footprint"]
+    D2 --> E["Ground Footprint"]
+    %% Style optional step (Vertex Optimization)
+    style B fill:#eee,stroke:#aaa,color:#666,stroke-width:1px,stroke-dasharray:5 5;
+    click A "../user/check_seed_line" "Check Seed Line"
+    click B "../user/vertex_optimization" "Vertex Optimization"
+    click C "../user/centerline" "Centerline"
+    click D1 "../user/canopy_footprint_abs" "Canopy Footprint Absolute"
+    click D2 "../user/line_footprint_rel" "Canopy Footprint Relative"
+    click E "../user/ground_footprint" "Ground Footprint"
+```

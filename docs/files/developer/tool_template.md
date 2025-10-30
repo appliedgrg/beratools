@@ -27,5 +27,3 @@ This file provides a template for developing new geospatial tools in the BERA To
 - Update `gui/assets/beratools.json` for GUI integration.
 - Refer to the developer's guide for implementation details.
 - Licensed under GNU GPL v3.0.
-
-![Study area overview](../icons/bera_logo.png){ .center width=300 }

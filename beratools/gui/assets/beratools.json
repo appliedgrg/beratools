@@ -286,7 +286,7 @@
                         },
                         {
                             "variable": "out_footprint",
-                            "label": "Output Footprint Shapefile",
+                            "label": "Output Footprint",
                             "description": "Output footprint polygons.",
                             "type": "vector",
                             "subtype": "shp",
@@ -296,7 +296,7 @@
                         },
                         {
                             "variable": "out_centerline",
-                            "label": "Output Centerline Shapefile",
+                            "label": "Output Centerline",
                             "description": "Output centerline polygons.",
                             "type": "vector",
                             "subtype": "shp",
@@ -454,8 +454,8 @@
                         },
                         {
                             "variable": "out_footprint",
-                            "label": "Output Fixed Footprint",
-                            "description": "Output fixed width footprint file.",
+                            "label": "Output Ground Footprint",
+                            "description": "Output fixed width ground footprint file.",
                             "type": "vector",
                             "subtype": "shp",
                             "layer": "out_layer",
