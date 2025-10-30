@@ -66,15 +66,15 @@ nav:
     - about.md
   - User Guide: 
     - user_guide.md
-    - start/installation.md
-    - start/quick_start.md
+    - user/installation.md
+    - user/quick_start.md
     - Tools:
-      - start/check_seed_line.md
-      - start/vertex_optimization.md
-      - start/centerline.md
-      - start/canopy_footprint_abs.md
-      - start/line_footprint_rel.md
-      - start/ground_footprint.md
+      - user/check_seed_line.md
+      - user/vertex_optimization.md
+      - user/centerline.md
+      - user/canopy_footprint_abs.md
+      - user/line_footprint_rel.md
+      - user/ground_footprint.md
   - Developer Guide:
     - developer_guide.md
     - developer/contributing.md
