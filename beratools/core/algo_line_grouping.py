@@ -836,7 +836,7 @@ class LineGrouping:
         ]
         self.invalid_lines.reset_index(inplace=True, drop=True)
 
-    def save_file(self, out_file):
+    def save_file(self, out_file, out_layer="ground_footprint"):
         if not self.valid_lines.empty:
             self.valid_lines["length"] = self.valid_lines.length
             self.valid_lines.to_file(out_file, layer="merged_lines")
@@ -846,7 +846,8 @@ class LineGrouping:
                 self.valid_polys.drop(columns=["length"], inplace=True)
 
             self.valid_polys["area"] = self.valid_polys.area
-            self.valid_polys.to_file(out_file, layer="clean_footprint")
+            layer_name = out_layer
+            self.valid_polys.to_file(out_file, layer=layer_name)
 
         if not self.invalid_lines.empty:
             self.invalid_lines.to_file(out_file, layer="invalid_lines")

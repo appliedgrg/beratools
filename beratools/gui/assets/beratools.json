@@ -87,8 +87,8 @@
                         },
                         {
                             "variable": "out_line",
-                            "label": "Output Centerline",
-                            "description": "Output optimized centerline file.",
+                            "label": "Optimized Line",
+                            "description": "Output optimized line file.",
                             "type": "vector",
                             "subtype": "shp",
                             "layer": "out_layer",

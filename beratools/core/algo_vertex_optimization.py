@@ -409,6 +409,7 @@ class VertexGrouping:
         line_file = Path(line_file)
         lines = pd.concat(self.line_list)
         lines.to_file(line_file, layer=self.out_layer)
+        print(f"Saved output to: {line_file}", flush=True)
 
         aux_file = line_file
         if line_file.suffix == ".shp":
@@ -434,9 +435,10 @@ class VertexGrouping:
         anchors = gpd.GeoDataFrame(geometry=anchors, crs=lines.crs)
         vertices = gpd.GeoDataFrame(geometry=vertices, crs=lines.crs)
 
-        lc_paths.to_file(aux_file, layer="lc_paths")
-        anchors.to_file(aux_file, layer="anchors")
-        vertices.to_file(aux_file, layer="vertices")
+        if bt_const.BT_DEBUGGING:
+            lc_paths.to_file(aux_file, layer="lc_paths")
+            anchors.to_file(aux_file, layer="anchors")
+            vertices.to_file(aux_file, layer="vertices")
 
     def compute(self):
         vertex_grp = bt_base.execute_multiprocessing(

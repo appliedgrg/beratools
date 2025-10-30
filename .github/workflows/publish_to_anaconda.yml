@@ -109,7 +109,7 @@ jobs:
 
       - name: Zip test data files
         run: |
-          zip -j test_data.zip tests/data/chm.tif tests/data/footprint.geojson tests/data/line_percentile_rel.gpkg tests/data/seed_lines.gpkg
+          zip -j test_data.zip examples/data/CHM.tif examples/data/seed_lines.gpkg
 
       - name: Create or update GitHub Release and upload test data
         uses: softprops/action-gh-release@v1

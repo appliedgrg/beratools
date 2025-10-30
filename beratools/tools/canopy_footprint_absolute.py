@@ -13,7 +13,7 @@ Description:
     The purpose of this script is to provide main interface for canopy footprint tool.
     The tool is used to generate the footprint of a line based on absolute threshold.
 """
-
+import logging
 import time
 
 import geopandas as gpd
@@ -21,8 +21,8 @@ import numpy as np
 import pandas as pd
 import rasterio
 from rasterio import features
-from shapely.geometry import shape, MultiPolygon, Polygon
 from rasterio.transform import rowcol
+from shapely.geometry import MultiPolygon, Polygon, shape
 
 import beratools.core.algo_centerline as algo_cl
 import beratools.core.algo_common as algo_common
@@ -30,6 +30,11 @@ import beratools.core.algo_cost as algo_cost
 import beratools.core.constants as bt_const
 import beratools.core.tool_base as bt_base
 import beratools.utility.spatial_common as sp_common
+from beratools.core.logger import Logger
+
+log = Logger("canopy_footprint_abs", file_level=logging.INFO)
+logger = log.get_logger()
+print = log.print
 
 
 class FootprintAbsolute:
@@ -62,7 +67,6 @@ class FootprintAbsolute:
         exp_shk_cell = self.exp_shk_cell
 
         try:
-            print("FootprintAbsolute.compute: started")
             corridor_thresh = float(corridor_thresh)
             if corridor_thresh < 0.0:
                 corridor_thresh = 3.0
@@ -159,10 +163,8 @@ class FootprintAbsolute:
 
 
 def process_single_line(line_footprint):
-    print("process_single_line: started")
     try:
         line_footprint.compute()
-        print("process_single_line: finished compute")
     except Exception as e:
         print(f"process_single_line: exception {e}")
     return line_footprint
@@ -227,7 +229,9 @@ def canopy_footprint_abs(
     if footprint_list:
         results = gpd.GeoDataFrame(pd.concat(footprint_list))
         results = results.reset_index(drop=True)
-        results.to_file(out_footprint, layer=out_layer)
+        layer_name = out_layer if out_layer else "canopy_footprint"
+        results.to_file(out_footprint, layer=layer_name)
+        print(f"Saved footprint to {out_footprint} (layer: {layer_name})")
     else:
         print("Warning: No footprints generated. Output file not written.")
 

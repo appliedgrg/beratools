@@ -13,11 +13,16 @@ Description:
     The purpose of this script is the public interface for vertex optimization.
 """
 
+import logging
 import time
 
 import beratools.core.algo_vertex_optimization as bt_vo
 import beratools.utility.spatial_common as sp_common
+from beratools.core.logger import Logger
 
+log = Logger("vertex_optimization", file_level=logging.INFO)
+logger = log.get_logger()
+print = log.print
 
 def vertex_optimization(
     in_line,

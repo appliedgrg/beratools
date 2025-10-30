@@ -103,6 +103,7 @@ def centerline(
 
     # Save the concatenated GeoDataFrames to the shapefile/gpkg
     centerline_list.to_file(out_line, layer=out_layer)
+    print(f"Saved centerlines to: {out_line}")
 
     # Check if the output file is a shapefile
     out_line_path = Path(out_line)

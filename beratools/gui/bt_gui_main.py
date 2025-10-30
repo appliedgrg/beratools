@@ -685,6 +685,7 @@ class MainWindow(QtWidgets.QMainWindow):
 
 def runner():
     app = QtWidgets.QApplication(sys.argv)
+    app.setWindowIcon(QtGui.QIcon("beratools/gui/assets/BERALogo.ico"))
     window = MainWindow()
     window.setMinimumSize(1024, 768)
     window.show()

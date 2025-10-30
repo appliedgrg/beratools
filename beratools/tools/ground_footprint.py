@@ -12,7 +12,7 @@ Description:
 
     This file hosts the ground_footprint tool.
 """
-
+import logging
 import math
 import time
 from itertools import chain
@@ -32,7 +32,12 @@ import beratools.utility.spatial_common as sp_common
 from beratools.core.algo_line_grouping import LineGrouping
 from beratools.core.algo_merge_lines import custom_line_merge
 from beratools.core.algo_split_with_lines import LineSplitter
+from beratools.core.logger import Logger
 from beratools.core.tool_base import execute_multiprocessing
+
+log = Logger("ground_footprint", file_level=logging.INFO)
+logger = log.get_logger()
+print = log.print
 
 FP_FIXED_WIDTH_DEFAULT = 5.0
 
@@ -373,7 +378,7 @@ def ground_footprint(
 
     print("Step: Running multiprocessing for fixed footprint calculation")
     out_lines = execute_multiprocessing(
-    process_single_line, line_args, "Fixed footprint", processes, mode=parallel_mode
+    process_single_line, line_args, "Fixed footprint", processes, mode=parallel_mode, verbose=verbose
     )
     line_attr = pd.concat(out_lines)
     print(f"[{time.time()}] Finished multiprocessing")
@@ -436,7 +441,7 @@ def ground_footprint(
         if hasattr(lg, "merged_lines_trimmed") and lg.merged_lines_trimmed is not None:
             lg.merged_lines_trimmed = ensure_polygons(lg.merged_lines_trimmed)
             print("Step: Saving trimmed outputs")
-            lg.save_file(out_footprint)
+            lg.save_file(out_footprint, out_layer)
             print(f"[{time.time()}] Finished trimming")
         else:
             print("Skipping line and footprint trimming per user option.")
