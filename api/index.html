@@ -1,0 +1,3587 @@
+
+<!doctype html>
+<html lang="en" class="no-js">
+  <head>
+    
+      <meta charset="utf-8">
+      <meta name="viewport" content="width=device-width,initial-scale=1">
+      
+      
+      
+      
+        <link rel="prev" href="../developer/tool_template/">
+      
+      
+      
+      <link rel="icon" href="../icons/bera_logo.png">
+      <meta name="generator" content="mkdocs-1.6.1, mkdocs-material-9.6.22">
+    
+    
+      
+        <title>API Reference - BERA Tools Guide</title>
+      
+    
+    
+      <link rel="stylesheet" href="../assets/stylesheets/main.84d31ad4.min.css">
+      
+        
+        <link rel="stylesheet" href="../assets/stylesheets/palette.06af60db.min.css">
+      
+      
+
+
+    
+    
+      
+    
+    
+      
+        
+        
+        <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+        <link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Inter:300,300i,400,400i,700,700i%7CJetBrains+Mono:400,400i,700,700i&display=fallback">
+        <style>:root{--md-text-font:"Inter";--md-code-font:"JetBrains Mono"}</style>
+      
+    
+    
+      <link rel="stylesheet" href="../assets/_mkdocstrings.css">
+    
+      <link rel="stylesheet" href="../css/extra.css">
+    
+    <script>__md_scope=new URL("..",location),__md_hash=e=>[...e].reduce(((e,_)=>(e<<5)-e+_.charCodeAt(0)),0),__md_get=(e,_=localStorage,t=__md_scope)=>JSON.parse(_.getItem(t.pathname+"."+e)),__md_set=(e,_,t=localStorage,a=__md_scope)=>{try{t.setItem(a.pathname+"."+e,JSON.stringify(_))}catch(e){}}</script>
+    
+      
+
+    
+    
+    
+  </head>
+  
+  
+    
+    
+      
+    
+    
+    
+    
+    <body dir="ltr" data-md-color-scheme="default" data-md-color-primary="blue" data-md-color-accent="blue">
+  
+    
+    <input class="md-toggle" data-md-toggle="drawer" type="checkbox" id="__drawer" autocomplete="off">
+    <input class="md-toggle" data-md-toggle="search" type="checkbox" id="__search" autocomplete="off">
+    <label class="md-overlay" for="__drawer"></label>
+    <div data-md-component="skip">
+      
+        
+        <a href="#python-api-reference" class="md-skip">
+          Skip to content
+        </a>
+      
+    </div>
+    <div data-md-component="announce">
+      
+    </div>
+    
+    
+      
+
+<header class="md-header" data-md-component="header">
+  <nav class="md-header__inner md-grid" aria-label="Header">
+    <a href=".." title="BERA Tools Guide" class="md-header__button md-logo" aria-label="BERA Tools Guide" data-md-component="logo">
+      
+  <img src="../icons/bera_logo.svg" alt="logo">
+
+    </a>
+    <label class="md-header__button md-icon" for="__drawer">
+      
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M3 6h18v2H3zm0 5h18v2H3zm0 5h18v2H3z"/></svg>
+    </label>
+    <div class="md-header__title" data-md-component="header-title">
+      <div class="md-header__ellipsis">
+        <div class="md-header__topic">
+          <span class="md-ellipsis">
+            BERA Tools Guide
+          </span>
+        </div>
+        <div class="md-header__topic" data-md-component="header-topic">
+          <span class="md-ellipsis">
+            
+              API Reference
+            
+          </span>
+        </div>
+      </div>
+    </div>
+    
+      
+        <form class="md-header__option" data-md-component="palette">
+  
+    
+    
+    
+    <input class="md-option" data-md-color-media="(prefers-color-scheme)" data-md-color-scheme="default" data-md-color-primary="blue" data-md-color-accent="blue"  aria-label="Switch to light mode"  type="radio" name="__palette" id="__palette_0">
+    
+      <label class="md-header__button md-icon" title="Switch to light mode" for="__palette_1" hidden>
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="m14.3 16-.7-2h-3.2l-.7 2H7.8L11 7h2l3.2 9zM20 8.69V4h-4.69L12 .69 8.69 4H4v4.69L.69 12 4 15.31V20h4.69L12 23.31 15.31 20H20v-4.69L23.31 12zm-9.15 3.96h2.3L12 9z"/></svg>
+      </label>
+    
+  
+    
+    
+    
+    <input class="md-option" data-md-color-media="(prefers-color-scheme: light)" data-md-color-scheme="default" data-md-color-primary="blue" data-md-color-accent="blue"  aria-label="Switch to dark mode"  type="radio" name="__palette" id="__palette_1">
+    
+      <label class="md-header__button md-icon" title="Switch to dark mode" for="__palette_2" hidden>
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a4 4 0 0 0-4 4 4 4 0 0 0 4 4 4 4 0 0 0 4-4 4 4 0 0 0-4-4m0 10a6 6 0 0 1-6-6 6 6 0 0 1 6-6 6 6 0 0 1 6 6 6 6 0 0 1-6 6m8-9.31V4h-4.69L12 .69 8.69 4H4v4.69L.69 12 4 15.31V20h4.69L12 23.31 15.31 20H20v-4.69L23.31 12z"/></svg>
+      </label>
+    
+  
+    
+    
+    
+    <input class="md-option" data-md-color-media="(prefers-color-scheme: dark)" data-md-color-scheme="slate" data-md-color-primary="blue" data-md-color-accent="blue"  aria-label="Switch to system preference"  type="radio" name="__palette" id="__palette_2">
+    
+      <label class="md-header__button md-icon" title="Switch to system preference" for="__palette_0" hidden>
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 18c-.89 0-1.74-.2-2.5-.55C11.56 16.5 13 14.42 13 12s-1.44-4.5-3.5-5.45C10.26 6.2 11.11 6 12 6a6 6 0 0 1 6 6 6 6 0 0 1-6 6m8-9.31V4h-4.69L12 .69 8.69 4H4v4.69L.69 12 4 15.31V20h4.69L12 23.31 15.31 20H20v-4.69L23.31 12z"/></svg>
+      </label>
+    
+  
+</form>
+      
+    
+    
+      <script>var palette=__md_get("__palette");if(palette&&palette.color){if("(prefers-color-scheme)"===palette.color.media){var media=matchMedia("(prefers-color-scheme: light)"),input=document.querySelector(media.matches?"[data-md-color-media='(prefers-color-scheme: light)']":"[data-md-color-media='(prefers-color-scheme: dark)']");palette.color.media=input.getAttribute("data-md-color-media"),palette.color.scheme=input.getAttribute("data-md-color-scheme"),palette.color.primary=input.getAttribute("data-md-color-primary"),palette.color.accent=input.getAttribute("data-md-color-accent")}for(var[key,value]of Object.entries(palette.color))document.body.setAttribute("data-md-color-"+key,value)}</script>
+    
+    
+    
+      
+      
+        <label class="md-header__button md-icon" for="__search">
+          
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"/></svg>
+        </label>
+        <div class="md-search" data-md-component="search" role="dialog">
+  <label class="md-search__overlay" for="__search"></label>
+  <div class="md-search__inner" role="search">
+    <form class="md-search__form" name="search">
+      <input type="text" class="md-search__input" name="query" aria-label="Search" placeholder="Search" autocapitalize="off" autocorrect="off" autocomplete="off" spellcheck="false" data-md-component="search-query" required>
+      <label class="md-search__icon md-icon" for="__search">
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"/></svg>
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M20 11v2H8l5.5 5.5-1.42 1.42L4.16 12l7.92-7.92L13.5 5.5 8 11z"/></svg>
+      </label>
+      <nav class="md-search__options" aria-label="Search">
+        
+        <button type="reset" class="md-search__icon md-icon" title="Clear" aria-label="Clear" tabindex="-1">
+          
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 6.41 17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg>
+        </button>
+      </nav>
+      
+    </form>
+    <div class="md-search__output">
+      <div class="md-search__scrollwrap" tabindex="0" data-md-scrollfix>
+        <div class="md-search-result" data-md-component="search-result">
+          <div class="md-search-result__meta">
+            Initializing search
+          </div>
+          <ol class="md-search-result__list" role="presentation"></ol>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+      
+    
+    
+      <div class="md-header__source">
+        <a href="https://github.com/appliedgrg/beratools" title="Go to repository" class="md-source" data-md-component="source">
+  <div class="md-source__icon md-icon">
+    
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512"><!--! Font Awesome Free 7.1.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2025 Fonticons, Inc.--><path d="M439.6 236.1 244 40.5c-5.4-5.5-12.8-8.5-20.4-8.5s-15 3-20.4 8.4L162.5 81l51.5 51.5c27.1-9.1 52.7 16.8 43.4 43.7l49.7 49.7c34.2-11.8 61.2 31 35.5 56.7-26.5 26.5-70.2-2.9-56-37.3L240.3 199v121.9c25.3 12.5 22.3 41.8 9.1 55-6.4 6.4-15.2 10.1-24.3 10.1s-17.8-3.6-24.3-10.1c-17.6-17.6-11.1-46.9 11.2-56v-123c-20.8-8.5-24.6-30.7-18.6-45L142.6 101 8.5 235.1C3 240.6 0 247.9 0 255.5s3 15 8.5 20.4l195.6 195.7c5.4 5.4 12.7 8.4 20.4 8.4s15-3 20.4-8.4l194.7-194.7c5.4-5.4 8.4-12.8 8.4-20.4s-3-15-8.4-20.4"/></svg>
+  </div>
+  <div class="md-source__repository">
+    BERA Tools
+  </div>
+</a>
+      </div>
+    
+  </nav>
+  
+</header>
+    
+    <div class="md-container" data-md-component="container">
+      
+      
+        
+          
+            
+<nav class="md-tabs" aria-label="Tabs" data-md-component="tabs">
+  <div class="md-grid">
+    <ul class="md-tabs__list">
+      
+        
+  
+  
+  
+  
+    
+    
+      <li class="md-tabs__item">
+        <a href=".." class="md-tabs__link">
+          
+  
+  
+  Home
+
+        </a>
+      </li>
+    
+  
+
+      
+        
+  
+  
+  
+  
+    
+    
+      <li class="md-tabs__item">
+        <a href="../user/installation/" class="md-tabs__link">
+          
+  
+  
+  User Guide
+
+        </a>
+      </li>
+    
+  
+
+      
+        
+  
+  
+  
+  
+    
+    
+      <li class="md-tabs__item">
+        <a href="../developer_guide/" class="md-tabs__link">
+          
+  
+  
+  Developer Guide
+
+        </a>
+      </li>
+    
+  
+
+      
+        
+  
+  
+  
+    
+  
+  
+    <li class="md-tabs__item md-tabs__item--active">
+      <a href="./" class="md-tabs__link">
+        
+  
+  
+    
+  
+  API Reference
+
+      </a>
+    </li>
+  
+
+      
+    </ul>
+  </div>
+</nav>
+          
+        
+      
+      <main class="md-main" data-md-component="main">
+        <div class="md-main__inner md-grid">
+          
+            
+              
+              <div class="md-sidebar md-sidebar--primary" data-md-component="sidebar" data-md-type="navigation" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+
+  
+
+
+<nav class="md-nav md-nav--primary md-nav--lifted" aria-label="Navigation" data-md-level="0">
+  <label class="md-nav__title" for="__drawer">
+    <a href=".." title="BERA Tools Guide" class="md-nav__button md-logo" aria-label="BERA Tools Guide" data-md-component="logo">
+      
+  <img src="../icons/bera_logo.svg" alt="logo">
+
+    </a>
+    BERA Tools Guide
+  </label>
+  
+    <div class="md-nav__source">
+      <a href="https://github.com/appliedgrg/beratools" title="Go to repository" class="md-source" data-md-component="source">
+  <div class="md-source__icon md-icon">
+    
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512"><!--! Font Awesome Free 7.1.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2025 Fonticons, Inc.--><path d="M439.6 236.1 244 40.5c-5.4-5.5-12.8-8.5-20.4-8.5s-15 3-20.4 8.4L162.5 81l51.5 51.5c27.1-9.1 52.7 16.8 43.4 43.7l49.7 49.7c34.2-11.8 61.2 31 35.5 56.7-26.5 26.5-70.2-2.9-56-37.3L240.3 199v121.9c25.3 12.5 22.3 41.8 9.1 55-6.4 6.4-15.2 10.1-24.3 10.1s-17.8-3.6-24.3-10.1c-17.6-17.6-11.1-46.9 11.2-56v-123c-20.8-8.5-24.6-30.7-18.6-45L142.6 101 8.5 235.1C3 240.6 0 247.9 0 255.5s3 15 8.5 20.4l195.6 195.7c5.4 5.4 12.7 8.4 20.4 8.4s15-3 20.4-8.4l194.7-194.7c5.4-5.4 8.4-12.8 8.4-20.4s-3-15-8.4-20.4"/></svg>
+  </div>
+  <div class="md-source__repository">
+    BERA Tools
+  </div>
+</a>
+    </div>
+  
+  <ul class="md-nav__list" data-md-scrollfix>
+    
+      
+      
+  
+  
+  
+  
+    
+    
+    
+    
+      
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_1" >
+        
+          
+          <label class="md-nav__link" for="__nav_1" id="__nav_1_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    Home
+    
+  </span>
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_1_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_1">
+            <span class="md-nav__icon md-icon"></span>
+            Home
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href=".." class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    About
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../overview/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    Overview
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+    
+    
+      
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_2" >
+        
+          
+          <label class="md-nav__link" for="__nav_2" id="__nav_2_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    User Guide
+    
+  </span>
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_2_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_2">
+            <span class="md-nav__icon md-icon"></span>
+            User Guide
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../user/installation/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    Installation
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../user_guide/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    Quick Start
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    
+    
+    
+    
+      
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_2_3" >
+        
+          
+          <label class="md-nav__link" for="__nav_2_3" id="__nav_2_3_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    Tools
+    
+  </span>
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_2_3_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_2_3">
+            <span class="md-nav__icon md-icon"></span>
+            Tools
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../user/check_seed_line/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    Check Seed Line
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../user/vertex_optimization/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    Vertex Optimization
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../user/centerline/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    Centerline
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../user/canopy_footprint_abs/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    canopy Footprint (Absolute)
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../user/line_footprint_rel/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    Canopy Footprint (Relative)
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../user/ground_footprint/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    Ground Footprint
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+    
+    
+      
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_3" >
+        
+          
+          <label class="md-nav__link" for="__nav_3" id="__nav_3_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    Developer Guide
+    
+  </span>
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_3_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_3">
+            <span class="md-nav__icon md-icon"></span>
+            Developer Guide
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../developer_guide/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    Overview
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../developer/contributing/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    Contributing
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../developer/development/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    Development
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../developer/tool_template/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    Tool Template
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+    
+  
+  
+  
+    <li class="md-nav__item md-nav__item--active">
+      
+      <input class="md-nav__toggle md-toggle" type="checkbox" id="__toc">
+      
+      
+        
+      
+      
+        <label class="md-nav__link md-nav__link--active" for="__toc">
+          
+  
+  
+  <span class="md-ellipsis">
+    API Reference
+    
+  </span>
+  
+
+          <span class="md-nav__icon md-icon"></span>
+        </label>
+      
+      <a href="./" class="md-nav__link md-nav__link--active">
+        
+  
+  
+  <span class="md-ellipsis">
+    API Reference
+    
+  </span>
+  
+
+      </a>
+      
+        
+
+<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      Table of contents
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#tools-api" class="md-nav__link">
+    <span class="md-ellipsis">
+      Tools API
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#beratools.tools.check_seed_line" class="md-nav__link">
+    <span class="md-ellipsis">
+      check_seed_line
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#beratools.tools.check_seed_line.qc_merge_multilinestring" class="md-nav__link">
+    <span class="md-ellipsis">
+      qc_merge_multilinestring
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#beratools.tools.check_seed_line.qc_split_lines_at_intersections" class="md-nav__link">
+    <span class="md-ellipsis">
+      qc_split_lines_at_intersections
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#beratools.tools.vertex_optimization" class="md-nav__link">
+    <span class="md-ellipsis">
+      vertex_optimization
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#beratools.tools.centerline" class="md-nav__link">
+    <span class="md-ellipsis">
+      centerline
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#beratools.tools.canopy_footprint_absolute" class="md-nav__link">
+    <span class="md-ellipsis">
+      canopy_footprint_absolute
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#beratools.tools.canopy_footprint_absolute.FootprintAbsolute" class="md-nav__link">
+    <span class="md-ellipsis">
+      FootprintAbsolute
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="FootprintAbsolute">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#beratools.tools.canopy_footprint_absolute.FootprintAbsolute.compute" class="md-nav__link">
+    <span class="md-ellipsis">
+      compute
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#beratools.tools.line_footprint_relative" class="md-nav__link">
+    <span class="md-ellipsis">
+      line_footprint_relative
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#beratools.tools.line_footprint_relative.CenterlineParams" class="md-nav__link">
+    <span class="md-ellipsis">
+      CenterlineParams
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#beratools.tools.line_footprint_relative.CenterlineStatus" class="md-nav__link">
+    <span class="md-ellipsis">
+      CenterlineStatus
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#beratools.tools.line_footprint_relative.SeedLine" class="md-nav__link">
+    <span class="md-ellipsis">
+      SeedLine
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#beratools.tools.line_footprint_relative.ToolBase" class="md-nav__link">
+    <span class="md-ellipsis">
+      ToolBase
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#beratools.tools.line_footprint_relative.CenterlineFlags" class="md-nav__link">
+    <span class="md-ellipsis">
+      CenterlineFlags
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#beratools.tools.line_footprint_relative.ParallelMode" class="md-nav__link">
+    <span class="md-ellipsis">
+      ParallelMode
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#beratools.tools.line_footprint_relative.find_corridor_threshold" class="md-nav__link">
+    <span class="md-ellipsis">
+      find_corridor_threshold
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="find_corridor_threshold">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#beratools.tools.line_footprint_relative.find_corridor_threshold--returns" class="md-nav__link">
+    <span class="md-ellipsis">
+      Returns
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#beratools.tools.line_footprint_relative.centerline_is_valid" class="md-nav__link">
+    <span class="md-ellipsis">
+      centerline_is_valid
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#beratools.tools.line_footprint_relative.find_centerline" class="md-nav__link">
+    <span class="md-ellipsis">
+      find_centerline
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#beratools.tools.line_footprint_relative.process_single_centerline" class="md-nav__link">
+    <span class="md-ellipsis">
+      process_single_centerline
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#beratools.tools.line_footprint_relative.regenerate_centerline" class="md-nav__link">
+    <span class="md-ellipsis">
+      regenerate_centerline
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#beratools.tools.line_footprint_relative.cut_line_by_length" class="md-nav__link">
+    <span class="md-ellipsis">
+      cut_line_by_length
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#beratools.tools.ground_footprint" class="md-nav__link">
+    <span class="md-ellipsis">
+      ground_footprint
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#beratools.tools.ground_footprint.prepare_line_args" class="md-nav__link">
+    <span class="md-ellipsis">
+      prepare_line_args
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#beratools.tools.ground_footprint.generate_sample_points" class="md-nav__link">
+    <span class="md-ellipsis">
+      generate_sample_points
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#beratools.tools.ground_footprint.generate_fixed_width_footprint" class="md-nav__link">
+    <span class="md-ellipsis">
+      generate_fixed_width_footprint
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#beratools.tools.ground_footprint.calculate_average_width" class="md-nav__link">
+    <span class="md-ellipsis">
+      calculate_average_width
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#constants" class="md-nav__link">
+    <span class="md-ellipsis">
+      Constants
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#beratools.core.constants" class="md-nav__link">
+    <span class="md-ellipsis">
+      constants
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#beratools.core.constants.CenterlineFlags" class="md-nav__link">
+    <span class="md-ellipsis">
+      CenterlineFlags
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#beratools.core.constants.ParallelMode" class="md-nav__link">
+    <span class="md-ellipsis">
+      ParallelMode
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#logger" class="md-nav__link">
+    <span class="md-ellipsis">
+      Logger
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#beratools.core.logger" class="md-nav__link">
+    <span class="md-ellipsis">
+      logger
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#beratools.core.logger.NoParsingFilter" class="md-nav__link">
+    <span class="md-ellipsis">
+      NoParsingFilter
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#beratools.core.logger.Logger" class="md-nav__link">
+    <span class="md-ellipsis">
+      Logger
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Logger">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#beratools.core.logger.Logger.print" class="md-nav__link">
+    <span class="md-ellipsis">
+      print
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#tool-base" class="md-nav__link">
+    <span class="md-ellipsis">
+      Tool Base
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#beratools.core.tool_base" class="md-nav__link">
+    <span class="md-ellipsis">
+      tool_base
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#beratools.core.tool_base.ToolBase" class="md-nav__link">
+    <span class="md-ellipsis">
+      ToolBase
+    </span>
+  </a>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+      
+    </li>
+  
+
+    
+  </ul>
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+            
+              
+              <div class="md-sidebar md-sidebar--secondary" data-md-component="sidebar" data-md-type="toc" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      Table of contents
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#tools-api" class="md-nav__link">
+    <span class="md-ellipsis">
+      Tools API
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#beratools.tools.check_seed_line" class="md-nav__link">
+    <span class="md-ellipsis">
+      check_seed_line
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#beratools.tools.check_seed_line.qc_merge_multilinestring" class="md-nav__link">
+    <span class="md-ellipsis">
+      qc_merge_multilinestring
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#beratools.tools.check_seed_line.qc_split_lines_at_intersections" class="md-nav__link">
+    <span class="md-ellipsis">
+      qc_split_lines_at_intersections
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#beratools.tools.vertex_optimization" class="md-nav__link">
+    <span class="md-ellipsis">
+      vertex_optimization
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#beratools.tools.centerline" class="md-nav__link">
+    <span class="md-ellipsis">
+      centerline
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#beratools.tools.canopy_footprint_absolute" class="md-nav__link">
+    <span class="md-ellipsis">
+      canopy_footprint_absolute
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#beratools.tools.canopy_footprint_absolute.FootprintAbsolute" class="md-nav__link">
+    <span class="md-ellipsis">
+      FootprintAbsolute
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="FootprintAbsolute">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#beratools.tools.canopy_footprint_absolute.FootprintAbsolute.compute" class="md-nav__link">
+    <span class="md-ellipsis">
+      compute
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#beratools.tools.line_footprint_relative" class="md-nav__link">
+    <span class="md-ellipsis">
+      line_footprint_relative
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#beratools.tools.line_footprint_relative.CenterlineParams" class="md-nav__link">
+    <span class="md-ellipsis">
+      CenterlineParams
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#beratools.tools.line_footprint_relative.CenterlineStatus" class="md-nav__link">
+    <span class="md-ellipsis">
+      CenterlineStatus
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#beratools.tools.line_footprint_relative.SeedLine" class="md-nav__link">
+    <span class="md-ellipsis">
+      SeedLine
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#beratools.tools.line_footprint_relative.ToolBase" class="md-nav__link">
+    <span class="md-ellipsis">
+      ToolBase
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#beratools.tools.line_footprint_relative.CenterlineFlags" class="md-nav__link">
+    <span class="md-ellipsis">
+      CenterlineFlags
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#beratools.tools.line_footprint_relative.ParallelMode" class="md-nav__link">
+    <span class="md-ellipsis">
+      ParallelMode
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#beratools.tools.line_footprint_relative.find_corridor_threshold" class="md-nav__link">
+    <span class="md-ellipsis">
+      find_corridor_threshold
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="find_corridor_threshold">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#beratools.tools.line_footprint_relative.find_corridor_threshold--returns" class="md-nav__link">
+    <span class="md-ellipsis">
+      Returns
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#beratools.tools.line_footprint_relative.centerline_is_valid" class="md-nav__link">
+    <span class="md-ellipsis">
+      centerline_is_valid
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#beratools.tools.line_footprint_relative.find_centerline" class="md-nav__link">
+    <span class="md-ellipsis">
+      find_centerline
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#beratools.tools.line_footprint_relative.process_single_centerline" class="md-nav__link">
+    <span class="md-ellipsis">
+      process_single_centerline
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#beratools.tools.line_footprint_relative.regenerate_centerline" class="md-nav__link">
+    <span class="md-ellipsis">
+      regenerate_centerline
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#beratools.tools.line_footprint_relative.cut_line_by_length" class="md-nav__link">
+    <span class="md-ellipsis">
+      cut_line_by_length
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#beratools.tools.ground_footprint" class="md-nav__link">
+    <span class="md-ellipsis">
+      ground_footprint
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#beratools.tools.ground_footprint.prepare_line_args" class="md-nav__link">
+    <span class="md-ellipsis">
+      prepare_line_args
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#beratools.tools.ground_footprint.generate_sample_points" class="md-nav__link">
+    <span class="md-ellipsis">
+      generate_sample_points
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#beratools.tools.ground_footprint.generate_fixed_width_footprint" class="md-nav__link">
+    <span class="md-ellipsis">
+      generate_fixed_width_footprint
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#beratools.tools.ground_footprint.calculate_average_width" class="md-nav__link">
+    <span class="md-ellipsis">
+      calculate_average_width
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#constants" class="md-nav__link">
+    <span class="md-ellipsis">
+      Constants
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#beratools.core.constants" class="md-nav__link">
+    <span class="md-ellipsis">
+      constants
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#beratools.core.constants.CenterlineFlags" class="md-nav__link">
+    <span class="md-ellipsis">
+      CenterlineFlags
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#beratools.core.constants.ParallelMode" class="md-nav__link">
+    <span class="md-ellipsis">
+      ParallelMode
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#logger" class="md-nav__link">
+    <span class="md-ellipsis">
+      Logger
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#beratools.core.logger" class="md-nav__link">
+    <span class="md-ellipsis">
+      logger
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#beratools.core.logger.NoParsingFilter" class="md-nav__link">
+    <span class="md-ellipsis">
+      NoParsingFilter
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#beratools.core.logger.Logger" class="md-nav__link">
+    <span class="md-ellipsis">
+      Logger
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Logger">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#beratools.core.logger.Logger.print" class="md-nav__link">
+    <span class="md-ellipsis">
+      print
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#tool-base" class="md-nav__link">
+    <span class="md-ellipsis">
+      Tool Base
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#beratools.core.tool_base" class="md-nav__link">
+    <span class="md-ellipsis">
+      tool_base
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#beratools.core.tool_base.ToolBase" class="md-nav__link">
+    <span class="md-ellipsis">
+      ToolBase
+    </span>
+  </a>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+          
+          
+            <div class="md-content" data-md-component="content">
+              <article class="md-content__inner md-typeset">
+                
+                  
+
+
+  
+    <a href="https://github.com/appliedgrg/beratools/edit/main/docs/files/api.md" title="Edit this page" class="md-content__button md-icon" rel="edit">
+      
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M10 20H6V4h7v5h5v3.1l2-2V8l-6-6H6c-1.1 0-2 .9-2 2v16c0 1.1.9 2 2 2h4zm10.2-7c.1 0 .3.1.4.2l1.3 1.3c.2.2.2.6 0 .8l-1 1-2.1-2.1 1-1c.1-.1.2-.2.4-.2m0 3.9L14.1 23H12v-2.1l6.1-6.1z"/></svg>
+    </a>
+  
+  
+
+
+<h1 id="python-api-reference">Python API Reference</h1>
+<p>This page documents the main Python modules in BERA Tools using mkdocstrings.</p>
+<h2 id="tools-api">Tools API</h2>
+
+
+<div class="doc doc-object doc-module">
+
+
+
+<a id="beratools.tools.check_seed_line"></a>
+    <div class="doc doc-contents first">
+
+        <p>Copyright (C) 2025 Applied Geospatial Research Group.</p>
+<p>This script is licensed under the GNU General Public License v3.0.
+See <a href="https://gnu.org/licenses/gpl-3.0">https://gnu.org/licenses/gpl-3.0</a> for full license details.</p>
+<p>Author: Richard Zeng</p>
+
+
+<details class="description" open>
+  <summary>Description</summary>
+  <p>This script is part of the BERA Tools.
+Webpage: https://github.com/appliedgrg/beratools</p>
+<p>The purpose of this script is to provide main interface for line grouping tool.</p>
+</details>
+
+
+
+
+
+
+
+
+
+  <div class="doc doc-children">
+
+
+
+
+
+
+
+
+
+
+<div class="doc doc-object doc-function">
+
+
+<h2 id="beratools.tools.check_seed_line.qc_merge_multilinestring" class="doc doc-heading">
+            <span class="doc doc-object-name doc-function-name">qc_merge_multilinestring</span>
+
+
+</h2>
+<div class="doc-signature highlight"><pre><span></span><code><span class="nf">qc_merge_multilinestring</span><span class="p">(</span><span class="n">gdf</span><span class="p">)</span>
+</code></pre></div>
+
+    <div class="doc doc-contents ">
+
+        <p>QC step: Merge MultiLineStrings if possible, else split into LineStrings.</p>
+
+
+<p><span class="doc-section-title">Parameters:</span></p>
+    <table>
+      <thead>
+        <tr>
+          <th>Name</th>
+          <th>Type</th>
+          <th>Description</th>
+          <th>Default</th>
+        </tr>
+      </thead>
+      <tbody>
+          <tr class="doc-section-item">
+            <td>
+                <code>gdf</code>
+            </td>
+            <td>
+                  <code><span title="GeoDataFrame">GeoDataFrame</span></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>Input GeoDataFrame.</p>
+              </div>
+            </td>
+            <td>
+                <em>required</em>
+            </td>
+          </tr>
+      </tbody>
+    </table>
+
+
+    <p><span class="doc-section-title">Returns:</span></p>
+    <table>
+      <thead>
+        <tr>
+<th>Name</th>          <th>Type</th>
+          <th>Description</th>
+        </tr>
+      </thead>
+      <tbody>
+          <tr class="doc-section-item">
+<td><code>GeoDataFrame</code></td>            <td>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>Cleaned GeoDataFrame with only LineStrings.</p>
+              </div>
+            </td>
+          </tr>
+      </tbody>
+    </table>
+
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-function">
+
+
+<h2 id="beratools.tools.check_seed_line.qc_split_lines_at_intersections" class="doc doc-heading">
+            <span class="doc doc-object-name doc-function-name">qc_split_lines_at_intersections</span>
+
+
+</h2>
+<div class="doc-signature highlight"><pre><span></span><code><span class="nf">qc_split_lines_at_intersections</span><span class="p">(</span><span class="n">gdf</span><span class="p">)</span>
+</code></pre></div>
+
+    <div class="doc doc-contents ">
+
+        <p>QC step: Split lines at intersections so each segment becomes a separate line object.</p>
+
+
+<p><span class="doc-section-title">Parameters:</span></p>
+    <table>
+      <thead>
+        <tr>
+          <th>Name</th>
+          <th>Type</th>
+          <th>Description</th>
+          <th>Default</th>
+        </tr>
+      </thead>
+      <tbody>
+          <tr class="doc-section-item">
+            <td>
+                <code>gdf</code>
+            </td>
+            <td>
+                  <code><span title="GeoDataFrame">GeoDataFrame</span></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>Input GeoDataFrame of LineStrings.</p>
+              </div>
+            </td>
+            <td>
+                <em>required</em>
+            </td>
+          </tr>
+      </tbody>
+    </table>
+
+
+    <p><span class="doc-section-title">Returns:</span></p>
+    <table>
+      <thead>
+        <tr>
+<th>Name</th>          <th>Type</th>
+          <th>Description</th>
+        </tr>
+      </thead>
+      <tbody>
+          <tr class="doc-section-item">
+<td><code>GeoDataFrame</code></td>            <td>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>New GeoDataFrame with lines split at all intersection points.</p>
+              </div>
+            </td>
+          </tr>
+      </tbody>
+    </table>
+
+
+    </div>
+
+</div>
+
+
+
+  </div>
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-module">
+
+
+
+<a id="beratools.tools.vertex_optimization"></a>
+    <div class="doc doc-contents first">
+
+        <p>Copyright (C) 2025 Applied Geospatial Research Group.</p>
+<p>This script is licensed under the GNU General Public License v3.0.
+See <a href="https://gnu.org/licenses/gpl-3.0">https://gnu.org/licenses/gpl-3.0</a> for full license details.</p>
+<p>Author: Richard Zeng</p>
+
+
+<details class="description" open>
+  <summary>Description</summary>
+  <p>This script is part of the BERA Tools.
+Webpage: https://github.com/appliedgrg/beratools</p>
+<p>The purpose of this script is the public interface for vertex optimization.</p>
+</details>
+
+
+
+
+
+
+
+
+
+  <div class="doc doc-children">
+
+
+
+
+
+
+
+
+
+
+
+
+  </div>
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-module">
+
+
+
+<a id="beratools.tools.centerline"></a>
+    <div class="doc doc-contents first">
+
+        <p>Copyright (C) 2025 Applied Geospatial Research Group.</p>
+<p>This script is licensed under the GNU General Public License v3.0.
+See <a href="https://gnu.org/licenses/gpl-3.0">https://gnu.org/licenses/gpl-3.0</a> for full license details.</p>
+<p>Author: Richard Zeng</p>
+
+
+<details class="description" open>
+  <summary>Description</summary>
+  <p>This script is part of the BERA Tools.
+Webpage: https://github.com/appliedgrg/beratools</p>
+<p>The purpose of this script is to provide main interface for centerline tool.</p>
+</details>
+
+
+
+
+
+
+
+
+
+  <div class="doc doc-children">
+
+
+
+
+
+
+
+
+
+
+
+
+  </div>
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-module">
+
+
+
+<a id="beratools.tools.canopy_footprint_absolute"></a>
+    <div class="doc doc-contents first">
+
+        <p>Copyright (C) 2025 Applied Geospatial Research Group.</p>
+<p>This script is licensed under the GNU General Public License v3.0.
+See <a href="https://gnu.org/licenses/gpl-3.0">https://gnu.org/licenses/gpl-3.0</a> for full license details.</p>
+<p>Author: Richard Zeng</p>
+
+
+<details class="description" open>
+  <summary>Description</summary>
+  <p>This script is part of the BERA Tools.
+Webpage: https://github.com/appliedgrg/beratools</p>
+<p>The purpose of this script is to provide main interface for canopy footprint tool.
+The tool is used to generate the footprint of a line based on absolute threshold.</p>
+</details>
+
+
+
+
+
+
+
+
+
+  <div class="doc doc-children">
+
+
+
+
+
+
+
+
+
+<div class="doc doc-object doc-class">
+
+
+
+<h2 id="beratools.tools.canopy_footprint_absolute.FootprintAbsolute" class="doc doc-heading">
+            <span class="doc doc-object-name doc-class-name">FootprintAbsolute</span>
+
+
+</h2>
+<div class="doc-signature highlight"><pre><span></span><code><span class="nf">FootprintAbsolute</span><span class="p">(</span><span class="n">line_seg</span><span class="p">,</span> <span class="n">in_chm</span><span class="p">,</span> <span class="n">corridor_thresh</span><span class="p">,</span> <span class="n">max_ln_width</span><span class="p">,</span> <span class="n">exp_shk_cell</span><span class="p">)</span>
+</code></pre></div>
+
+    <div class="doc doc-contents ">
+
+
+        <p>Class to compute the footprint of a line based on absolute threshold.</p>
+
+
+
+
+
+
+
+
+
+
+
+  <div class="doc doc-children">
+
+
+
+
+
+
+
+
+
+
+<div class="doc doc-object doc-function">
+
+
+<h3 id="beratools.tools.canopy_footprint_absolute.FootprintAbsolute.compute" class="doc doc-heading">
+            <span class="doc doc-object-name doc-function-name">compute</span>
+
+
+</h3>
+<div class="doc-signature highlight"><pre><span></span><code><span class="nf">compute</span><span class="p">()</span>
+</code></pre></div>
+
+    <div class="doc doc-contents ">
+
+        <p>Generate line footprint.</p>
+
+
+    </div>
+
+</div>
+
+
+
+  </div>
+
+    </div>
+
+</div>
+
+
+
+
+  </div>
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-module">
+
+
+
+<a id="beratools.tools.line_footprint_relative"></a>
+    <div class="doc doc-contents first">
+
+
+
+
+
+
+
+
+
+
+  <div class="doc doc-children">
+
+
+
+
+
+
+
+
+
+<div class="doc doc-object doc-class">
+
+
+
+<h2 id="beratools.tools.line_footprint_relative.CenterlineParams" class="doc doc-heading">
+            <span class="doc doc-object-name doc-class-name">CenterlineParams</span>
+
+
+</h2>
+
+
+    <div class="doc doc-contents ">
+            <p class="doc doc-class-bases">
+              Bases: <code><a class="autorefs autorefs-external" href="https://docs.python.org/3/library/functions.html#float">float</a></code>, <code><a class="autorefs autorefs-external" title="enum.Enum" href="https://docs.python.org/3/library/enum.html#enum.Enum">Enum</a></code></p>
+
+
+        <p>Parameters for centerline generation.</p>
+<p>These parameters are used to control the behavior of centerline generation
+and should be adjusted based on the specific requirements of the application.</p>
+
+
+
+
+
+
+
+
+
+
+
+  <div class="doc doc-children">
+
+
+
+
+
+
+
+
+
+
+
+
+  </div>
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-class">
+
+
+
+<h2 id="beratools.tools.line_footprint_relative.CenterlineStatus" class="doc doc-heading">
+            <span class="doc doc-object-name doc-class-name">CenterlineStatus</span>
+
+
+</h2>
+
+
+    <div class="doc doc-contents ">
+            <p class="doc doc-class-bases">
+              Bases: <code><a class="autorefs autorefs-external" title="enum.IntEnum" href="https://docs.python.org/3/library/enum.html#enum.IntEnum">IntEnum</a></code></p>
+
+
+        <p>Status of centerline generation.</p>
+<p>This enum is used to indicate the status of centerline generation.
+It can be used to track the success or failure of the centerline generation process.</p>
+
+
+
+
+
+
+
+
+
+
+
+  <div class="doc doc-children">
+
+
+
+
+
+
+
+
+
+
+
+
+  </div>
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-class">
+
+
+
+<h2 id="beratools.tools.line_footprint_relative.SeedLine" class="doc doc-heading">
+            <span class="doc doc-object-name doc-class-name">SeedLine</span>
+
+
+</h2>
+<div class="doc-signature highlight"><pre><span></span><code><span class="nf">SeedLine</span><span class="p">(</span><span class="n">line_gdf</span><span class="p">,</span> <span class="n">ras_file</span><span class="p">,</span> <span class="n">proc_segments</span><span class="p">,</span> <span class="n">line_radius</span><span class="p">)</span>
+</code></pre></div>
+
+    <div class="doc doc-contents ">
+
+
+        <p>Class to store seed line and least cost path.</p>
+
+
+
+
+
+
+
+
+
+
+
+  <div class="doc doc-children">
+
+
+
+
+
+
+
+
+
+
+
+
+  </div>
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-class">
+
+
+
+<h2 id="beratools.tools.line_footprint_relative.ToolBase" class="doc doc-heading">
+            <span class="doc doc-object-name doc-class-name">ToolBase</span>
+
+
+</h2>
+<div class="doc-signature highlight"><pre><span></span><code><span class="nf">ToolBase</span><span class="p">()</span>
+</code></pre></div>
+
+    <div class="doc doc-contents ">
+            <p class="doc doc-class-bases">
+              Bases: <code><a class="autorefs autorefs-external" href="https://docs.python.org/3/glossary.html#term-object">object</a></code></p>
+
+
+        <p>Base class for tools.</p>
+
+
+
+
+
+
+
+
+
+
+
+  <div class="doc doc-children">
+
+
+
+
+
+
+
+
+
+
+
+
+  </div>
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-class">
+
+
+
+<h2 id="beratools.tools.line_footprint_relative.CenterlineFlags" class="doc doc-heading">
+            <span class="doc doc-object-name doc-class-name">CenterlineFlags</span>
+
+
+</h2>
+
+
+    <div class="doc doc-contents ">
+            <p class="doc doc-class-bases">
+              Bases: <code><a class="autorefs autorefs-external" title="enum.Flag" href="https://docs.python.org/3/library/enum.html#enum.Flag">Flag</a></code></p>
+
+
+        <p>Flags for the centerline algorithm.</p>
+
+
+
+
+
+
+
+
+
+
+
+  <div class="doc doc-children">
+
+
+
+
+
+
+
+
+
+
+
+
+  </div>
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-class">
+
+
+
+<h2 id="beratools.tools.line_footprint_relative.ParallelMode" class="doc doc-heading">
+            <span class="doc doc-object-name doc-class-name">ParallelMode</span>
+
+
+</h2>
+
+
+    <div class="doc doc-contents ">
+            <p class="doc doc-class-bases">
+              Bases: <code><a class="autorefs autorefs-external" title="enum.IntEnum" href="https://docs.python.org/3/library/enum.html#enum.IntEnum">IntEnum</a></code></p>
+
+
+        <p>Defines the parallel mode for the algorithms.</p>
+
+
+
+
+
+
+
+
+
+
+
+  <div class="doc doc-children">
+
+
+
+
+
+
+
+
+
+
+
+
+  </div>
+
+    </div>
+
+</div>
+
+
+<div class="doc doc-object doc-function">
+
+
+<h2 id="beratools.tools.line_footprint_relative.find_corridor_threshold" class="doc doc-heading">
+            <span class="doc doc-object-name doc-function-name">find_corridor_threshold</span>
+
+
+</h2>
+<div class="doc-signature highlight"><pre><span></span><code><span class="nf">find_corridor_threshold</span><span class="p">(</span><span class="n">raster</span><span class="p">)</span>
+</code></pre></div>
+
+    <div class="doc doc-contents ">
+
+        <p>Find the optimal corridor threshold by raster histogram
+Parameters</p>
+<hr />
+<p>raster : corridor raster</p>
+<h4 id="beratools.tools.line_footprint_relative.find_corridor_threshold--returns">Returns</h4>
+<p>corridor_threshold : float</p>
+
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-function">
+
+
+<h2 id="beratools.tools.line_footprint_relative.centerline_is_valid" class="doc doc-heading">
+            <span class="doc doc-object-name doc-function-name">centerline_is_valid</span>
+
+
+</h2>
+<div class="doc-signature highlight"><pre><span></span><code><span class="nf">centerline_is_valid</span><span class="p">(</span><span class="n">centerline</span><span class="p">,</span> <span class="n">input_line</span><span class="p">)</span>
+</code></pre></div>
+
+    <div class="doc doc-contents ">
+
+        <p>Check if centerline is valid.</p>
+
+
+<p><span class="doc-section-title">Parameters:</span></p>
+    <table>
+      <thead>
+        <tr>
+          <th>Name</th>
+          <th>Type</th>
+          <th>Description</th>
+          <th>Default</th>
+        </tr>
+      </thead>
+      <tbody>
+          <tr class="doc-section-item">
+            <td>
+                <code>centerline</code>
+            </td>
+            <td>
+                  <code><span title="_type_">_type_</span></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p><em>description</em></p>
+              </div>
+            </td>
+            <td>
+                <em>required</em>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td>
+                <code>input_line</code>
+            </td>
+            <td>
+                  <code><span title="shapely.geometry.LineString">LineString</span></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>Seed line or least cost path.</p>
+              </div>
+            </td>
+            <td>
+                <em>required</em>
+            </td>
+          </tr>
+      </tbody>
+    </table>
+
+
+    <p><span class="doc-section-title">Returns:</span></p>
+    <table>
+      <thead>
+        <tr>
+<th>Name</th>          <th>Type</th>
+          <th>Description</th>
+        </tr>
+      </thead>
+      <tbody>
+          <tr class="doc-section-item">
+<td><code>bool</code></td>            <td>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>True if line is valid</p>
+              </div>
+            </td>
+          </tr>
+      </tbody>
+    </table>
+
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-function">
+
+
+<h2 id="beratools.tools.line_footprint_relative.find_centerline" class="doc doc-heading">
+            <span class="doc doc-object-name doc-function-name">find_centerline</span>
+
+
+</h2>
+<div class="doc-signature highlight"><pre><span></span><code><span class="nf">find_centerline</span><span class="p">(</span><span class="n">poly</span><span class="p">,</span> <span class="n">input_line</span><span class="p">)</span>
+</code></pre></div>
+
+    <div class="doc doc-contents ">
+
+        <p>Find centerline from polygon and input line.</p>
+
+
+<p><span class="doc-section-title">Parameters:</span></p>
+    <table>
+      <thead>
+        <tr>
+          <th>Name</th>
+          <th>Type</th>
+          <th>Description</th>
+          <th>Default</th>
+        </tr>
+      </thead>
+      <tbody>
+          <tr class="doc-section-item">
+            <td>
+                <code>poly </code>
+            </td>
+            <td>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>sh_geom.Polygon</p>
+              </div>
+            </td>
+            <td>
+                <em>required</em>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td>
+                <code>input_line</code>
+            </td>
+            <td>
+                  <code><span title="shapely.geometry.LineString">LineString</span></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>Least cost path or seed line</p>
+              </div>
+            </td>
+            <td>
+                <em>required</em>
+            </td>
+          </tr>
+      </tbody>
+    </table>
+        <p>Returns:
+centerline (sh_geom.LineString): Centerline
+status (CenterlineStatus): Status of centerline generation</p>
+
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-function">
+
+
+<h2 id="beratools.tools.line_footprint_relative.process_single_centerline" class="doc doc-heading">
+            <span class="doc doc-object-name doc-function-name">process_single_centerline</span>
+
+
+</h2>
+<div class="doc-signature highlight"><pre><span></span><code><span class="nf">process_single_centerline</span><span class="p">(</span><span class="n">row_and_path</span><span class="p">)</span>
+</code></pre></div>
+
+    <div class="doc doc-contents ">
+
+        <p>Find centerline.</p>
+<p>Args:
+row_and_path (list of row (gdf and lc_path)): and least cost path
+first is GeoPandas row, second is input line, (least cost path)</p>
+<p>Returns:
+row: GeoPandas row with centerline</p>
+
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-function">
+
+
+<h2 id="beratools.tools.line_footprint_relative.regenerate_centerline" class="doc doc-heading">
+            <span class="doc doc-object-name doc-function-name">regenerate_centerline</span>
+
+
+</h2>
+<div class="doc-signature highlight"><pre><span></span><code><span class="nf">regenerate_centerline</span><span class="p">(</span><span class="n">poly</span><span class="p">,</span> <span class="n">input_line</span><span class="p">)</span>
+</code></pre></div>
+
+    <div class="doc doc-contents ">
+
+        <p>Regenerates centerline when initial poly is not valid.</p>
+
+
+<p><span class="doc-section-title">Parameters:</span></p>
+    <table>
+      <thead>
+        <tr>
+          <th>Name</th>
+          <th>Type</th>
+          <th>Description</th>
+          <th>Default</th>
+        </tr>
+      </thead>
+      <tbody>
+          <tr class="doc-section-item">
+            <td>
+                <code>input_line</code>
+            </td>
+            <td>
+                  <code><span title="shapely.geometry.LineString">LineString</span></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>Seed line or least cost path.</p>
+              </div>
+            </td>
+            <td>
+                <em>required</em>
+            </td>
+          </tr>
+      </tbody>
+    </table>
+
+
+    <p><span class="doc-section-title">Returns:</span></p>
+    <table>
+      <thead>
+        <tr>
+          <th>Type</th>
+          <th>Description</th>
+        </tr>
+      </thead>
+      <tbody>
+          <tr class="doc-section-item">
+            <td>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>sh_geom.MultiLineString</p>
+              </div>
+            </td>
+          </tr>
+      </tbody>
+    </table>
+
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-function">
+
+
+<h2 id="beratools.tools.line_footprint_relative.cut_line_by_length" class="doc doc-heading">
+            <span class="doc doc-object-name doc-function-name">cut_line_by_length</span>
+
+
+</h2>
+<div class="doc-signature highlight"><pre><span></span><code><span class="nf">cut_line_by_length</span><span class="p">(</span><span class="n">line</span><span class="p">,</span> <span class="n">length</span><span class="p">,</span> <span class="n">merge_threshold</span><span class="o">=</span><span class="mf">0.5</span><span class="p">)</span>
+</code></pre></div>
+
+    <div class="doc doc-contents ">
+
+        <p>Split line into segments of equal length.</p>
+<p>Merge the last segment with the second-to-last if its length
+is smaller than the given threshold.</p>
+
+
+<p><span class="doc-section-title">Parameters:</span></p>
+    <table>
+      <thead>
+        <tr>
+          <th>Name</th>
+          <th>Type</th>
+          <th>Description</th>
+          <th>Default</th>
+        </tr>
+      </thead>
+      <tbody>
+          <tr class="doc-section-item">
+            <td>
+                <code>line </code>
+            </td>
+            <td>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>LineString
+Line to be split by distance along the line.</p>
+              </div>
+            </td>
+            <td>
+                <em>required</em>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td>
+                <code>length </code>
+            </td>
+            <td>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>float
+Length of each segment to cut.</p>
+              </div>
+            </td>
+            <td>
+                <em>required</em>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td>
+                <code>merge_threshold </code>
+            </td>
+            <td>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>float, optional
+Threshold below which the last segment is merged with the previous one. Default is 0.5.</p>
+              </div>
+            </td>
+            <td>
+                <em>required</em>
+            </td>
+          </tr>
+      </tbody>
+    </table>
+
+
+    <p><span class="doc-section-title">Returns:</span></p>
+    <table>
+      <thead>
+        <tr>
+          <th>Type</th>
+          <th>Description</th>
+        </tr>
+      </thead>
+      <tbody>
+          <tr class="doc-section-item">
+            <td>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>List of LineString objects
+A list containing the resulting line segments.</p>
+              </div>
+            </td>
+          </tr>
+      </tbody>
+    </table>
+
+
+<details class="example" open>
+  <summary>Example</summary>
+  <p>"&gt;&gt;&gt; from shapely.geometry import LineString
+"&gt;&gt;&gt; line = LineString([(0, 0), (10, 0)])
+"&gt;&gt;&gt; segments = cut_line_by_length(line, 3, merge_threshold=1)
+"&gt;&gt;&gt; for segment in segments:
+"&gt;&gt;&gt;     print(f"Segment: {segment}, Length: {segment.length}")</p>
+<p>Output:
+Segment: LINESTRING (0 0, 3 0), Length: 3.0
+Segment: LINESTRING (3 0, 6 0), Length: 3.0
+Segment: LINESTRING (6 0, 9 0), Length: 3.0
+Segment: LINESTRING (9 0, 10 0), Length: 1.0</p>
+<p>After merging the last segment with the second-to-last segment:</p>
+<p>Output:
+Segment: LINESTRING (0 0, 3 0), Length: 3.0
+Segment: LINESTRING (3 0, 6 0), Length: 3.0
+Segment: LINESTRING (6 0, 10 0), Length: 4.0</p>
+</details>
+
+    </div>
+
+</div>
+
+
+
+  </div>
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-module">
+
+
+
+<a id="beratools.tools.ground_footprint"></a>
+    <div class="doc doc-contents first">
+
+        <p>Copyright (C) 2025 Applied Geospatial Research Group.</p>
+<p>This script is licensed under the GNU General Public License v3.0.
+See <a href="https://gnu.org/licenses/gpl-3.0">https://gnu.org/licenses/gpl-3.0</a> for full license details.</p>
+<p>Author: Richard Zeng, Maverick Fong</p>
+
+
+<details class="description" open>
+  <summary>Description</summary>
+  <p>This script is part of the BERA Tools.
+Webpage: https://github.com/appliedgrg/beratools</p>
+<p>This file hosts the ground_footprint tool.</p>
+</details>
+
+
+
+
+
+
+
+
+
+  <div class="doc doc-children">
+
+
+
+
+
+
+
+
+
+
+<div class="doc doc-object doc-function">
+
+
+<h2 id="beratools.tools.ground_footprint.prepare_line_args" class="doc doc-heading">
+            <span class="doc doc-object-name doc-function-name">prepare_line_args</span>
+
+
+</h2>
+<div class="doc-signature highlight"><pre><span></span><code><span class="nf">prepare_line_args</span><span class="p">(</span><span class="n">line_gdf</span><span class="p">,</span> <span class="n">poly_gdf</span><span class="p">,</span> <span class="n">n_samples</span><span class="p">,</span> <span class="n">offset</span><span class="p">,</span> <span class="n">width_percentile</span><span class="p">)</span>
+</code></pre></div>
+
+    <div class="doc doc-contents ">
+
+        <p>Generate arguments for each line in the GeoDataFrame.</p>
+
+
+    <p><span class="doc-section-title">Returns:</span></p>
+    <table>
+      <thead>
+        <tr>
+<th>Name</th>          <th>Type</th>
+          <th>Description</th>
+        </tr>
+      </thead>
+      <tbody>
+          <tr class="doc-section-item">
+<td><code>line_args</code></td>            <td>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>list
+row :
+inter_poly :
+n_samples :
+offset :
+width_percentile :</p>
+              </div>
+            </td>
+          </tr>
+      </tbody>
+    </table>
+
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-function">
+
+
+<h2 id="beratools.tools.ground_footprint.generate_sample_points" class="doc doc-heading">
+            <span class="doc doc-object-name doc-function-name">generate_sample_points</span>
+
+
+</h2>
+<div class="doc-signature highlight"><pre><span></span><code><span class="nf">generate_sample_points</span><span class="p">(</span><span class="n">line</span><span class="p">,</span> <span class="n">n_samples</span><span class="o">=</span><span class="mi">10</span><span class="p">)</span>
+</code></pre></div>
+
+    <div class="doc doc-contents ">
+
+        <p>Generate evenly spaced points along a line.</p>
+
+
+<p><span class="doc-section-title">Parameters:</span></p>
+    <table>
+      <thead>
+        <tr>
+          <th>Name</th>
+          <th>Type</th>
+          <th>Description</th>
+          <th>Default</th>
+        </tr>
+      </thead>
+      <tbody>
+          <tr class="doc-section-item">
+            <td>
+                <code>line</code>
+            </td>
+            <td>
+                  <code><a class="autorefs autorefs-external" href="https://shapely.readthedocs.io/en/stable/manual.html#LineString">LineString</a></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>The line along which to generate points.</p>
+              </div>
+            </td>
+            <td>
+                <em>required</em>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td>
+                <code>n_samples</code>
+            </td>
+            <td>
+                  <code><a class="autorefs autorefs-external" href="https://docs.python.org/3/library/functions.html#int">int</a></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>The number of points to generate (default is 10).</p>
+              </div>
+            </td>
+            <td>
+                  <code>10</code>
+            </td>
+          </tr>
+      </tbody>
+    </table>
+
+
+    <p><span class="doc-section-title">Returns:</span></p>
+    <table>
+      <thead>
+        <tr>
+<th>Name</th>          <th>Type</th>
+          <th>Description</th>
+        </tr>
+      </thead>
+      <tbody>
+          <tr class="doc-section-item">
+<td><code>list</code></td>            <td>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>List of shapely Point objects.</p>
+              </div>
+            </td>
+          </tr>
+      </tbody>
+    </table>
+
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-function">
+
+
+<h2 id="beratools.tools.ground_footprint.generate_fixed_width_footprint" class="doc doc-heading">
+            <span class="doc doc-object-name doc-function-name">generate_fixed_width_footprint</span>
+
+
+</h2>
+<div class="doc-signature highlight"><pre><span></span><code><span class="nf">generate_fixed_width_footprint</span><span class="p">(</span><span class="n">line_gdf</span><span class="p">,</span> <span class="n">max_width</span><span class="o">=</span><span class="kc">False</span><span class="p">)</span>
+</code></pre></div>
+
+    <div class="doc doc-contents ">
+
+        <p>Create a buffer around each line.</p>
+<p>In the GeoDataFrame using its 'max_width' attribute and
+saves the resulting polygons in a new shapefile.</p>
+<p>Args:
+line_gdf: GeoDataFrame containing LineString with 'max_width' attribute.
+max_width: Use max width or not to produce buffer.</p>
+
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-function">
+
+
+<h2 id="beratools.tools.ground_footprint.calculate_average_width" class="doc doc-heading">
+            <span class="doc doc-object-name doc-function-name">calculate_average_width</span>
+
+
+</h2>
+<div class="doc-signature highlight"><pre><span></span><code><span class="nf">calculate_average_width</span><span class="p">(</span><span class="n">line</span><span class="p">,</span> <span class="n">in_poly</span><span class="p">,</span> <span class="n">offset</span><span class="p">,</span> <span class="n">n_samples</span><span class="p">)</span>
+</code></pre></div>
+
+    <div class="doc doc-contents ">
+
+        <p>Calculate the average width of a polygon perpendicular to the given line.</p>
+
+
+    </div>
+
+</div>
+
+
+
+  </div>
+
+    </div>
+
+</div><h2 id="constants">Constants</h2>
+
+
+<div class="doc doc-object doc-module">
+
+
+
+<a id="beratools.core.constants"></a>
+    <div class="doc doc-contents first">
+
+        <p>Copyright (C) 2025 Applied Geospatial Research Group.</p>
+<p>This script is licensed under the GNU General Public License v3.0.
+See <a href="https://gnu.org/licenses/gpl-3.0">https://gnu.org/licenses/gpl-3.0</a> for full license details.</p>
+<p>Author: Richard Zeng</p>
+
+
+<details class="description" open>
+  <summary>Description</summary>
+  <p>This script is part of the BERA Tools.
+Webpage: https://github.com/appliedgrg/beratools</p>
+<p>The purpose of this script is to provide common constants.</p>
+</details>
+
+
+
+
+
+
+
+
+
+  <div class="doc doc-children">
+
+
+
+
+
+
+
+
+
+<div class="doc doc-object doc-class">
+
+
+
+<h2 id="beratools.core.constants.CenterlineFlags" class="doc doc-heading">
+            <span class="doc doc-object-name doc-class-name">CenterlineFlags</span>
+
+
+</h2>
+
+
+    <div class="doc doc-contents ">
+            <p class="doc doc-class-bases">
+              Bases: <code><a class="autorefs autorefs-external" title="enum.Flag" href="https://docs.python.org/3/library/enum.html#enum.Flag">Flag</a></code></p>
+
+
+        <p>Flags for the centerline algorithm.</p>
+
+
+
+
+
+
+
+
+
+
+
+  <div class="doc doc-children">
+
+
+
+
+
+
+
+
+
+
+
+
+  </div>
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-class">
+
+
+
+<h2 id="beratools.core.constants.ParallelMode" class="doc doc-heading">
+            <span class="doc doc-object-name doc-class-name">ParallelMode</span>
+
+
+</h2>
+
+
+    <div class="doc doc-contents ">
+            <p class="doc doc-class-bases">
+              Bases: <code><a class="autorefs autorefs-external" title="enum.IntEnum" href="https://docs.python.org/3/library/enum.html#enum.IntEnum">IntEnum</a></code></p>
+
+
+        <p>Defines the parallel mode for the algorithms.</p>
+
+
+
+
+
+
+
+
+
+
+
+  <div class="doc doc-children">
+
+
+
+
+
+
+
+
+
+
+
+
+  </div>
+
+    </div>
+
+</div>
+
+
+
+
+  </div>
+
+    </div>
+
+</div><h2 id="logger">Logger</h2>
+
+
+<div class="doc doc-object doc-module">
+
+
+
+<a id="beratools.core.logger"></a>
+    <div class="doc doc-contents first">
+
+        <p>Copyright (C) 2025 Applied Geospatial Research Group.</p>
+<p>This script is licensed under the GNU General Public License v3.0.
+See <a href="https://gnu.org/licenses/gpl-3.0">https://gnu.org/licenses/gpl-3.0</a> for full license details.</p>
+<p>Author: Richard Zeng</p>
+
+
+<details class="description" open>
+  <summary>Description</summary>
+  <p>This script is part of the BERA Tools.
+Webpage: https://github.com/appliedgrg/beratools</p>
+<p>The purpose of this script is to provide logger functions.</p>
+</details>
+
+
+
+
+
+
+
+
+
+  <div class="doc doc-children">
+
+
+
+
+
+
+
+
+
+<div class="doc doc-object doc-class">
+
+
+
+<h2 id="beratools.core.logger.NoParsingFilter" class="doc doc-heading">
+            <span class="doc doc-object-name doc-class-name">NoParsingFilter</span>
+
+
+</h2>
+
+
+    <div class="doc doc-contents ">
+            <p class="doc doc-class-bases">
+              Bases: <code><a class="autorefs autorefs-external" title="logging.Filter" href="https://docs.python.org/3/library/logging.html#logging.Filter">Filter</a></code></p>
+
+
+        <p>Filter to exclude log messages that start with "parsing".</p>
+<p>This is useful to avoid cluttering the log with parsing-related messages.</p>
+
+
+
+
+
+
+
+
+
+
+
+  <div class="doc doc-children">
+
+
+
+
+
+
+
+
+
+
+
+
+  </div>
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-class">
+
+
+
+<h2 id="beratools.core.logger.Logger" class="doc doc-heading">
+            <span class="doc doc-object-name doc-class-name">Logger</span>
+
+
+</h2>
+<div class="doc-signature highlight"><pre><span></span><code><span class="nf">Logger</span><span class="p">(</span><span class="n">name</span><span class="p">,</span> <span class="n">console_level</span><span class="o">=</span><span class="n"><a class="autorefs autorefs-external" title="logging.INFO" href="https://docs.python.org/3/library/logging.html#logging.INFO">INFO</a></span><span class="p">,</span> <span class="n">file_level</span><span class="o">=</span><span class="n"><a class="autorefs autorefs-external" title="logging.INFO" href="https://docs.python.org/3/library/logging.html#logging.INFO">INFO</a></span><span class="p">)</span>
+</code></pre></div>
+
+    <div class="doc doc-contents ">
+            <p class="doc doc-class-bases">
+              Bases: <code><a class="autorefs autorefs-external" href="https://docs.python.org/3/glossary.html#term-object">object</a></code></p>
+
+
+        <p>Logger class to handle logging in the BERA Tools application.</p>
+<p>This class sets up a logger that outputs to both the console and a file.
+It allows for different logging levels for console and file outputs.
+It also provides a method to print messages directly to the logger.</p>
+
+
+
+
+
+
+
+
+
+
+
+  <div class="doc doc-children">
+
+
+
+
+
+
+
+
+
+
+<div class="doc doc-object doc-function">
+
+
+<h3 id="beratools.core.logger.Logger.print" class="doc doc-heading">
+            <span class="doc doc-object-name doc-function-name">print</span>
+
+
+</h3>
+<div class="doc-signature highlight"><pre><span></span><code><span class="nf">print</span><span class="p">(</span><span class="n">msg</span><span class="p">,</span> <span class="n">flush</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+</code></pre></div>
+
+    <div class="doc doc-contents ">
+
+        <p>Re-define print in logging.</p>
+<p>Args:
+msg :
+flush :</p>
+
+
+    </div>
+
+</div>
+
+
+
+  </div>
+
+    </div>
+
+</div>
+
+
+
+
+  </div>
+
+    </div>
+
+</div><h2 id="tool-base">Tool Base</h2>
+
+
+<div class="doc doc-object doc-module">
+
+
+
+<a id="beratools.core.tool_base"></a>
+    <div class="doc doc-contents first">
+
+        <p>Copyright (C) 2025 Applied Geospatial Research Group.</p>
+<p>This script is licensed under the GNU General Public License v3.0.
+See <a href="https://gnu.org/licenses/gpl-3.0">https://gnu.org/licenses/gpl-3.0</a> for full license details.</p>
+<p>Author: Richard Zeng</p>
+
+
+<details class="description" open>
+  <summary>Description</summary>
+  <p>This script is part of the BERA Tools.
+Webpage: https://github.com/appliedgrg/beratools</p>
+<p>The purpose of this script is to provide fundamental utilities for tools.</p>
+</details>
+
+
+
+
+
+
+
+
+
+  <div class="doc doc-children">
+
+
+
+
+
+
+
+
+
+<div class="doc doc-object doc-class">
+
+
+
+<h2 id="beratools.core.tool_base.ToolBase" class="doc doc-heading">
+            <span class="doc doc-object-name doc-class-name">ToolBase</span>
+
+
+</h2>
+<div class="doc-signature highlight"><pre><span></span><code><span class="nf">ToolBase</span><span class="p">()</span>
+</code></pre></div>
+
+    <div class="doc doc-contents ">
+            <p class="doc doc-class-bases">
+              Bases: <code><a class="autorefs autorefs-external" href="https://docs.python.org/3/glossary.html#term-object">object</a></code></p>
+
+
+        <p>Base class for tools.</p>
+
+
+
+
+
+
+
+
+
+
+
+  <div class="doc doc-children">
+
+
+
+
+
+
+
+
+
+
+
+
+  </div>
+
+    </div>
+
+</div>
+
+
+
+
+  </div>
+
+    </div>
+
+</div>
+
+
+
+
+
+
+
+  
+    
+  
+  
+
+
+  <aside class="md-source-file">
+    
+      
+  <span class="md-source-file__fact">
+    <span class="md-icon" title="Last update">
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M21 13.1c-.1 0-.3.1-.4.2l-1 1 2.1 2.1 1-1c.2-.2.2-.6 0-.8l-1.3-1.3c-.1-.1-.2-.2-.4-.2m-1.9 1.8-6.1 6V23h2.1l6.1-6.1zM12.5 7v5.2l4 2.4-1 1L11 13V7zM11 21.9c-5.1-.5-9-4.8-9-9.9C2 6.5 6.5 2 12 2c5.3 0 9.6 4.1 10 9.3-.3-.1-.6-.2-1-.2s-.7.1-1 .2C19.6 7.2 16.2 4 12 4c-4.4 0-8 3.6-8 8 0 4.1 3.1 7.5 7.1 7.9l-.1.2z"/></svg>
+    </span>
+    <span class="git-revision-date-localized-plugin git-revision-date-localized-plugin-date" title="October 31, 2025 02:58:16 UTC">October 31, 2025</span>
+  </span>
+
+    
+    
+    
+    
+  </aside>
+
+
+
+
+
+                
+              </article>
+            </div>
+          
+          
+<script>var target=document.getElementById(location.hash.slice(1));target&&target.name&&(target.checked=target.name.startsWith("__tabbed_"))</script>
+        </div>
+        
+          <button type="button" class="md-top md-icon" data-md-component="top" hidden>
+  
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M13 20h-2V8l-5.5 5.5-1.42-1.42L12 4.16l7.92 7.92-1.42 1.42L13 8z"/></svg>
+  Back to top
+</button>
+        
+      </main>
+      
+        <footer class="md-footer">
+  
+  <div class="md-footer-meta md-typeset">
+    <div class="md-footer-meta__inner md-grid">
+      <div class="md-copyright">
+  
+  
+    Made with
+    <a href="https://squidfunk.github.io/mkdocs-material/" target="_blank" rel="noopener">
+      Material for MkDocs
+    </a>
+  
+</div>
+      
+    </div>
+  </div>
+</footer>
+      
+    </div>
+    <div class="md-dialog" data-md-component="dialog">
+      <div class="md-dialog__inner md-typeset"></div>
+    </div>
+    
+    
+    
+      
+      <script id="__config" type="application/json">{"base": "..", "features": ["navigation.tabs", "navigation.top", "content.code.copy", "content.action.edit"], "search": "../assets/javascripts/workers/search.973d3a69.min.js", "tags": null, "translations": {"clipboard.copied": "Copied to clipboard", "clipboard.copy": "Copy to clipboard", "search.result.more.one": "1 more on this page", "search.result.more.other": "# more on this page", "search.result.none": "No matching documents", "search.result.one": "1 matching document", "search.result.other": "# matching documents", "search.result.placeholder": "Type to start searching", "search.result.term.missing": "Missing", "select.version": "Select version"}, "version": null}</script>
+    
+    
+      <script src="../assets/javascripts/bundle.f55a23d4.min.js"></script>
+      
+    
+  </body>
+</html>

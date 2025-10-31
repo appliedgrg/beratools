@@ -1,0 +1,17 @@
+/* Pink header */
+:root {
+  --md-primary-fg-color: #caaa34;         /* main pink */
+  --md-primary-fg-color--dark: #b69c4c;   /* darker shade for hover */
+  --md-primary-bg-color: #ffffff;         /* text color on primary bg */
+}
+
+/* Optional: slightly more compact header */
+.md-header__inner {
+  min-height: 56px;
+}
+
+.center {
+  display: block;
+  margin-left: auto;
+  margin-right: auto;
+}
