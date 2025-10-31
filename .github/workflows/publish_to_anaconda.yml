@@ -1,0 +1,121 @@
+name: Publish to Anaconda (rattler-build + Pixi)
+
+on:
+  push:
+    tags: 
+        - '*.*.*' # Trigger when a tagged with format like 1.0.0
+
+jobs:
+  build-publish:
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    strategy:
+      matrix:
+        python-version: ["3.11"]
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Verify tag is on main branch
+        run: |
+          git fetch origin main
+          if ! git branch --contains $GITHUB_SHA | grep -q 'main'; then
+            echo "Tag is not from main branch. Skipping publish."
+            exit 0
+          fi
+
+      - name: Set up Python ${{ matrix.python-version }}
+        uses: actions/setup-python@v4
+        with:
+          python-version: ${{ matrix.python-version }}
+
+      # Disable Pixi cache to avoids pixi.lock lookup
+      - name: Setup Pixi
+        uses: prefix-dev/setup-pixi@v0.8.1
+        with:
+          cache: false
+
+      - name: Install rattler-build + anaconda-client
+        run: |
+          pixi global install rattler-build anaconda-client
+          echo "$HOME/.pixi/bin" >> "$GITHUB_PATH"
+
+      - name: Set VERSION from tag
+        run: |
+          echo "VERSION=${GITHUB_REF_NAME}" >> $GITHUB_ENV
+          echo "GIT_TAG=${GITHUB_REF_NAME}" >> $GITHUB_ENV
+
+      # IMPORTANT: run build inside ./packaging and pass channels explicitly
+      - name: Build Conda package (from ./packaging, with channels)
+        working-directory: packaging
+        env:
+          VERSION: ${{ github.ref_name }}
+          GIT_TAG: ${{ github.ref_name }}
+        run: |
+          set -euo pipefail
+          echo "🏗️ Building version: $VERSION (tag: $GIT_TAG)"
+          echo "📌 Using channels: appliedgrg, conda-forge"
+          rattler-build build -c appliedgrg -c conda-forge
+          echo "Build complete. Outputs under ./output"
+
+      # Collect artifacts from a certain place into ./dist/conda
+      - name: Collect artifacts to ./dist/conda
+        run: |
+          set -euo pipefail
+          mkdir -p dist/conda
+          shopt -s nullglob
+          echo "📦 Collecting build outputs from packaging/output"
+
+          files=(packaging/output/*.conda packaging/output/*.tar.bz2)
+          if [ ${#files[@]} -eq 0 ]; then
+            echo "No artifacts in packaging/output. Wider sweep (fallback)..."
+            files=($(find packaging -type f \( -name '*.conda' -o -name '*.tar.bz2' \)))
+          fi
+
+          if [ ${#files[@]} -eq 0 ]; then
+            echo "❌ No build artifacts found. Check rattler-build output."
+            exit 1
+          fi
+
+          for f in "${files[@]}"; do
+            cp -v "$f" dist/conda/
+          done
+
+          echo "✅ Artifacts staged in dist/conda:"
+          ls -lah dist/conda
+
+      - name: Upload to Anaconda.org (binstar)
+        env:
+          ANACONDA_API_TOKEN: ${{ secrets.ANACONDA_API_TOKEN }}
+        run: |
+          set -euo pipefail
+          shopt -s nullglob
+          files=(dist/conda/*.conda dist/conda/*.tar.bz2)
+
+          if [ ${#files[@]} -eq 0 ]; then
+            echo "❌ No package artifacts found to upload."
+            exit 1
+          fi
+
+          for f in "${files[@]}"; do
+            echo "🚀 Uploading $f"
+            # Pixi exposes `binstar` (not `anaconda`). Use --label (not --channel).
+            binstar -t "$ANACONDA_API_TOKEN" upload "$f" \
+              --user appliedgrg --label main
+          done
+
+          echo "🎉 Upload complete!"
+
+      - name: Zip test data files
+        run: |
+          zip -j test_data.zip examples/data/CHM.tif examples/data/seed_lines.gpkg
+
+      - name: Create or update GitHub Release and upload test data
+        uses: softprops/action-gh-release@v1
+        with:
+          tag_name: ${{ github.ref_name }}
+          name: Release ${{ github.ref_name }}
+          files: test_data.zip
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

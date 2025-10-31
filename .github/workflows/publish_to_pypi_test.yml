@@ -1,0 +1,32 @@
+name: Publish to PyPI Test
+
+on:
+  pull_request:
+    branches: [main]
+
+jobs:
+  testpypi:
+    runs-on: ubuntu-latest
+    permissions:
+      id-token: write
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v3
+        with:
+          fetch-depth: 0  # Fetch all history for hatch-vcs
+      
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.11'
+      
+      - name: Install build tools
+        run: pip install build twine hatch-vcs
+      
+      - name: Build package
+        run: python -m build
+      
+      - name: Publish to TestPyPI
+        uses: pypa/gh-action-pypi-publish@release/v1
+        with:
+          repository-url: https://test.pypi.org/legacy/

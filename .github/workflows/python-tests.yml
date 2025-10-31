@@ -1,0 +1,56 @@
+name: Python Test & Coverage (Pixi)
+
+on:
+  pull_request:
+    branches:
+      - main
+    paths:
+      - 'beratools/**'
+
+jobs:
+  test:
+    timeout-minutes: 20
+    runs-on: ubuntu-latest
+    steps:
+      - name: "Checking out code"
+        run: echo "Checking out code"
+      - name: Checkout Code
+        uses: actions/checkout@v3
+
+      - name: Install GDAL system libs
+        run: |
+          echo "Installing GDAL system libraries"
+          sudo apt-get update
+          sudo apt-get install -y gdal-bin libgdal-dev
+          gdal-config --version
+
+      - name: Install Pixi
+        run: echo "Installing Pixi" && curl -fsSL https://pixi.sh/install.sh | bash
+
+      - name: Setup Pixi Environment
+        run: |
+          echo "Setting up Pixi environment"
+          export PATH="$HOME/.pixi/bin:$PATH"
+          cd $GITHUB_WORKSPACE
+          pixi install
+          pixi add pytest-cov coverage
+
+      - name: Editable Install of beratools
+        run: |
+          echo "Installing beratools in editable mode"
+          export PATH="$HOME/.pixi/bin:$PATH"
+          cd $GITHUB_WORKSPACE
+          pip install -e .
+
+      - name: Run Tests with Coverage
+        run: |
+          echo "Running pytest with coverage"
+          export PATH="$HOME/.pixi/bin:$PATH"
+          cd $GITHUB_WORKSPACE
+          pixi run pytest --cov=beratools --cov-report=xml --cov-report=term tests/test_workflow.py --maxfail=1 --disable-warnings -s -v
+
+      - name: Upload coverage reports to Codecov
+        uses: codecov/codecov-action@v5
+        with:
+          token: ${{ secrets.CODECOV_TOKEN }}
+          flags: integration

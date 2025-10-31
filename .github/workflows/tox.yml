@@ -1,0 +1,43 @@
+name: Python Test by tox grid
+
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - 'beratools/**'
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    strategy:
+      matrix:
+        include:
+          - python-version: "3.10"
+            toxenv: py310
+          - python-version: "3.11"
+            toxenv: py311
+          - python-version: "3.12"
+            toxenv: py312
+          - python-version: "3.13"
+            toxenv: py313
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install GDAL system libs
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y gdal-bin libgdal-dev
+          gdal-config --version
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+
+      - name: Install tox and tox-uv
+        run: pip install tox tox-uv
+
+      - name: Run tox
+        run: tox -e ${{ matrix.toxenv }}
