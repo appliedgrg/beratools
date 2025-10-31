@@ -1,0 +1,69 @@
+schema_version: 1
+
+context:
+  name: BERATools
+  version: ${{ env.get("VERSION") }}
+
+package:
+  name: ${{ name|lower }}
+  version: ${{ version }}
+
+source:
+  git: https://github.com/appliedgrg/beratools.git
+  tag: ${{ env.get("GIT_TAG") }}
+
+build:
+  number: 0
+  noarch: python
+  script: python -m pip install . -vv --no-deps
+  python:
+    entry_points:
+      - BERATools = beratools.gui.main:gui_main
+
+requirements:
+  host:
+    - python >=3.10,<3.14
+    - hatchling
+    - pip
+    - hatch-vcs
+    - git
+  run:
+    - python >=3.10,<3.14
+    - bera_centerlines
+    - dask
+    - gdal
+    - geopandas
+    - pyarrow
+    - pyogrio
+    - pyqt
+    - rasterio
+    - scikit-image
+    - tqdm
+    - xarray-spatial
+
+tests:
+  - script:
+      - pytest tests/test_workflow.py
+    
+    files:
+      source:
+        - tests/
+
+    requirements:
+      run:
+        - pytest
+
+  - python:
+      imports:
+        - beratools
+
+about:
+  summary: An advanced forest line feature analysis platform
+  license: MIT
+  license_file:
+    - LICENSE
+  homepage: https://github.com/appliedgrg/beratools.git
+
+extra:
+  recipe-maintainers:
+    - richard

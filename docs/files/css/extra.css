@@ -1,0 +1,36 @@
+/* Pink header */
+:root {
+  --md-primary-fg-color: #caaa34;         /* main pink */
+  --md-primary-fg-color--dark: #b69c4c;   /* darker shade for hover */
+  --md-primary-bg-color: #ffffff;         /* text color on primary bg */
+}
+
+/* Optional: slightly more compact header */
+.md-header__inner {
+  min-height: 56px;
+}
+
+.center {
+  display: block;
+  margin-left: auto;
+  margin-right: auto;
+}
+
+/* Style nested list bullets differently */
+.md-content ul {
+  list-style-type: disc;  /* • for first level */
+}
+
+.md-content ul ul {
+  list-style-type: circle;  /* ○ for second level */
+}
+
+.md-content ul ul ul {
+  list-style-type: square;  /* ■ for third level */
+}
+
+/* Optional: Add more spacing for nested lists */
+.md-content ul ul {
+  margin-top: 0.5em;
+  margin-bottom: 0.5em;
+}

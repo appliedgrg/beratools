@@ -1,0 +1,80 @@
+# config.yaml for hydra
+
+DATA_DIR: F:/
+CHM: Study_Site_CHM_Projected.tif
+SEEDLINE_ORIGINAL: Study_Site_Center_Lines_new.shp
+SEEDLINE_ORIGINAL_LAYER: Study_Site_Center_Lines_new
+
+SEEDLINE: centerline.gpkg
+SEEDLINE_LAYER: centerline
+
+parallel_mode: 2
+processes: null
+
+steps_to_run:
+  - check_seed_line
+  - centerline
+  - footprint_abs
+  - footprint_rel
+  - footprint_fixed
+
+args_check_seed_line:
+  in_line: ${DATA_DIR}/${SEEDLINE_ORIGINAL}
+  in_layer: ${SEEDLINE_ORIGINAL_LAYER}
+  out_line: ${DATA_DIR}/${SEEDLINE}
+  out_layer: ${SEEDLINE_LAYER}
+  verbose: false
+
+args_centerline:
+  in_line: ${DATA_DIR}/${SEEDLINE}
+  in_layer: ${SEEDLINE_LAYER}
+  in_raster: ${DATA_DIR}/${CHM}
+  line_radius: 15
+  proc_segments: true
+  out_line: ${DATA_DIR}/centerline.gpkg
+  out_layer: centerline
+  verbose: false
+
+args_footprint_abs:
+  in_line: ${DATA_DIR}/centerline.gpkg
+  in_layer: centerline
+  in_chm: ${DATA_DIR}/${CHM}
+  corridor_thresh: 3.0
+  max_ln_width: 32.0
+  exp_shk_cell: 0
+  out_footprint: ${DATA_DIR}/footprint_abs.gpkg
+  out_layer: footprint_abs
+  verbose: false
+
+args_footprint_rel:
+  in_line: ${DATA_DIR}/centerline.gpkg
+  in_layer: centerline
+  in_chm: ${DATA_DIR}/${CHM}
+  out_footprint: ${DATA_DIR}/footprint_rel.gpkg
+  out_layer: footprint_rel
+  max_ln_width: 32
+  tree_radius: 1.5
+  max_line_dist: 1.5
+  canopy_avoidance: 0.0
+  exponent: 0
+  canopy_thresh_percentage: 50
+  verbose: false
+
+args_footprint_fixed:
+  in_line: ${DATA_DIR}/centerline.gpkg
+  in_footprint: ${DATA_DIR}/footprint_rel.gpkg
+  in_layer: centerline
+  in_layer_fp: footprint_rel
+  n_samples: 15
+  offset: 30
+  max_width: null
+  width_percentile: 60
+  out_footprint: ${DATA_DIR}/footprint_final.gpkg
+  out_layer: footprint_fixed
+  verbose: false
+  merge_group: false
+
+
+
+
+

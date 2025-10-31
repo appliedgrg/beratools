@@ -1,0 +1,148 @@
+[build-system]
+requires = ["hatchling", "hatch-vcs"]
+build-backend = "hatchling.build"
+
+[project]
+name = "BERATools"
+dynamic = ["version"]
+description = "An advanced forest line feature analysis platform"
+requires-python = ">=3.10"
+readme = "README.md"
+license = { file = "LICENSE" }
+authors = [
+    { name = "AppliedGRG", email = "appliedgrg@gmail.com" },
+    { name = "Richard Zeng", email = "richardqzeng@gmail.com" },
+]
+
+keywords = ["BERA", "Line"]
+
+classifiers = [
+    "Development Status :: 2 - Pre-Alpha",
+    "Intended Audience :: Developers",
+    "License :: OSI Approved :: MIT License",
+    "Natural Language :: English",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+]
+
+dependencies = [
+    "bera_centerlines",
+    "gdal; platform_system != 'Windows'",
+    "geopandas",
+    "pyogrio>=0.9.0",
+    "PyQt5",
+    "rasterio",
+    "scikit-image>=0.24.0",
+    "tqdm",
+    "xarray-spatial",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest",
+    "pytest-cov",
+    "ruff",
+    "isort",
+    "mypy",
+    "pre-commit",
+    "tox",
+    "build",
+    "twine"
+]
+doc = [
+    "mkdocs",
+    "mkdocs-material",
+    "mkdocstrings",
+    "mkdocstrings-python",
+    "pymdown-extensions",
+    "mkdocs-git-revision-date-localized-plugin",
+    "click==8.2.1",
+]
+
+[project.scripts]
+BERATools = "beratools.gui.main:gui_main"
+
+[project.urls]
+Homepage = "https://github.com/appliedgrg/beratools"
+
+[tool.hatch.version]
+source = "vcs"
+
+[tool.hatch.version.raw-options]
+local_scheme = "no-local-version"
+version_scheme = "post-release"
+
+[tool.hatch.build.targets.sdist]
+include = ["/beratools"]
+
+exclude = ["tests/*"]
+
+# ruff settings
+[tool.ruff]
+
+# Set maximum line length to 88 characters as per PEP 8
+line-length = 110
+
+# Select categories of checks to perform
+select = ["E", "F", "D", "I"]
+
+# Ignore specific error codes
+ignore = [
+    "W505",
+    "D102",
+    "E203",
+    "D212",
+    "D103",
+    "D107",
+    "D413",
+    "D417",
+    "E301",
+    "E302",
+    "E303",
+    "W292",
+    "W391",
+]
+
+# Exclude certain directories from linting (e.g., test and build directories)
+exclude = [
+    "dist/*",        # Ignore the build directory
+    "docs/*",        # Ignore documentation
+    "output/*",      # Ignore example code
+    "*/__init__.py", # Ignore init files, typically they are left empty
+]
+
+# Target Python version
+target-version = "py311"
+
+# mypy settings
+[tool.mypy]
+python_version = "3.11"
+
+ignore_missing_imports = true
+disallow_untyped_defs = false
+check_untyped_defs = false
+warn_return_any = false
+no_implicit_optional = true
+warn_unused_ignores = false
+
+[tool.coverage.run]
+source = ["beratools"]
+branch = true
+
+[tool.coverage.report]
+show_missing = true
+skip_covered = true
+exclude_lines = [
+    "pragma: no cover",
+    "def __repr__",
+    "if __name__ == .__main__.:",
+    "raise NotImplementedError"
+]
+
+[tool.pytest.ini_options]
+filterwarnings = ["ignore::DeprecationWarning"]
+
+[tool.markdownlint]
+disabled_rules = ["MD007"]
