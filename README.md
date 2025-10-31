@@ -36,6 +36,11 @@ Installation Steps:
   $ beratools
   ```
 - [Download latest example data](https://github.com/appliedgrg/beratools/releases/latest/download/test_data.zip) to try with BERA Tools.
+- To update BERA Tools when new release is issued, run the following commands:
+-   ```bash
+    $ conda activate bera
+    $ conda update beratools
+    ```
 
 ## BERA Tools Guide
 

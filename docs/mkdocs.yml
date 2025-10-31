@@ -43,6 +43,8 @@ edit_uri: edit/main/docs/files/
 
 markdown_extensions:
   - attr_list
+  - pymdownx.tabbed:
+      alternate_style: true
   - pymdownx.superfences:
       custom_fences:
         - name: mermaid
@@ -65,8 +67,8 @@ nav:
     - index.md
     - overview.md
   - User Guide: 
-    - user_guide.md
     - user/installation.md
+    - user_guide.md
     - Tools:
       - user/check_seed_line.md
       - user/vertex_optimization.md
