@@ -15,3 +15,22 @@
   margin-left: auto;
   margin-right: auto;
 }
+
+/* Style nested list bullets differently */
+.md-content ul {
+  list-style-type: disc;  /* • for first level */
+}
+
+.md-content ul ul {
+  list-style-type: circle;  /* ○ for second level */
+}
+
+.md-content ul ul ul {
+  list-style-type: square;  /* ■ for third level */
+}
+
+/* Optional: Add more spacing for nested lists */
+.md-content ul ul {
+  margin-top: 0.5em;
+  margin-bottom: 0.5em;
+}

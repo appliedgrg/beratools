@@ -1,0 +1,17 @@
+# Markdownlint configuration for MkDocs documentation
+
+# Enable all rules by default
+default: true
+
+# MD007: Unordered list indentation
+# MkDocs uses 4 spaces for nested lists
+MD007:
+  indent: 4
+
+# MD013: Line length
+# Disable line length limits for documentation
+MD013: false
+
+# MD033: Inline HTML
+# Allow HTML in markdown (useful for complex layouts)
+MD033: false
