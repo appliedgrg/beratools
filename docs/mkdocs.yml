@@ -80,6 +80,7 @@ nav:
     - developer_guide.md
     - developer/contributing.md
     - developer/development.md
+    - developer/github.md
     - developer/tool_template.md
   - API Reference: api.md
 
@@ -111,7 +112,7 @@ plugins:
             show_source: false
             show_root_toc_entry: true
 
-          import:
+          inventories:
             - url: https://docs.python.org/3/objects.inv
               domains: [py, std]
             - url: https://typing-extensions.readthedocs.io/en/latest/objects.inv
