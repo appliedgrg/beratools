@@ -12,6 +12,7 @@ branch protection rules help you enforce certain workflows in your repository. Y
 - Prevent force pushes and branch deletion (restrict to admins)
 - Limit merge types (e.g., enable only squash merges to keep history clean)
 
+
 ## Actions
 
 GitHub Actions allow you to automate workflows directly in your repository.
@@ -48,5 +49,33 @@ Here is a summary of the actions defined in all workflow files in `.github/workf
     - Summary: Matrix testing via tox for multiple Python versions (3.10–3.13).
     - Trigger: On pull request to `main` affecting `beratools/**`.
     - Executes tox across multiple Python versions (matrix) to run tests for each target interpreter.
+
+### Actions Flow
+
+```mermaid
+flowchart LR
+    Start([Code Change]) --> CheckType{PUsh to GitHub}
+    
+    CheckType -->|Push to main| Files{Files changed}
+    Files -->|docs/**| Mkdocs[Deploy Docs]
+    Files -->|beratools/**| Pytest[CI Tests]
+    
+    CheckType -->|PR to main| PR[PR Validation]
+    PR --> PyPITest[Test PyPI]
+    PR --> Tox[Tox Grid Tests]
+    
+    CheckType -->|Version tag| Release[Release]
+    Release --> Anaconda[Conda]
+    Release --> PyPI[PyPI]
+    
+    classDef push fill:#e1f5ff,stroke:#01579b
+    classDef pr fill:#fff3e0,stroke:#e65100
+    classDef rel fill:#e8f5e9,stroke:#2e7d32
+    
+    class Mkdocs,Pytest push
+    class PyPITest,Tox pr
+    class Anaconda,PyPI rel
+```
+
 
 ## Discussions
