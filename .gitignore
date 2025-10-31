@@ -1,24 +1,24 @@
 __pycache__
-/.idea
-/.spyproject
+.devcontainer
+.env
+.idea
+.spyproject
 .virtual_documents
-/dist
-/output
-/agents
+.vscode
+dist
+output
+agents
 
 *.slurm
 *.out
 *.pyc
 *.whl
+
 .project
 .pydevproject
-
-.env
+.pixi
+pixi.lock
 config.ini
 
 *.egg-info
-.pixi
-pixi.lock
-
-.vscode/
-/_build/
+_build
