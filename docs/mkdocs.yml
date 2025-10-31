@@ -43,6 +43,9 @@ edit_uri: edit/main/docs/files/
 
 markdown_extensions:
   - attr_list
+  - def_list
+  - pymdownx.tasklist:
+      custom_checkbox: true
   - pymdownx.tabbed:
       alternate_style: true
   - pymdownx.superfences:

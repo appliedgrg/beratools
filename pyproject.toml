@@ -143,3 +143,6 @@ exclude_lines = [
 
 [tool.pytest.ini_options]
 filterwarnings = ["ignore::DeprecationWarning"]
+
+[tool.markdownlint]
+disabled_rules = ["MD007"]
