@@ -2,7 +2,7 @@
 
 ## Protect Branches
 
-branch protection rules help you enforce certain workflows in your repository. You can use them to:
+branch protection rules help us enforce certain workflows in our repository. We can use them to:
 
 - Apply protection to main branch
 - Require pull requests before merging
@@ -15,7 +15,7 @@ branch protection rules help you enforce certain workflows in your repository. Y
 
 ## Actions
 
-GitHub Actions allow you to automate workflows directly in your repository.
+GitHub Actions allow you to automate workflows directly in our repository.
 BERA Tools uses GitHub Actions for CI/CD pipelines, including:
 
 Here is a summary of the actions defined in all workflow files in `.github/workflows`, grouped by trigger type:
@@ -84,4 +84,19 @@ flowchart LR
 ```
 
 
-## Discussions
+## Secure our repository
+
+Our repository is using GitHub's available security features to protect our code from vulnerabilities, unauthorized access, and other potential security threats. These features include:
+
+- Dependabot alerts notify of security vulnerabilities in BERA Tools dependency network, so that we can update the affected dependency to a more secure version.
+- Secret scanning scans our repository for secrets (such as API keys and tokens) and alerts us if a secret is found, so that we can remove the secret from our repository.
+- Push protection prevents we (and our collaborators) from introducing secrets to the repository in the first place, by blocking pushes containing supported secrets.
+- Code scanning identifies vulnerabilities and errors in our repository's code, so that we can fix these issues early and prevent a vulnerability or error being exploited by malicious actors.
+
+## Branching based workflow
+
+To streamline collaboration, we recommend that regular collaborators work from a single repository, creating pull requests between branches instead of between repositories. 
+
+Forking is best suited for accepting contributions from people that are unaffiliated with a project, such as open-source contributors.
+
+To maintain quality of main branch, while using a branching workflow, we use protected branches with required status checks and pull request reviews.
