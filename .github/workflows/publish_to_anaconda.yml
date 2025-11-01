@@ -1,8 +1,11 @@
 name: Publish to Anaconda (rattler-build + Pixi)
 
+permissions:
+  contents: write
+
 on:
   push:
-    tags: 
+    tags:
         - '*.*.*' # Trigger when a tagged with format like 1.0.0
 
 jobs:
