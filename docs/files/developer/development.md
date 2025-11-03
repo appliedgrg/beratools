@@ -1,121 +1,87 @@
-# Development
+# Local Development
 
-## Project Layout
+This document provides guidelines and instructions for setting up a local development environment for BERA Tools.
 
-There are a number of files for build, test, and continuous integration in the root of the project, but in general, the
-project is broken up like so.
+## Local Development Setup
 
-```
-├── beratools
-│   ├── core
-│   ├── gui
-│   └── tools
-├── docs
-│   └── files
-├── notebooks
-├── tests
-```
+### Using Pixi
 
-Directory            | Description
--------------------- | -----------
-`beratools/core`     | Core algorithms and logic.
-`beratools/gui`      | GUI components and assets.
-`beratools/tools`    | Tool implementations.
-`docs/files/developer`   | Developer documentation.
-`notebooks`          | Example notebooks and configs.
-`tests`              | Unit and integration tests.
+Pixi is the easiest way to set up a consistent development environment for BERA Tools. The configuration is defined in [`pixi.toml`](https://github.com/appliedgrg/beratools/blob/main/pixi.toml).
 
-## Coding Standards
+#### Setup Instructions
 
-When writing code, the code should roughly conform to PEP8 and PEP257 suggestions.  The PyMdown Extensions project
-utilizes the Flake8 linter (with some additional plugins) to ensure code conforms (give or take some of the rules).
-When in doubt follow the formatting hints of existing code when adding or modifying files. existing files.  Listed below
-are the modules used:
+1. **Install pixi**
 
--   @PyCQA/flake8
--   @PyCQA/flake8-docstrings
--   @PyCQA/pep8-naming
--   @ebeweber/flake8-mutable
--   @gforcada/flake8-builtins
+    Follow the official instructions at [pixi.sh](https://pixi.sh/docs/install/) to install pixi.
 
-Flake8 can be run directly via the command line from the root of the project.
+1. **Create the environment**
 
-```
-flake8
-```
+    In the project root, run the command to setup all dependencies as specified in `pixi.toml`.
 
-## Building and Editing Documents
+    ```bash
+    git clone https://github.com/appliedgrg/beratools.git
+    pixi install  # Run this command inside the beratools project root
+    ```
 
-Documents are in Markdown (with some additional syntax) and converted to HTML via Python Markdown and this
-extension bundle. If you would like to build and preview the documentation, you must have these packages installed:
+1. **Activate the environment**
 
--   @Python-Markdown/markdown: the Markdown parser.
--   @mkdocs/mkdocs: the document site generator.
--   @squidfunk/mkdocs-material: a material theme for MkDocs.
--   @timvink/mkdocs-git-revision-date-localized-plugin: inserts date a page was last updated.
--   @facelessuser/pymdown-extensions: this Python Markdown extension bundle.
+    ```bash
+    pixi shell
+    pip install -e .  # Install your local code in editable mode
+    ```
 
-These can be installed via:
+1. **Update the environment**
 
-```
-pip install -r requirements/docs.txt
-```
+    To update dependencies, re-run the `pixi install` again. Pixi will detect changes in pixi.toml and install or update packages accordingly.
 
-In order to build and preview the documents, just run the command below from the root of the project and you should be
-able to view the documents at `localhost:8000` in your browser. After that, you should be able to update the documents
-and have your browser preview update live.
+    For more details, review the dependencies and tasks in [`pixi.toml`](../../../../pixi.toml:1).
 
-```
-mkdocs serve
-```
+### Using Conda
 
-## Tests
+A manual conda environment setup for local development (without using environment.yml) can be done as follows:
 
-In order to preserve good code health, a test suite has been put together with pytest (@pytest-dev/pytest). There are
-currently two kinds of tests: syntax and targeted.  To run these tests, you can use the following command:
+1. Create a new environment:
 
-You can also run the tests by first installing the requirements:
+   ```bash
+   conda create -n bera python=3.11 -y
+   conda activate bera
+   ```
 
-```
-pip install -e .[dev]
-```
+1. Install dependencies individually:
 
-And then run the tests with:
+   ```bash
+   conda install -c appliedgrg bera_centerlines
+   conda install -c conda-forge dask gdal=3.9.3 geopandas pyogrio>=0.9.0 pyqt rasterio scikit-image>=0.24.0 tqdm xarray-spatial
+   ```
 
-```
-python tests/test_workflow.py
-```
+1. Install your local code in editable mode:
 
-### Targeted
+   ```bash
+    git clone https://github.com/appliedgrg/beratools.git
+    cd beratools
+    pip install -e .
+   ```
 
-Targeted tests are unit tests that target specific areas in the code and exercises them to ensure proper functionality.
-These tests are found in `test_targeted.py`.
+This approach avoids installing the released beratools package and uses only the dependencies listed in [`environment.yml`](../../../../environment.yml:8), but installs them step-by-step.
 
-You can run **only** these tests from the root of the project with:
+---
+**Note:**
+If you use `environment.yml`, conda will install the released `beratools` package from the channel, not your local code.
 
-```
-python run_tests.py --test-target targeted
-```
+## pyproject.toml
 
-You could also run them directly with:
+[pyproject.toml](https://github.com/appliedgrg/beratools/blob/main/pyproject.toml) is used to define the build system and dependencies for BERA Tools. It is recommended to use this file for managing project dependencies and packaging.
 
-```
-py.test tests/test_targeted.py
-```
+### pyproject.toml Functional Groups
 
-
-## Code Coverage
-
-When running the validation tests through Tox, it is setup to track code coverage via the Coverage
-(@bitbucket:ned/coveragepy) module.  Coverage is run on each `pyxx` environment.  If you've made changes to
-the code, you can clear the old coverage data:
-
-```
-coverage erase
-```
-
-Then run each unit test environment to and coverage will be calculated. All the data from each run is merged together.
-HTML is output for each file in `.tox/pyXX-unittests/tmp`.  You can use these to see areas that are not
-covered/exercised yet with testing.
-
-You can checkout `tox.ini` to see how this is accomplished.
+| Group                      | Purpose/Functionality                                                                 |
+|---------------------------|---------------------------------------------------------------------------------------|
+| Build System              | **[build-system]**: build backend and build-time dependencies (e.g., build-backend, requires). |
+| Metadata & Core           | **[project]**: project identity and core settings — name, version, description, authors, license, requires-python, dependencies, classifiers, keywords. |
+| Optional Dependencies     | **[project.optional-dependencies]**: extras grouped for development, documentation, testing, etc. |
+| Entry Points / Scripts    | **[project.scripts]**: CLI entry points mapping console commands to callables.            |
+| Project URLs              | **[project.urls]**: homepage, repository, issue tracker, documentation, changelog links. |
+| Versioning & Build        | **[tool.hatch.version]**, **[tool.hatch.version.raw-options]**, **[tool.hatch.build.targets.sdist]**: version strategy and build-target customization. |
+| Linting & Formatting Tools| **[tool.ruff]**, **[tool.markdownlint]**: code and markdown linting/formatting configurations. |
+| Type Checking             | **[tool.mypy]**: static type-checker configuration and strictness options.               |
+| Testing & Coverage        | **[tool.coverage.run]**, **[tool.coverage.report]**, **[tool.pytest.ini_options]**: test runner and coverage reporting settings. |

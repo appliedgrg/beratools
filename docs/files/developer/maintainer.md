@@ -1,4 +1,14 @@
-# GitHub
+# Repository Maintainers
+
+This document outlines the best practices and guidelines for maintainers of the BERA Tools repository on GitHub. It covers:
+
+- branch protection
+- GitHub Actions workflows
+- security features
+- branching strategies
+
+Maintainers play a crucial role in ensuring the quality and security of the codebase. Following these guidelines will help
+to ensure a smooth and secure development process.
 
 ## Protect Branches
 
@@ -56,11 +66,21 @@ Here is a summary of the actions defined in all workflow files in `.github/workf
     - Trigger: On version tag push from `main`.
     - Builds the package and publishes to PyPI.
 
+### Configuration
+
+There are security measures in place to restrict actions to be used. Find these in: Repository Settings -> Actions -> General --> Actions permissions:
+
+![Actions](../screenshots/gh_action_config.png)  
+
+GitHub has been configured to use repository secrets for sensitive information such as API tokens and credentials required by the workflows. Find these in: Repository Settings -> Secrets and variables -> Actions --> Repository secrets:
+
+![Actions](../screenshots/gh_repo_secrets.png)  
+
 ### Actions Flow
 
 ```mermaid
 flowchart LR
-    Start([Code Change]) --> CheckType{PUsh to GitHub}
+    Start([Code Change]) --> CheckType{Push to GitHub}
     
     CheckType -->|Push to main| Files{Files changed}
     Files -->|docs/**| Mkdocs[Deploy Docs]
@@ -83,7 +103,6 @@ flowchart LR
     class Anaconda,PyPI rel
 ```
 
-
 ## Secure our repository
 
 Our repository is using GitHub's available security features to protect our code from vulnerabilities, unauthorized access, and other potential security threats. These features include:
@@ -93,9 +112,17 @@ Our repository is using GitHub's available security features to protect our code
 - Push protection prevents we (and our collaborators) from introducing secrets to the repository in the first place, by blocking pushes containing supported secrets.
 - Code scanning identifies vulnerabilities and errors in our repository's code, so that we can fix these issues early and prevent a vulnerability or error being exploited by malicious actors.
 
+Find these settings in: Repository Settings -> Advanced Security
+
+![Security Features](../screenshots/gh_security_config_1.png)
+
+![Security Features](../screenshots/gh_security_config_2.png)  
+
+![Security Features](../screenshots/gh_security_config_3.png)  
+
 ## Branching based workflow
 
-To streamline collaboration, we recommend that regular collaborators work from a single repository, creating pull requests between branches instead of between repositories. 
+To streamline collaboration, we recommend that regular collaborators work from a single repository, creating pull requests between branches instead of between repositories.
 
 Forking is best suited for accepting contributions from people that are unaffiliated with a project, such as open-source contributors.
 
