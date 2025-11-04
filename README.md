@@ -56,15 +56,13 @@ Check the online [BERA Tools Guide](https://appliedgrg.github.io/beratools/) for
 
 ## Credits
 
-<table style="border:none;">
-  <tr style="border:none;">
-    <td style="border:none;"><img src="docs/files/icons/bera_logo.png" alt="Logos" width="80"></td>
-    <td style="border:none;">
-      <p>
-        This tool is part of the <strong><a href="http://www.beraproject.org/">Boreal Ecosystem Recovery & Assessment (BERA)</a></strong>.
-        It is actively developed by the <a href="https://www.appliedgrg.ca/"><strong>Applied Geospatial Research Group</strong></a>.
-      </p>
-      <p><small>© 2026 Applied Geospatial Research Group. All rights reserved.</small></p>
-    </td>
-  </tr>
-</table>
+<div style="display: flex; align-items: center; gap: 20px;">
+  <img src="docs/files/icons/bera_logo.png" alt="BERA Logo" width="80">
+  <div>
+    <p>
+      This tool is part of the <strong><a href="http://www.beraproject.org/">Boreal Ecosystem Recovery & Assessment (BERA)</a></strong>.
+      It is actively developed by the <a href="https://www.appliedgrg.ca/"><strong>Applied Geospatial Research Group</strong></a>.
+    </p>
+    <p><small>© 2026 Applied Geospatial Research Group. All rights reserved.</small></p>
+  </div>
+</div>
