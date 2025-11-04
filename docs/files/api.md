@@ -15,10 +15,6 @@ This page documents the main Python modules in BERA Tools using mkdocstrings.
 
 ::: beratools.core.constants
 
-## Logger
-
-::: beratools.core.logger
-
 ## Tool Base
 
 ::: beratools.core.tool_base
