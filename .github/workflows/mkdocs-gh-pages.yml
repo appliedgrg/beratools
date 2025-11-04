@@ -9,9 +9,15 @@ on:
       - main
     paths:
       - 'docs/**'
+  push:
+    branches:
+      - main
+    paths:
+      - 'docs/**'
 
 jobs:
-  deploy:
+  test-docs:
+    if: github.event_name == 'pull_request'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -19,7 +25,29 @@ jobs:
         uses: actions/setup-python@v5
         with:
           python-version: '3.11'
+      - name: Install GDAL system libs
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y gdal-bin libgdal-dev
+          gdal-config --version
+      - name: Install documentation dependencies
+        run: |
+          pip install "gdal==3.8.4"
+          pip install -r docs/files/requirements.txt
+      - name: Install project in editable mode
+        run: pip install -e .
+      - name: Build MkDocs site
+        run: mkdocs build -f docs/mkdocs.yml
 
+  deploy:
+    if: github.event_name == 'push'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
       - name: Install GDAL system libs
         run: |
           sudo apt-get update
