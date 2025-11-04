@@ -83,8 +83,12 @@ nav:
     - developer_guide.md
     - developer/contributing.md
     - developer/development.md
-    - developer/github.md
+    - developer/dev_standards.md
     - developer/tool_template.md
+    - developer/testing.md
+    - developer/documentation.md
+    - developer/maintainer.md
+    - developer/publishing.md
   - API Reference: api.md
 
 plugins:
