@@ -56,9 +56,9 @@ Check the online [BERA Tools Guide](https://appliedgrg.github.io/beratools/) for
 
 ## Credits
 
-<table>
+<table style="border:none;">
   <tr>
-    <td width="80"><img src="docs/files/icons/bera_logo.png" alt="BERA Logo" width="80"></td>
+    <td><img src="docs/files/icons/bera_logo.png" alt="Logos" width="80"></td>
     <td>
       <p>
         This tool is part of the <strong><a href="http://www.beraproject.org/">Boreal Ecosystem Recovery & Assessment (BERA)</a></strong>.
