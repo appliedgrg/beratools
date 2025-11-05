@@ -118,8 +118,9 @@ class BTData(object):
             with open(str(self.setting_file), "w") as file_setting:
                 try:
                     json.dump(self.settings, file_setting, indent=4)
+                except json.decoder.JSONDecodeError:
                     logging.error("Failed to encode settings to JSON when writing to settings file.", exc_info=True)
-                    logging.error("Failed to encode settings to JSON when writing to settings file.", exc_info=True)
+
 
     def save_setting(self, key, value):
         # check setting directory existence
@@ -249,7 +250,6 @@ class BTData(object):
                 data_path.mkdir()
 
         saved_parameters = {}
-        saved_parameters = {}
         if self.setting_file is not None:
             json_file = Path(self.setting_file)
             if not json_file.exists():
@@ -259,29 +259,23 @@ class BTData(object):
                 try:
                     saved_parameters = json.load(open_file, object_pairs_hook=OrderedDict)
                 except json.decoder.JSONDecodeError:
-                    pass
+                    logging.error("Failed to decode settings JSON file of saved tool info.", exc_info=True)
+
             self.settings = saved_parameters
         else:
             self.settings = saved_parameters
             return
 
-        if self.setting_file is not None and 'json_file' in locals():
-            with open(json_file, "r") as open_file:
-                try:
-                    saved_parameters = json.load(open_file, object_pairs_hook=OrderedDict)
-                except json.decoder.JSONDecodeError:
-                    pass
-
         self.settings = saved_parameters
 
         # parse file
-        if "gui_parameters" in self.settings.keys():
+        if isinstance(self.settings, dict) and "gui_parameters" in self.settings and self.settings["gui_parameters"] is not None:
             gui_settings = self.settings["gui_parameters"]
 
-            if "max_procs" in gui_settings.keys():
+            if "max_procs" in gui_settings and gui_settings["max_procs"] is not None:
                 self.max_procs = gui_settings["max_procs"]
 
-            if "recent_tool" in gui_settings.keys():
+            if "recent_tool" in gui_settings and gui_settings["recent_tool"] is not None:
                 self.recent_tool = gui_settings["recent_tool"]
                 if not self.get_bera_tool_api(self.recent_tool):
                     self.recent_tool = None
@@ -308,9 +302,8 @@ class BTData(object):
     def get_tool_history(self):
         tool_history = []
         self.load_saved_tool_info()
-        if self.settings:
-            if "tool_history" in self.settings:
-                tool_history = self.settings["tool_history"]
+        if isinstance(self.settings, dict) and "tool_history" in self.settings and self.settings["tool_history"] is not None:
+            tool_history = self.settings["tool_history"]
 
         if tool_history:
             self.tool_history = []
@@ -321,7 +314,7 @@ class BTData(object):
     def get_saved_tool_params(self, tool_api, variable=None):
         self.load_saved_tool_info()
 
-        if "tool_history" in self.settings:
+        if isinstance(self.settings, dict) and "tool_history" in self.settings and self.settings["tool_history"] is not None:
             if tool_api in list(self.settings["tool_history"]):
                 tool_params = self.settings["tool_history"][tool_api]
                 if tool_params:
@@ -346,14 +339,15 @@ class BTData(object):
         self.tools_list = []
         self.sorted_tools = []
 
-        for toolbox in self.bera_tools["toolbox"]:
-            category = []
-            for item in toolbox["tools"]:
-                if item["name"]:
-                    category.append(item["name"])
-                    self.tools_list.append(item["name"])  # add tool to list
+        if self.bera_tools and "toolbox" in self.bera_tools:
+            for toolbox in self.bera_tools["toolbox"]:
+                category = []
+                for item in toolbox["tools"]:
+                    if item["name"]:
+                        category.append(item["name"])
+                        self.tools_list.append(item["name"])  # add tool to list
 
-            self.sorted_tools.append(category)
+                self.sorted_tools.append(category)
 
     def sort_toolboxes(self):
         for toolbox in self.toolbox_list:
@@ -367,19 +361,23 @@ class BTData(object):
 
     def get_bera_toolboxes(self):
         toolboxes = []
-        for toolbox in self.bera_tools["toolbox"]:
-            tb = toolbox["category"]
-            toolboxes.append(tb)
+        if self.bera_tools and "toolbox" in self.bera_tools:
+            for toolbox in self.bera_tools["toolbox"]:
+                tb = toolbox["category"]
+                toolboxes.append(tb)
 
-        self.toolbox_list = toolboxes
+            self.toolbox_list = toolboxes
+        else:
+            self.toolbox_list = []
 
     def get_bera_tool_params(self, tool_name):
         new_param_whole = {"parameters": []}
         tool = {}
-        for toolbox in self.bera_tools["toolbox"]:
-            for single_tool in toolbox["tools"]:
-                if tool_name == single_tool["name"]:
-                    tool = single_tool
+        if self.bera_tools and "toolbox" in self.bera_tools:
+            for toolbox in self.bera_tools["toolbox"]:
+                for single_tool in toolbox["tools"]:
+                    if tool_name == single_tool["name"]:
+                        tool = single_tool
 
         for key, value in tool.items():
             if key != "parameters":
