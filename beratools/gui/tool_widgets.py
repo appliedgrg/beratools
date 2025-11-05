@@ -285,6 +285,10 @@ class FileSelector(QtWidgets.QWidget):
             self.parentWidget().update()
 
     def select_file(self):
+        def get_first_type(type_val):
+            if isinstance(type_val, list):
+                return type_val[0]
+            return type_val
         try:
             dialog = QtWidgets.QFileDialog(self)
             dialog.setViewMode(QtWidgets.QFileDialog.Detail)
@@ -297,12 +301,12 @@ class FileSelector(QtWidgets.QWidget):
             if "RasterAndVector" in self.file_type:
                 file_types = """Shapefiles (*.shp);; 
                                 Raster files (*.dep *.tif *.tiff *.bil *.flt *.sdat *.asc *grd)"""
-            elif "Raster" in self.file_type:
+            elif "Raster" in get_first_type(self.file_type):
                 file_types = """Tiff raster files (*.tif *.tiff);; 
                                 Other raster files (*.dep *.bil *.flt *.sdat *.asc *grd)"""
-            elif "Lidar" in self.file_type:
+            elif "Lidar" in get_first_type(self.file_type):
                 file_types = "LiDAR files (*.las *.zlidar *.laz *.zip)"
-            elif "Vector" in self.file_type:
+            elif "Vector" in get_first_type(self.file_type):
                 file_types = """GeoPackage (*.gpkg);;
                                     Shapefiles (*.shp)"""
             elif "Text" in self.file_type:
