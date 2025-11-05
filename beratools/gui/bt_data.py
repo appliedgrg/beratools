@@ -18,6 +18,7 @@ import os
 import platform
 from collections import OrderedDict
 from pathlib import Path
+import logging
 
 import beratools.core.constants as bt_const
 
@@ -117,7 +118,7 @@ class BTData(object):
                 try:
                     json.dump(self.settings, file_setting, indent=4)
                 except json.decoder.JSONDecodeError:
-                    pass
+                    logging.error("Failed to encode settings to JSON when writing to settings file.", exc_info=True)
 
     def save_setting(self, key, value):
         # check setting directory existence
