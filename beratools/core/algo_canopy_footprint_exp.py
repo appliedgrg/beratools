@@ -10,8 +10,8 @@ Description:
     This script is part of the BERA Tools.
     Webpage: https://github.com/appliedgrg/beratools
 
-    The purpose of this script is to provide main interface for canopy footprint tool.
-    The tool is used to generate the footprint of a line based on relative threshold.
+    The purpose of this script is to provide main interface for experimental canopy footprint tool.
+    The tool is used to generate the canopy footprint of a line based on relative threshold.
 """
 
 import math
@@ -31,7 +31,6 @@ import beratools.core.algo_common as algo_common
 import beratools.core.algo_cost as algo_cost
 import beratools.core.constants as bt_const
 import beratools.core.tool_base as bt_base
-import beratools.tools.common as bt_common
 import beratools.utility.spatial_common as sp_common
 
 
@@ -501,13 +500,21 @@ class LineInfo:
 
     def process_single_footprint(self, side):
         # this will change segment content, and parameters will be changed
-        in_canopy_r, in_cost_r, in_meta, Cut_Dist = self.dyn_canopy_cost_raster(side)
+        result = self.dyn_canopy_cost_raster(side)
+        if result is None:
+            return None
+        in_canopy_r, in_cost_r, in_meta, Cut_Dist = result
+
+        if in_canopy_r is None or in_cost_r is None or in_meta is None or Cut_Dist is None:
+            return None
 
         if np.isnan(in_canopy_r).all():
             print("Canopy raster empty")
+            return None
 
         if np.isnan(in_cost_r).all():
             print("Cost raster empty")
+            return None
 
         exp_shk_cell = self.exponent  # TODO: duplicate vars
         no_data = self.nodata
@@ -615,6 +622,7 @@ class LineInfo:
 
         except Exception as e:
             print("Exception: {}".format(e))
+            return None
 
 
 def line_footprint_rel(

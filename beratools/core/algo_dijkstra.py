@@ -331,6 +331,9 @@ def backtrack(initial_node, desired_node, distances):
         if path[-1][0] == initial_node[0] and path[-1][1] == initial_node[1]:
             break
 
+    if len(path) == 0 or path[-1][0] != initial_node[0] or path[-1][1] != initial_node[1]:
+        return None
+
     return list(reversed(path))
 
 

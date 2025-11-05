@@ -112,17 +112,19 @@ class BTData(object):
 
             self.settings["gui_parameters"]["recent_tool"] = self.recent_tool
 
-        with open(self.setting_file, "w") as file_setting:
-            try:
-                json.dump(self.settings, file_setting, indent=4)
-            except json.decoder.JSONDecodeError:
-                pass
+        if self.setting_file is not None:
+            with open(str(self.setting_file), "w") as file_setting:
+                try:
+                    json.dump(self.settings, file_setting, indent=4)
+                except json.decoder.JSONDecodeError:
+                    pass
 
     def save_setting(self, key, value):
         # check setting directory existence
-        data_path = Path(self.setting_file).resolve().parent
-        if not data_path.exists():
-            data_path.mkdir()
+        if self.setting_file is not None:
+            data_path = Path(self.setting_file).resolve().parent
+            if not data_path.exists():
+                data_path.mkdir()
 
         self.load_saved_tool_info()
 
@@ -132,8 +134,9 @@ class BTData(object):
 
             self.settings["gui_parameters"][key] = value
 
-            with open(self.setting_file, "w") as write_settings_file:
-                json.dump(self.settings, write_settings_file, indent=4)
+            if self.setting_file is not None:
+                with open(str(self.setting_file), "w") as write_settings_file:
+                    json.dump(self.settings, write_settings_file, indent=4)
 
     def get_working_dir(self):
         current_file = Path(__file__).resolve()
@@ -238,20 +241,34 @@ class BTData(object):
             return err
 
     def load_saved_tool_info(self):
-        data_path = Path(self.setting_file).parent
-        if not data_path.exists():
-            data_path.mkdir()
+        if self.setting_file is not None:
+            data_path = Path(self.setting_file).parent
+            if not data_path.exists():
+                data_path.mkdir()
 
         saved_parameters = {}
-        json_file = Path(self.setting_file)
-        if not json_file.exists():
+        saved_parameters = {}
+        if self.setting_file is not None:
+            json_file = Path(self.setting_file)
+            if not json_file.exists():
+                self.settings = saved_parameters
+                return
+            with open(json_file, "r") as open_file:
+                try:
+                    saved_parameters = json.load(open_file, object_pairs_hook=OrderedDict)
+                except json.decoder.JSONDecodeError:
+                    pass
+            self.settings = saved_parameters
+        else:
+            self.settings = saved_parameters
             return
 
-        with open(json_file) as open_file:
-            try:
-                saved_parameters = json.load(open_file, object_pairs_hook=OrderedDict)
-            except json.decoder.JSONDecodeError:
-                pass
+        if self.setting_file is not None and 'json_file' in locals():
+            with open(json_file, "r") as open_file:
+                try:
+                    saved_parameters = json.load(open_file, object_pairs_hook=OrderedDict)
+                except json.decoder.JSONDecodeError:
+                    pass
 
         self.settings = saved_parameters
 
@@ -316,10 +333,10 @@ class BTData(object):
         return None
 
     def get_bera_tools(self):
-        tool_json = Path(self.current_file_path).joinpath(bt_const.ASSETS_PATH, r"beratools.json")
-        if tool_json.exists():
-            tool_json = open(Path(self.current_file_path).joinpath(bt_const.ASSETS_PATH, r"beratools.json"))
-            self.bera_tools = json.load(tool_json)
+        tool_json_path = Path(self.current_file_path).joinpath(bt_const.ASSETS_PATH, r"beratools.json")
+        if tool_json_path.exists():
+            with open(tool_json_path, "r") as tool_json_file:
+                self.bera_tools = json.load(tool_json_file)
         else:
             print("Tool configuration file not exists")
 

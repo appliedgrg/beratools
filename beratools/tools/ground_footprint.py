@@ -24,7 +24,6 @@ import pandas as pd
 import pyogrio.errors
 import shapely.geometry as sh_geom
 import shapely.ops as sh_ops
-from shapely.ops import linemerge
 
 import beratools.core.algo_common as algo_common
 import beratools.core.constants as bt_const
@@ -288,24 +287,17 @@ def ground_footprint(
     offset = float(offset)
     width_percentile = int(width_percentile)
 
-    import time
-    print(f"[{time.time()}] Starting ground_footprint")
-
     # TODO: refactor this code for better line quality check
-    print("Step: Reading input files")
     line_gdf = gpd.read_file(in_line, layer=in_layer)
     if bt_const.BT_GROUP not in line_gdf.columns:
         line_gdf[bt_const.BT_GROUP] = range(1, len(line_gdf) + 1)
 
     use_least_cost_path = True
     try:
-        print("Step: Reading least cost path layer")
         lc_path_gdf = gpd.read_file(in_line, layer=in_layer_lc_path)
     except (ValueError, OSError, pyogrio.errors.DataLayerError):
         print(f"Layer '{in_layer_lc_path}' not found in {in_line}, skipping least cost path logic.")
         use_least_cost_path = False
-
-    print(f"[{time.time()}] Finished reading input files")
 
     if not merge_group:
         print("Step: Merging lines")
@@ -315,13 +307,10 @@ def ground_footprint(
 
     print("Step: Cleaning line geometries")
     line_gdf = algo_common.clean_line_geometries(line_gdf)
-    print(f"[{time.time()}] Finished cleaning line geometries")
 
     # read footprints and remove holes
-    print("Step: Reading footprint polygons")
     poly_gdf = gpd.read_file(in_footprint, layer=in_layer_fp)
     poly_gdf["geometry"] = poly_gdf["geometry"].apply(algo_common.remove_holes)
-    print(f"[{time.time()}] Finished reading footprint polygons")
 
     # merge group and/or split lines at intersections
     merged_line_gdf = line_gdf.copy(deep=True)
@@ -365,23 +354,19 @@ def ground_footprint(
         except ValueError as e:
             print(f"Exception: ground_footprint: {e}")
 
-        print(f"[{time.time()}] Finished merging and splitting lines")
-
-                # save original merged lines
+    # save original merged lines
     print("Step: Saving merged lines")
     merged_line_gdf.to_file(out_footprint, layer="merged_lines_original")
 
     # prepare line arguments
     print("Step: Preparing line arguments for multiprocessing")
     line_args = prepare_line_args(merged_line_gdf, poly_gdf, n_samples, offset, width_percentile)
-    print(f"[{time.time()}] Finished preparing line arguments")
 
     print("Step: Running multiprocessing for fixed footprint calculation")
     out_lines = execute_multiprocessing(
     process_single_line, line_args, "Fixed footprint", processes, mode=parallel_mode, verbose=verbose
     )
     line_attr = pd.concat(out_lines)
-    print(f"[{time.time()}] Finished multiprocessing")
 
     # Ensure BT_GROUP is present in line_attr
     if bt_const.BT_GROUP not in line_attr.columns:
@@ -403,12 +388,9 @@ def ground_footprint(
         # Drop the temporary max columns
         line_attr.drop(columns=["avg_width_max", "max_width_max"], inplace=True)
 
-        print(f"[{time.time()}] Finished updating widths")
-
     # create fixed width footprint (always assign buffer_gdf)
     print("Step: Generating fixed width footprints")
     buffer_gdf = generate_fixed_width_footprint(line_attr, max_width=max_width)
-    print(f"[{time.time()}] Finished generating footprints")
 
     # reserve all layers for output
     perp_lines_gdf = buffer_gdf.copy(deep=True)
@@ -424,7 +406,6 @@ def ground_footprint(
     untrimmed_footprint = "untrimmed_footprint"
     buffer_gdf.to_file(out_footprint, layer=untrimmed_footprint)
     print(f"Untrimmed fixed width footprint saved as '{untrimmed_footprint}'")
-    print(f"[{time.time()}] Finished saving untrimmed footprint")
 
     # trim lines and footprints
     if trim_output:
@@ -442,7 +423,6 @@ def ground_footprint(
             lg.merged_lines_trimmed = ensure_polygons(lg.merged_lines_trimmed)
             print("Step: Saving trimmed outputs")
             lg.save_file(out_footprint, out_layer)
-            print(f"[{time.time()}] Finished trimming")
         else:
             print("Skipping line and footprint trimming per user option.")
 
@@ -473,8 +453,6 @@ def ground_footprint(
 
     # save footprints without holes
     poly_gdf.to_file(out_aux_gpkg.as_posix(), layer="footprint_no_holes")
-
-    print(f"[{time.time()}] Finished saving auxiliary outputs")
     print("Step: Finished fixed width footprint tool")
 
 
