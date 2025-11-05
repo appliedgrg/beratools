@@ -19,7 +19,6 @@ import time
 import geopandas as gpd
 import numpy as np
 import pandas as pd
-import rasterio
 from rasterio import features
 from rasterio.transform import rowcol
 from shapely.geometry import MultiPolygon, Polygon, shape

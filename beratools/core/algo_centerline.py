@@ -411,7 +411,6 @@ class SeedLine:
         line_radius = self.line_radius
         in_raster = self.raster
         seed_line = line  # LineString
-        default_return = (seed_line, seed_line, None)
 
         ras_clip, out_meta = sp_common.clip_raster(in_raster, seed_line, line_radius)
         cost_clip, _ = algo_cost.cost_raster(ras_clip, out_meta)
@@ -424,7 +423,7 @@ class SeedLine:
                 lc_path = bt_dijkstra.find_least_cost_path(cost_clip, out_meta, seed_line)
         except Exception as e:
             print(e)
-            return default_return
+            return
 
         if lc_path:
             lc_path_coords = lc_path.coords
@@ -437,7 +436,7 @@ class SeedLine:
         if len(lc_path_coords) < 2:
             print("No least cost path detected, use input line.")
             self.line["cl_status"] = CenterlineStatus.FAILED.value
-            return default_return
+            return
 
         # get corridor raster
         lc_path = sh_geom.LineString(lc_path_coords)

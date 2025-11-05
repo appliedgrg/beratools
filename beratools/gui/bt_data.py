@@ -14,6 +14,7 @@ Description:
 """
 
 import json
+import logging
 import os
 import platform
 from collections import OrderedDict
@@ -35,59 +36,104 @@ def default_callback(value):
     print(value)
 
 
-class BTData(object):
-    """An object for interfacing with the BERA Tools executable."""
-
-    def __init__(self):
-        if running_windows:
-            self.ext = ".exe"
-        else:
-            self.ext = ""
-        self.current_file_path = Path(__file__).resolve().parent
-
-        self.work_dir = ""
-        self.user_folder = Path("")
-        self.data_folder = Path("")
-        self.verbose = True
-        self.show_advanced = BT_SHOW_ADVANCED_OPTIONS
-        self.max_procs = -1
-        self.recent_tool = None
-        self.ascii_art = None
-        self.get_working_dir()
-        self.get_user_folder()
-
-        # set maximum available cpu core for tools
-        self.max_cpu_cores = os.cpu_count()
-
-        # load bera tools
-        self.tool_history = []
+class SettingsManager:
+    """An object for managing settings related to BERA Tools GUI."""
+    
+    def __init__(self, setting_file):
+        self.setting_file = setting_file
         self.settings = {}
-        self.bera_tools = None
-        self.tools_list = []
-        self.sorted_tools = []
-        self.upper_toolboxes = []
-        self.lower_toolboxes = []
-        self.toolbox_list = []
-        self.get_bera_tools()
-        self.get_bera_tool_list()
-        self.get_bera_toolboxes()
-        self.sort_toolboxes()
 
-        self.setting_file = None
-        self.get_data_folder()
-        self.get_setting_file()
-        self.gui_setting_file = Path(self.current_file_path).joinpath(bt_const.ASSETS_PATH, r"gui.json")
+    def load_saved_tool_info(self):
+        if self.setting_file is not None:
+            data_path = Path(self.setting_file).parent
+            if not data_path.exists():
+                data_path.mkdir()
+
+        saved_parameters = {}
+        if self.setting_file is not None:
+            json_file = Path(self.setting_file)
+            if not json_file.exists():
+                self.settings = saved_parameters
+                return
+            with open(json_file, "r") as open_file:
+                try:
+                    saved_parameters = json.load(open_file, object_pairs_hook=OrderedDict)
+                except json.decoder.JSONDecodeError:
+                    logging.error("Failed to decode settings JSON file of saved tool info.", exc_info=True)
+
+            self.settings = saved_parameters
+        else:
+            self.settings = saved_parameters
+            return
+
+        self.settings = saved_parameters
+
+    def save_tool_info(self, recent_tool=None):
+        if recent_tool and "gui_parameters" not in self.settings.keys():
+            self.settings["gui_parameters"] = {}
+            self.settings["gui_parameters"]["recent_tool"] = recent_tool
+
+        if self.setting_file is not None:
+            with open(str(self.setting_file), "w") as file_setting:
+                try:
+                    json.dump(self.settings, file_setting, indent=4)
+                except json.decoder.JSONDecodeError:
+                    logging.error("Failed to encode settings to JSON when writing.", exc_info=True)
+
+    def save_setting(self, key, value):
+        # check setting directory existence
+        if self.setting_file is not None:
+            data_path = Path(self.setting_file).resolve().parent
+            if not data_path.exists():
+                data_path.mkdir()
 
         self.load_saved_tool_info()
-        self.load_gui_data()
-        self.get_tool_history()
 
-        self.default_callback = default_callback
-        self.start_minimized = False
+        if value is not None:
+            if "gui_parameters" not in self.settings.keys():
+                self.settings["gui_parameters"] = {}
 
-    def set_bera_dir(self, path_str):
-        """Set the directory to the BERA Tools executable file."""
-        self.current_file_path = path_str
+            # Fix: Ensure value is a list if existing value is a list
+            if (
+                key in self.settings["gui_parameters"]
+                and isinstance(self.settings["gui_parameters"][key], list)
+                and not isinstance(value, list)
+            ):
+                value = [value]
+            self.settings["gui_parameters"][key] = value
+
+            if self.setting_file is not None:
+                with open(str(self.setting_file), "w") as write_settings_file:
+                    json.dump(self.settings, write_settings_file, indent=4)
+
+    def get_saved_tool_params(self, tool_api, variable=None):
+        self.load_saved_tool_info()
+
+        if (
+            isinstance(self.settings, dict)
+            and "tool_history" in self.settings
+            and self.settings["tool_history"] is not None
+        ):
+            tool_history = self.settings["tool_history"]
+            if tool_history is None:
+                return None
+            if tool_api in list(tool_history):
+                tool_params = tool_history[tool_api]
+                if tool_params is None:
+                    return None
+                if variable:
+                    if isinstance(tool_params, dict):
+                        if variable in tool_params.keys():
+                            saved_value = tool_params[variable]
+                            return saved_value
+                        else:
+                            return None
+                    else:
+                        return None
+                else:  # return all params
+                    return tool_params
+
+        return None
 
     def add_tool_history(self, tool, params):
         if "tool_history" not in self.settings:
@@ -105,24 +151,91 @@ class BTData(object):
         self.settings.pop("tool_history")
         self.save_tool_info()
 
+    def get_tool_history(self):
+        tool_history = []
+        self.load_saved_tool_info()
+        if (
+            isinstance(self.settings, dict)
+            and "tool_history" in self.settings
+            and self.settings["tool_history"] is not None
+        ):
+            tool_history = self.settings["tool_history"]
+
+        return tool_history
+
+class BTData(object):
+    """An object for interfacing with the BERA Tools executable."""
+
+    def __init__(self):
+        if running_windows:
+            self.ext = ".exe"
+        else:
+            self.ext = ""
+        self.current_file_path = Path(__file__).resolve().parent
+
+        self.work_dir = Path("")
+        self.user_folder = Path("")
+        self.data_folder = Path("")
+        self.verbose = True
+        self.show_advanced = BT_SHOW_ADVANCED_OPTIONS
+        self.max_procs = -1
+        self.recent_tool = None
+        self.ascii_art = ""
+        self.get_working_dir()
+        self.get_user_folder()
+
+        # set maximum available cpu core for tools
+        self.max_cpu_cores = os.cpu_count()
+
+        # load bera tools
+        self.tool_history = []
+        self.bera_tools = None
+        self.tools_list = []
+        self.sorted_tools = []
+        self.upper_toolboxes = []
+        self.lower_toolboxes = []
+        self.toolbox_list = []
+        self.get_bera_tools()
+        self.get_bera_tool_list()
+        self.get_bera_toolboxes()
+        self.sort_toolboxes()
+
+        self.setting_file = None
+        self.get_data_folder()
+        self.get_setting_file()
+        self.settings_manager = SettingsManager(self.setting_file)
+        self.gui_setting_file = Path(self.current_file_path).joinpath(bt_const.ASSETS_PATH, r"gui.json")
+
+        self.settings_manager.load_saved_tool_info()
+        self.settings = self.settings_manager.settings
+        self.load_gui_data()
+        self.get_tool_history()
+
+        self.default_callback = default_callback
+        self.start_minimized = False
+
+    def set_bera_dir(self, path_str):
+        """Set the directory to the BERA Tools executable file."""
+        self.current_file_path = path_str
+
+    def add_tool_history(self, tool, params):
+        self.settings_manager.add_tool_history(tool, params)
+
+    def remove_tool_history_item(self, index):
+        self.settings_manager.remove_tool_history_item(index)
+
+    def remove_tool_history_all(self):
+        self.settings_manager.remove_tool_history_all()
+
     def save_tool_info(self):
-        if self.recent_tool:
-            if "gui_parameters" not in self.settings.keys():
-                self.settings["gui_parameters"] = {}
-
-            self.settings["gui_parameters"]["recent_tool"] = self.recent_tool
-
-        with open(self.setting_file, "w") as file_setting:
-            try:
-                json.dump(self.settings, file_setting, indent=4)
-            except json.decoder.JSONDecodeError:
-                pass
+        self.settings_manager.save_tool_info(self.recent_tool)
 
     def save_setting(self, key, value):
         # check setting directory existence
-        data_path = Path(self.setting_file).resolve().parent
-        if not data_path.exists():
-            data_path.mkdir()
+        if self.setting_file is not None:
+            data_path = Path(self.setting_file).resolve().parent
+            if not data_path.exists():
+                data_path.mkdir()
 
         self.load_saved_tool_info()
 
@@ -130,10 +243,18 @@ class BTData(object):
             if "gui_parameters" not in self.settings.keys():
                 self.settings["gui_parameters"] = {}
 
+            # Fix: Ensure value is a list if existing value is a list
+            if (
+                key in self.settings["gui_parameters"]
+                and isinstance(self.settings["gui_parameters"][key], list)
+                and not isinstance(value, list)
+            ):
+                value = [value]
             self.settings["gui_parameters"][key] = value
 
-            with open(self.setting_file, "w") as write_settings_file:
-                json.dump(self.settings, write_settings_file, indent=4)
+            if self.setting_file is not None:
+                with open(str(self.setting_file), "w") as write_settings_file:
+                    json.dump(self.settings, write_settings_file, indent=4)
 
     def get_working_dir(self):
         current_file = Path(__file__).resolve()
@@ -183,7 +304,11 @@ class BTData(object):
             if callback is None:
                 callback = self.default_callback
         except Exception as err:
-            callback(str(err))
+            if callback is not None:
+                callback(str(err))
+            else:
+                print(str(err))
+
             return 1
 
         # Call script using new process to make GUI responsive
@@ -238,31 +363,42 @@ class BTData(object):
             return err
 
     def load_saved_tool_info(self):
-        data_path = Path(self.setting_file).parent
-        if not data_path.exists():
-            data_path.mkdir()
+        if self.setting_file is not None:
+            data_path = Path(self.setting_file).parent
+            if not data_path.exists():
+                data_path.mkdir()
 
         saved_parameters = {}
-        json_file = Path(self.setting_file)
-        if not json_file.exists():
-            return
+        if self.setting_file is not None:
+            json_file = Path(self.setting_file)
+            if not json_file.exists():
+                self.settings = saved_parameters
+                return
+            with open(json_file, "r") as open_file:
+                try:
+                    saved_parameters = json.load(open_file, object_pairs_hook=OrderedDict)
+                except json.decoder.JSONDecodeError:
+                    logging.error("Failed to decode settings JSON file of saved tool info.", exc_info=True)
 
-        with open(json_file) as open_file:
-            try:
-                saved_parameters = json.load(open_file, object_pairs_hook=OrderedDict)
-            except json.decoder.JSONDecodeError:
-                pass
+            self.settings = saved_parameters
+        else:
+            self.settings = saved_parameters
+            return
 
         self.settings = saved_parameters
 
         # parse file
-        if "gui_parameters" in self.settings.keys():
+        if (
+            isinstance(self.settings, dict)
+            and "gui_parameters" in self.settings
+            and self.settings["gui_parameters"] is not None
+        ):
             gui_settings = self.settings["gui_parameters"]
 
-            if "max_procs" in gui_settings.keys():
+            if "max_procs" in gui_settings and gui_settings["max_procs"] is not None:
                 self.max_procs = gui_settings["max_procs"]
 
-            if "recent_tool" in gui_settings.keys():
+            if "recent_tool" in gui_settings and gui_settings["recent_tool"] is not None:
                 self.recent_tool = gui_settings["recent_tool"]
                 if not self.get_bera_tool_api(self.recent_tool):
                     self.recent_tool = None
@@ -287,11 +423,7 @@ class BTData(object):
                 self.ascii_art = bera_art
 
     def get_tool_history(self):
-        tool_history = []
-        self.load_saved_tool_info()
-        if self.settings:
-            if "tool_history" in self.settings:
-                tool_history = self.settings["tool_history"]
+        tool_history = self.settings_manager.get_tool_history()
 
         if tool_history:
             self.tool_history = []
@@ -300,26 +432,13 @@ class BTData(object):
                 self.tool_history.append(item)
 
     def get_saved_tool_params(self, tool_api, variable=None):
-        self.load_saved_tool_info()
-
-        if "tool_history" in self.settings:
-            if tool_api in list(self.settings["tool_history"]):
-                tool_params = self.settings["tool_history"][tool_api]
-                if tool_params:
-                    if variable:
-                        if variable in tool_params.keys():
-                            saved_value = tool_params[variable]
-                            return saved_value
-                    else:  # return all params
-                        return tool_params
-
-        return None
+        return self.settings_manager.get_saved_tool_params(tool_api, variable)
 
     def get_bera_tools(self):
-        tool_json = Path(self.current_file_path).joinpath(bt_const.ASSETS_PATH, r"beratools.json")
-        if tool_json.exists():
-            tool_json = open(Path(self.current_file_path).joinpath(bt_const.ASSETS_PATH, r"beratools.json"))
-            self.bera_tools = json.load(tool_json)
+        tool_json_path = Path(self.current_file_path).joinpath(bt_const.ASSETS_PATH, r"beratools.json")
+        if tool_json_path.exists():
+            with open(tool_json_path, "r") as tool_json_file:
+                self.bera_tools = json.load(tool_json_file)
         else:
             print("Tool configuration file not exists")
 
@@ -327,14 +446,15 @@ class BTData(object):
         self.tools_list = []
         self.sorted_tools = []
 
-        for toolbox in self.bera_tools["toolbox"]:
-            category = []
-            for item in toolbox["tools"]:
-                if item["name"]:
-                    category.append(item["name"])
-                    self.tools_list.append(item["name"])  # add tool to list
+        if self.bera_tools and "toolbox" in self.bera_tools:
+            for toolbox in self.bera_tools["toolbox"]:
+                category = []
+                for item in toolbox["tools"]:
+                    if item["name"]:
+                        category.append(item["name"])
+                        self.tools_list.append(item["name"])  # add tool to list
 
-            self.sorted_tools.append(category)
+                self.sorted_tools.append(category)
 
     def sort_toolboxes(self):
         for toolbox in self.toolbox_list:
@@ -348,19 +468,67 @@ class BTData(object):
 
     def get_bera_toolboxes(self):
         toolboxes = []
-        for toolbox in self.bera_tools["toolbox"]:
-            tb = toolbox["category"]
-            toolboxes.append(tb)
+        if self.bera_tools and "toolbox" in self.bera_tools:
+            for toolbox in self.bera_tools["toolbox"]:
+                tb = toolbox["category"]
+                toolboxes.append(tb)
 
-        self.toolbox_list = toolboxes
+            self.toolbox_list = toolboxes
+        else:
+            self.toolbox_list = []
+
+    def _set_param_flag_and_saved_value(self, single_param, param, tool):
+        if "variable" in param.keys():
+            single_param["flag"] = param["variable"]
+            saved_value = self.get_saved_tool_params(tool["tool_api"], param["variable"])
+            if saved_value is not None:
+                single_param["saved_value"] = saved_value
+        else:
+            single_param["flag"] = "FIXME"
+
+    def _set_param_type_for_input(self, single_param, param):
+        if param["type"] == "list":
+            single_param["parameter_type"] = {"OptionList": param["data"]}
+            single_param["data_type"] = "String"
+            subtype_map = {"text": "String", "int": "Integer", "float": "Float", "bool": "Boolean"}
+            single_param["data_type"] = subtype_map.get(param["subtype"], "String")
+        elif param["type"] == "text":
+            single_param["parameter_type"] = "String"
+        elif param["type"] == "number":
+            single_param["parameter_type"] = "Integer" if param["subtype"] == "int" else "Float"
+        elif param["type"] == "file":
+            single_param["parameter_type"] = {"ExistingFile": [param["subtype"]]}
+        elif param["type"] == "directory":
+            single_param["parameter_type"] = {"directory": [param["subtype"]]}
+        else:
+            single_param["parameter_type"] = {"ExistingFile": ""}
+
+    def _set_param_type_for_output(self, single_param, param):
+        single_param["parameter_type"] = {"NewFile": [param["subtype"]]}
+
+    def _override_param_type_for_special_types(self, single_param, param, tool):
+        type_map = {"raster": "Raster", "lidar": "Lidar", "vector": "Vector"}
+        if param["type"] in type_map:
+            if isinstance(single_param["parameter_type"], dict):
+                for i in single_param["parameter_type"].keys():
+                    if not isinstance(single_param["parameter_type"][i], list):
+                        continue
+                    single_param["parameter_type"][i] = [type_map[param["type"]]]
+        if param["type"] == "vector" and "layer" in param.keys():
+            layer_value = self.get_saved_tool_params(tool["tool_api"], param["layer"])
+            single_param["layer"] = {
+                "layer_name": param["layer"],
+                "layer_value": layer_value,
+            }
 
     def get_bera_tool_params(self, tool_name):
         new_param_whole = {"parameters": []}
         tool = {}
-        for toolbox in self.bera_tools["toolbox"]:
-            for single_tool in toolbox["tools"]:
-                if tool_name == single_tool["name"]:
-                    tool = single_tool
+        if self.bera_tools and "toolbox" in self.bera_tools:
+            for toolbox in self.bera_tools["toolbox"]:
+                for single_tool in toolbox["tools"]:
+                    if tool_name == single_tool["name"]:
+                        tool = single_tool
 
         for key, value in tool.items():
             if key != "parameters":
@@ -370,84 +538,39 @@ class BTData(object):
         if "parameters" not in tool.keys():
             print("issue")
 
-        for param in tool["parameters"]:
-            single_param = {"name": param["label"]}
-            if "variable" in param.keys():
-                single_param["flag"] = param["variable"]
-                # restore saved parameters
-                saved_value = self.get_saved_tool_params(tool["tool_api"], param["variable"])
-                if saved_value is not None:
-                    single_param["saved_value"] = saved_value
-            else:
-                single_param["flag"] = "FIXME"
-
-            single_param["output"] = param["output"]
-            if not param["output"]:
-                if param["type"] == "list":
-                    if tool_name == "Batch Processing":
-                        single_param["parameter_type"] = {"OptionList": batch_tool_list}
-                        single_param["data_type"] = "String"
-                    else:
-                        single_param["parameter_type"] = {"OptionList": param["data"]}
-                        single_param["data_type"] = "String"
-                        if param["subtype"] == "text":
-                            single_param["data_type"] = "String"
-                        elif param["subtype"] == "int":
-                            single_param["data_type"] = "Integer"
-                        elif param["subtype"] == "float":
-                            single_param["data_type"] = "Float"
-                        elif param["subtype"] == "bool":
-                            single_param["data_type"] = "Boolean"
-                elif param["type"] == "text":
-                    single_param["parameter_type"] = "String"
-                elif param["type"] == "number":
-                    if param["subtype"] == "int":
-                        single_param["parameter_type"] = "Integer"
-                    else:
-                        single_param["parameter_type"] = "Float"
-                elif param["type"] == "file":
-                    single_param["parameter_type"] = {"ExistingFile": [param["subtype"]]}
+        if "parameters" in tool and tool["parameters"] is not None:
+            parameters = tool["parameters"]
+            if parameters is None:
+                return new_param_whole
+            for param in parameters:
+                single_param = {"name": param["label"]}
+                self._set_param_flag_and_saved_value(single_param, param, tool)
+                single_param["output"] = param["output"]
+                if not param["output"]:
+                    self._set_param_type_for_input(single_param, param)
                 else:
-                    single_param["parameter_type"] = {"ExistingFile": ""}
-            else:
-                single_param["parameter_type"] = {"NewFile": [param["subtype"]]}
+                    self._set_param_type_for_output(single_param, param)
 
-            single_param["description"] = param["description"]
+                single_param["description"] = param["description"]
 
-            if param["type"] == "raster":
-                for i in single_param["parameter_type"].keys():
-                    single_param["parameter_type"][i] = "Raster"
-            elif param["type"] == "lidar":
-                for i in single_param["parameter_type"].keys():
-                    single_param["parameter_type"][i] = "Lidar"
-            elif param["type"] == "vector":
-                for i in single_param["parameter_type"].keys():
-                    single_param["parameter_type"][i] = "Vector"
-                if "layer" in param.keys():
-                    layer_value = self.get_saved_tool_params(tool["tool_api"], param["layer"])
-                    single_param["layer"] = {
-                        "layer_name": param["layer"],
-                        "layer_value": layer_value,
-                    }
+                self._override_param_type_for_special_types(single_param, param, tool)
 
-            elif param["type"] == "directory":
-                single_param["parameter_type"] = {"directory": [param["subtype"]]}
+                single_param["default_value"] = param["default"]
+                single_param["optional"] = param.get("optional", False)
 
-            single_param["default_value"] = param["default"]
-            if "optional" in param.keys():
-                single_param["optional"] = param["optional"]
-            else:
-                single_param["optional"] = False
-
-            new_param_whole["parameters"].append(single_param)
+                new_param_whole["parameters"].append(single_param)
 
         return new_param_whole
 
     def get_bera_tool_parameters_list(self, tool_name):
         params = self.get_bera_tool_params(tool_name)
         param_list = {}
-        for item in params["parameters"]:
-            param_list[item["flag"]] = item["default_value"]
+        parameters = params.get("parameters")
+        if parameters is None:
+            return param_list
+        for item in parameters:
+            if item is not None and "flag" in item and "default_value" in item:
+                param_list[item["flag"]] = item["default_value"]
 
         return param_list
 
@@ -459,27 +582,30 @@ class BTData(object):
 
     def get_bera_tool_name(self, tool_api):
         tool_name = None
-        for toolbox in self.bera_tools["toolbox"]:
-            for tool in toolbox["tools"]:
-                if tool_api == tool["tool_api"]:
-                    tool_name = tool["name"]
+        if self.bera_tools and "toolbox" in self.bera_tools:
+            for toolbox in self.bera_tools["toolbox"]:
+                for tool in toolbox["tools"]:
+                    if tool_api == tool["tool_api"]:
+                        tool_name = tool["name"]
 
         return tool_name
 
     def get_bera_tool_api(self, tool_name):
         tool_api = None
-        for toolbox in self.bera_tools["toolbox"]:
-            for tool in toolbox["tools"]:
-                if tool_name == tool["name"]:
-                    tool_api = tool["tool_api"]
+        if self.bera_tools and "toolbox" in self.bera_tools:
+            for toolbox in self.bera_tools["toolbox"]:
+                for tool in toolbox["tools"]:
+                    if tool_name == tool["name"]:
+                        tool_api = tool["tool_api"]
 
         return tool_api
 
     def get_bera_tool_type(self, tool_name):
         tool_type = None
-        for toolbox in self.bera_tools["toolbox"]:
-            for tool in toolbox["tools"]:
-                if tool_name == tool["name"]:
-                    tool_type = tool["tool_type"]
+        if self.bera_tools and "toolbox" in self.bera_tools:
+            for toolbox in self.bera_tools["toolbox"]:
+                for tool in toolbox["tools"]:
+                    if tool_name == tool["name"]:
+                        tool_type = tool["tool_type"]
 
         return tool_type
