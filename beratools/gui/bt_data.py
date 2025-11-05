@@ -19,6 +19,7 @@ import platform
 from collections import OrderedDict
 from pathlib import Path
 import logging
+import logging
 
 import beratools.core.constants as bt_const
 
@@ -117,7 +118,7 @@ class BTData(object):
             with open(str(self.setting_file), "w") as file_setting:
                 try:
                     json.dump(self.settings, file_setting, indent=4)
-                except json.decoder.JSONDecodeError:
+                    logging.error("Failed to encode settings to JSON when writing to settings file.", exc_info=True)
                     logging.error("Failed to encode settings to JSON when writing to settings file.", exc_info=True)
 
     def save_setting(self, key, value):
