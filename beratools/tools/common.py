@@ -321,9 +321,8 @@ def decode_file_layer(encoded):
     if "|" in encoded:
         file_path, layer = encoded.rsplit("|", 1)
         layer_name = layer if layer else None
-    elif ":" in encoded:
-        # Fallback for old ":" format
-        file_path, layer = encoded.rsplit(":", 1)
+    elif "::" in encoded:
+        file_path, layer = encoded.rsplit("::", 1)
         layer_name = layer if layer else None
     else:
         file_path = encoded

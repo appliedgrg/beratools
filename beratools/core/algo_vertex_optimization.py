@@ -29,6 +29,7 @@ import beratools.core.constants as bt_const
 import beratools.core.tool_base as bt_base
 import beratools.utility.spatial_common as sp_common
 from beratools.core import algo_dijkstra
+from beratools.tools.common import decode_file_layer
 
 
 def update_line_end_pt(line, index, new_vertex):
@@ -298,22 +299,16 @@ class VertexGrouping:
         in_raster,
         search_distance,
         line_radius,
-        out_line,
         processes,
         verbose,
-        in_layer=None,
-        out_layer=None,
     ):
         self.in_line = in_line
         self.in_raster = in_raster
         self.line_radius = float(line_radius)
         self.search_distance = float(search_distance)
-        self.out_line = out_line
         self.processes = processes
         self.verbose = verbose
         self.parallel_mode = bt_const.PARALLEL_MODE
-        self.in_layer = in_layer
-        self.out_layer = out_layer
 
         self.crs = None
         self.vertex_grp = []
@@ -366,7 +361,10 @@ class VertexGrouping:
         self.vertex_grp.append(vertex_obj)
 
     def create_all_vertex_groups(self):
-        self.line_list = algo_common.prepare_lines_gdf(self.in_line, layer=self.in_layer, proc_segments=True)
+        in_file, in_layer = decode_file_layer(self.in_line)
+        print("create_all_vertex_groups")
+        print(f"in_file: {in_file}, in_layer: {in_layer}")
+        self.line_list = algo_common.prepare_lines_gdf(in_file, layer=in_layer, proc_segments=True)
         self.sindex = STRtree([item.geometry[0] for item in self.line_list])
         self.line_visited = [{0: False, -1: False} for _ in range(len(self.line_list))]
 
@@ -406,9 +404,10 @@ class VertexGrouping:
                 ]
 
     def save_all_layers(self, line_file):
+        out_file, out_layer = decode_file_layer(line_file)
         line_file = Path(line_file)
         lines = pd.concat(self.line_list)
-        lines.to_file(line_file, layer=self.out_layer)
+        lines.to_file(out_file, layer=out_layer)
         print(f"Saved output to: {line_file}", flush=True)
 
         aux_file = line_file

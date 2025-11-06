@@ -6,6 +6,7 @@ from utils import check_file_exists
 from beratools.core.algo_canopy_footprint_exp import line_footprint_rel
 from beratools.tools.canopy_footprint_absolute import canopy_footprint_abs
 from beratools.tools.centerline import centerline
+from beratools.tools.common import decode_file_layer
 from beratools.tools.ground_footprint import ground_footprint
 
 
@@ -19,7 +20,8 @@ def test_centerline_tool_e2e(tool_arguments):
     centerline(**args_centerline)
 
     # Check if the output file is created
-    assert check_file_exists(args_centerline["out_line"]), (
+    in_file, _ = decode_file_layer(args_centerline["in_line"])
+    assert check_file_exists(in_file), (
         "Centerline output file was not created!"
     )
 

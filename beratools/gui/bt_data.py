@@ -341,6 +341,8 @@ class BTData(object):
             callback(str(err))
             return 1
 
+        if tool_args is None:
+            tool_args = []
         return tool_type, tool_args
 
     def about(self):
@@ -478,29 +480,12 @@ class BTData(object):
             self.toolbox_list = []
 
     def _set_param_flag_and_saved_value(self, single_param, param, tool):
+        saved_value = None
         if "variable" in param.keys():
             single_param["flag"] = param["variable"]
             saved_value = self.get_saved_tool_params(tool["tool_api"], param["variable"])
         if saved_value is not None:
             single_param["saved_value"] = saved_value
-        # For backward compatibility, encode vector file:layer if layer saved separately
-        if param["type"] == "vector":
-                    layer_var = None
-                    var = param["variable"]
-                    if var == "in_line":
-                        layer_var = "in_layer"
-                    elif var == "out_line":
-                        layer_var = "out_layer"
-                    elif var == "in_footprint":
-                        layer_var = "in_layer_fp"
-                    elif var == "out_footprint":
-                        layer_var = "out_layer"
-                    if layer_var:
-                        layer_value = self.get_saved_tool_params(tool["tool_api"], layer_var)
-                        if layer_value:
-                            single_param["saved_value"] = f"{saved_value}:{layer_value}"
-        else:
-            single_param["flag"] = "FIXME"
 
     def _set_param_type_for_input(self, single_param, param):
         if param["type"] == "list":

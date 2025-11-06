@@ -34,9 +34,7 @@ def vertex_optimization(
     processes,
     verbose,
 ):
-    in_file, in_layer = decode_file_layer(in_line)
-    out_file, out_layer = decode_file_layer(out_line)
-
+    in_file, _ = decode_file_layer(in_line)
     if not sp_common.compare_crs(sp_common.vector_crs(in_file), sp_common.raster_crs(in_raster)):
         return
 
@@ -45,11 +43,8 @@ def vertex_optimization(
         in_raster,
         search_distance,
         line_radius,
-        out_file,
         processes,
-        verbose,
-        in_layer,
-        out_layer,
+        verbose
     )
     vg.create_all_vertex_groups()
     vg.compute()
@@ -58,7 +53,16 @@ def vertex_optimization(
 
 
 if __name__ == "__main__":
-    in_args, in_verbose = sp_common.check_arguments()
+    #in_args, in_verbose = sp_common.check_arguments()
     start_time = time.time()
-    vertex_optimization(**in_args.input, processes=int(in_args.processes), verbose=in_verbose)
+    input = {   
+        "in_line" : "F:/BERATools/Test_Data/flm_small/seed_lines_checked.gpkg|seed_lines_checked",
+        "in_raster" : "F:/BERATools/Test_Data/flm_small/CHM.tif",
+        "search_distance" : 30.0,
+        "line_radius" : 15.0,
+        "out_line" : "F:/BERATools/Test_Data/flm_small/centerline.gpkg|centerline"
+    }
+    vertex_optimization(**input, processes=10, verbose=False)
+
+    # vertex_optimization(**in_args.input, processes=int(in_args.processes), verbose=in_verbose)
     print("Elapsed time: {}".format(time.time() - start_time))
