@@ -216,6 +216,7 @@ def generate_line_args_DFP_NoClip(
     exponent,
     work_in_bufferR,
     canopy_thresh_percentage,
+    exp_shk_cell
 ):
     line_argsL = []
     line_argsR = []
@@ -244,6 +245,7 @@ def generate_line_args_DFP_NoClip(
                 "Left",
                 canopy_thresh_percentage,
                 line_bufferL,
+                exp_shk_cell
             ]
         )
 
@@ -264,6 +266,7 @@ def generate_line_args_DFP_NoClip(
                 "Center",
                 canopy_thresh_percentage,
                 line_bufferC,
+                exp_shk_cell
             ]
         )
 
@@ -295,13 +298,14 @@ def generate_line_args_DFP_NoClip(
                 "Right",
                 canopy_thresh_percentage,
                 line_bufferR,
+                exp_shk_cell
             ]
         )
 
         step = line_id + 1 + len(work_in_bufferL)
         total = len(work_in_bufferL) + len(work_in_bufferR)
         print(f' "PROGRESS_LABEL Preparing... {step} of {total}" ', flush=True)
-        print(f" %{step / total * 100} ", flush=True)
+        print(f" {step / total * 100}% ", flush=True)
 
         line_id += 1
 

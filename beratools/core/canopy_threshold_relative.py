@@ -22,20 +22,15 @@ class OperationCancelledException(Exception):
 
 
 def main_canopy_threshold_relative(
-    callback,
     in_line,
     in_chm,
-    off_ln_dist,
     canopy_percentile,
     canopy_thresh_percentage,
-    tree_radius,
-    max_line_dist,
-    canopy_avoidance,
-    exponent,
     full_step,
     processes,
     verbose,
-):
+    out_DynCenterline=None,
+): #callback,,off_ln_dist,tree_radius, max_line_dist,canopy_avoidance, exponent,verbose,
     file_path, in_file_name = os.path.split(Path(in_line))
     out_file = os.path.join(Path(file_path), "DynCanTh_" + in_file_name)
     line_seg = gpd.GeoDataFrame.from_file(in_line)
@@ -87,7 +82,7 @@ def main_canopy_threshold_relative(
     workln_dfC = gpd.GeoDataFrame.copy((line_seg),deep=True)
     workln_dfC.geometry = workln_dfC.geometry.simplify(tolerance=0.5, preserve_topology=True)
 
-    print("%{}".format(5))
+    print("{}%".format(5))
 
     worklnbuffer_dfLRing = gpd.GeoDataFrame.copy((workln_dfC),deep=True)
     worklnbuffer_dfRRing = gpd.GeoDataFrame.copy((workln_dfC),deep=True)
@@ -122,7 +117,7 @@ def main_canopy_threshold_relative(
                         for i in range(0, len(the_ring.geoms)):
                             if not isinstance(the_ring.geoms[i], shapely.LineString):
                                 rings.append(the_ring.geoms[i])
-            print(" %{} ".format((ring / ringdist) * 100))
+            print(" {}% ".format((ring / ringdist) * 100))
 
         return rings  # return the list
 
@@ -154,8 +149,8 @@ def main_canopy_threshold_relative(
     worklnbuffer_dfRRing = worklnbuffer_dfRRing.sort_values(by=["OLnFID", "OLnSEG", "iRing"])
     worklnbuffer_dfRRing = worklnbuffer_dfRRing.reset_index(drop=True)
 
-    print("Task done.")
-    print("%{}".format(20))
+    print("Create ring buffers.... done.")
+    print("{}%".format(20))
 
     worklnbuffer_dfRRing["Percentile_RRing"] = np.nan
     worklnbuffer_dfLRing["Percentile_LRing"] = np.nan
@@ -163,7 +158,7 @@ def main_canopy_threshold_relative(
     line_seg["CR_CutHt"] = np.nan
     line_seg["RDist_Cut"] = np.nan
     line_seg["LDist_Cut"] = np.nan
-    print("%{}".format(80))
+    print("{}%".format(30))
 
     # calculate the Height percentile for each parallel area using CHM
     worklnbuffer_dfLRing = multiprocessing_Percentile(
@@ -177,7 +172,7 @@ def main_canopy_threshold_relative(
 
     worklnbuffer_dfLRing = worklnbuffer_dfLRing.sort_values(by=["OLnFID", "OLnSEG", "iRing"])
     worklnbuffer_dfLRing = worklnbuffer_dfLRing.reset_index(drop=True)
-
+    print("{}%".format(60))
     worklnbuffer_dfRRing = multiprocessing_Percentile(
         worklnbuffer_dfRRing,
         int(canopy_percentile),
@@ -191,17 +186,17 @@ def main_canopy_threshold_relative(
     worklnbuffer_dfRRing = worklnbuffer_dfRRing.reset_index(drop=True)
 
     result = multiprocessing_RofC(line_seg, worklnbuffer_dfLRing, worklnbuffer_dfRRing, processes)
-    print("%{}".format(40))
-    print("Task done.")
+    print("{}%".format(80))
+    print("Calculating forest population done.")
 
     print("Saving percentile information to input line ...")
     gpd.GeoDataFrame.to_file(result, out_file)
     print("Saving percentile information to input line ...done.")
 
     if full_step:
-        return out_file
+        return out_file #return output filepath
 
-    print("%{}".format(100))
+    print("{}%".format(100))
 
 
 def rate_of_change(in_arg):  # ,max_chmht):
@@ -345,7 +340,7 @@ def multiprocessing_RofC(line_seg, worklnbuffer_dfLRing, worklnbuffer_dfRRing, p
         in_argsL.append([PLRing, Olnfid, Olnseg, "Left", line_seg.loc[index], index])
         in_argsR.append([PRRing, Olnfid, Olnseg, "Right", line_seg.loc[index], index])
         print(' "PROGRESS_LABEL Preparing grouped buffer areas...." ', flush=True)
-        print(" %{} ".format((index + 1 / len(line_seg)) * 100))
+        print(" {}% ".format(((index + 1) / len(line_seg)) * 100))
 
     total_steps = len(in_argsL) + len(in_argsR)
     featuresL = []
@@ -367,7 +362,7 @@ def multiprocessing_RofC(line_seg, worklnbuffer_dfLRing, worklnbuffer_dfRRing, p
                         ),
                         flush=True,
                     )
-                    print("%{}".format(step / total_steps * 100), flush=True)
+                    print("{}%".format(step / total_steps * 100), flush=True)
             except Exception:
                 print(Exception)
                 raise
@@ -387,7 +382,7 @@ def multiprocessing_RofC(line_seg, worklnbuffer_dfLRing, worklnbuffer_dfRRing, p
                         flush=True,
                     )
                     print(
-                        "%{}".format((step + len(in_argsL)) / total_steps * 100),
+                        "{}%".format((step + len(in_argsL)) / total_steps * 100),
                         flush=True,
                     )
             except Exception:
@@ -426,7 +421,7 @@ def multiprocessing_RofC(line_seg, worklnbuffer_dfLRing, worklnbuffer_dfRRing, p
             ' "PROGRESS_LABEL Recording ... {} of {}" '.format(index + 1, len(line_seg)),
             flush=True,
         )
-        print(" %{} ".format(index + 1 / len(line_seg) * 100), flush=True)
+        print(" {}% ".format(index + 1 / len(line_seg) * 100), flush=True)
 
     return line_seg
 
@@ -479,7 +474,7 @@ def multiprocessing_copyparallel_lineLRC(dfL, dfR, dfc, processes, left_dis, rig
                         featuresL.append(result[0])  # resultL
                         featuresR.append(result[1])  # resultR
                     step += 1
-                    print(f" %{step / total_steps * 100} ")
+                    print(f" {step / total_steps * 100}% ")
 
                 return gpd.GeoDataFrame(pd.concat(featuresL)), gpd.GeoDataFrame(
                     pd.concat(featuresR)
@@ -493,7 +488,7 @@ def multiprocessing_copyparallel_lineLRC(dfL, dfR, dfc, processes, left_dis, rig
                     featuresL.append(result[0])  # resultL
                     featuresR.append(result[1])  # resultR
                 step += 1
-                print(f" %{step / total_steps * 100} ")
+                print(f" {step / total_steps * 100}% ")
 
             return gpd.GeoDataFrame(pd.concat(featuresL)), gpd.GeoDataFrame(
                 pd.concat(featuresR)
@@ -507,24 +502,24 @@ def multiprocessing_Percentile(df, CanPercentile, CanThrPercentage, in_CHM, proc
     try:
         line_arg = []
         total_steps = len(df)
-        cal_percentile = cal_percentileLR
+        cal_percentile = cal_percentileRing
         which_side = side
-        if side == "left":
-            PerCol = "Percentile_L"
-            which_side = "left"
-            cal_percentile = cal_percentileLR
-        elif side == "right":
-            PerCol = "Percentile_R"
-            which_side = "right"
-            cal_percentile = cal_percentileLR
-        elif side == "LRing":
+        # if side == "left":
+        #     PerCol = "Percentile_L"
+        #     which_side = "left"
+        #     cal_percentile = cal_percentileLR
+        # elif side == "right":
+        #     PerCol = "Percentile_R"
+        #     which_side = "right"
+        #     cal_percentile = cal_percentileLR
+        if side == "LRing":
             PerCol = "Percentile_LRing"
-            cal_percentile = cal_percentileRing
+            # cal_percentile = cal_percentileRing
             which_side = "left"
         elif side == "RRing":
             PerCol = "Percentile_RRing"
             which_side = "right"
-            cal_percentile = cal_percentileRing
+            # cal_percentile = cal_percentileRing
 
         print("Calculating surrounding ({}) forest population for buffer area ...".format(which_side))
 
@@ -539,10 +534,10 @@ def multiprocessing_Percentile(df, CanPercentile, CanThrPercentage, in_CHM, proc
             ]
             line_arg.append(item_list)
             print(
-                ' "PROGRESS_LABEL Preparing... {} of {}" '.format(item + 1, len(df)),
+                ' "PROGRESS_LABEL Preparing lines... {} of {}" '.format(item + 1, len(df)),
                 flush=True,
             )
-            print(" %{} ".format(item / len(df) * 100), flush=True)
+            print(" {}% ".format(item / len(df) * 100), flush=True)
 
         features = []
         # chunksize = math.ceil(total_steps / processes)
@@ -563,7 +558,7 @@ def multiprocessing_Percentile(df, CanPercentile, CanThrPercentage, in_CHM, proc
                             ),
                             flush=True,
                         )
-                        print("%{}".format(step / total_steps * 100), flush=True)
+                        print("{}%".format(step / total_steps * 100), flush=True)
                 except Exception:
                     print(Exception)
                     raise
@@ -582,7 +577,7 @@ def multiprocessing_Percentile(df, CanPercentile, CanThrPercentage, in_CHM, proc
                         ' "PROGRESS_LABEL Calculate Percentile on line {} of {}" '.format(step, total_steps),
                         flush=True,
                     )
-                    print(" %{} ".format(step / total_steps * 100), flush=True)
+                    print(" {}% ".format(step / total_steps * 100), flush=True)
             return gpd.GeoDataFrame(pd.concat(features))
 
     except OperationCancelledException:
@@ -674,7 +669,13 @@ def cal_percentileRing(line_arg):
         exit()
 
     # TODO: temporary workaround for exception causing not percentile defined
-    percentile = 0.5
+    if isinstance(CanPercentile,int):
+        if 100>CanPercentile>0:
+            pass
+        else:
+            CanPercentile = 50
+    else:
+        CanPercentile =50
     Dyn_Canopy_Threshold = 0.05
     try:
         # with rasterio.open(in_CHM) as raster:
@@ -689,10 +690,10 @@ def cal_percentileRing(line_arg):
 
         # Calculate the percentile
         # masked_mean = np.ma.mean(masked_raster)
-        percentile = np.nanpercentile(filled_raster, 50)  # CanPercentile)#,method='hazen')
+        percentile = np.nanpercentile(filled_raster, CanPercentile)# p=50,method='hazen')
 
         if percentile > 1:  # (percentile+median)>0.0:
-            Dyn_Canopy_Threshold = percentile * (0.3)
+            Dyn_Canopy_Threshold = percentile * (CanThrPercentage/100)
         else:
             Dyn_Canopy_Threshold = 1
 
@@ -762,9 +763,9 @@ if __name__ == "__main__":
     args.input["full_step"] = False
 
     verbose = True if args.verbose == "True" else False
-    main_canopy_threshold_relative(print, **args.input, processes=int(args.processes), verbose=verbose)
+    main_canopy_threshold_relative( **args.input, processes=int(args.processes), verbose=verbose)
 
-    print("%{}".format(100))
+    print("{}%".format(100))
     print(
         "Finishing Dynamic Canopy Threshold calculation @ {}\n(or in {} second)".format(
             time.strftime("%d %b %Y %H:%M:%S", time.localtime()),

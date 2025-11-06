@@ -36,9 +36,11 @@ from rasterio.mask import mask
 from shapely import LineString, MultiPolygon, Point, buffer
 from shapely.geometry import shape
 from skimage.graph import MCP_Flexible
+from pathlib import Path
 from xrspatial import convolution
 
 from beratools.core.algo_centerline import *
+from beratools.core.canopy_threshold_relative import OperationCancelledException
 from beratools.core.constants import *
 from beratools.core.tool_base import *
 from beratools.tools.common import *
@@ -62,6 +64,7 @@ def dyn_canopy_cost_raster(args):
     Side = args[12]
     canopy_thresh_percentage = float(args[13]) / 100
     line_buffer = args[14]
+    exp_shk_cell=args[15]
 
     if Side == "Left":
         canopy_ht_threshold = line_df.CL_CutHt * canopy_thresh_percentage
@@ -132,6 +135,7 @@ def dyn_canopy_cost_raster(args):
             line_id,
             Cut_Dist,
             line_buffer,
+            exp_shk_cell
         )
 
     except Exception as e:
@@ -284,6 +288,13 @@ def generate_line_args(
             ]
         )
 
+        print(' "PROGRESS_LABEL Preparing line arguments... {} of {}" '.format(
+              line_id ,len(work_in_bufferL) + len(work_in_bufferR)),
+            flush=True )
+        print(" {}% ".format(
+                (line_id / (len(work_in_bufferL) + len(work_in_bufferR))) * 100)
+            ,flush=True )
+
         line_id += 1
 
     line_id = 0
@@ -347,14 +358,14 @@ def generate_line_args(
         )
 
         print(
-            ' "PROGRESS_LABEL Preparing... {} of {}" '.format(
+            ' "PROGRESS_LABEL Preparing line arguments... {} of {}" '.format(
                 line_id + 1 + len(work_in_bufferL),
                 len(work_in_bufferL) + len(work_in_bufferR),
             ),
             flush=True,
         )
         print(
-            " %{} ".format(
+            " {}% ".format(
                 (line_id + 1 + len(work_in_bufferL)) / (len(work_in_bufferL) + len(work_in_bufferR)) * 100
             ),
             flush=True,
@@ -463,12 +474,12 @@ def process_single_line_relative(segment):
         print("Cost raster empty")
 
     in_meta = segment[3]
-    exp_shk_cell = segment[4]
+    max_line_dist = segment[4]
     no_data = segment[5]
     line_id = segment[6]
     Cut_Dist = segment[7]
     line_bufferR = segment[8]
-
+    exp_shk_cell=segment[9]
     shapefile_proj = df.crs
     in_transform = in_meta["transform"]
 
@@ -625,7 +636,7 @@ def multiprocessing_footprint_relative(line_args, processes):
                     ' "PROGRESS_LABEL Dynamic Segment Line Footprint {} of {}" '.format(step, total_steps),
                     flush=True,
                 )
-                print(" %{} ".format(step / total_steps * 100), flush=True)
+                print(" {}% ".format(step / total_steps * 100), flush=True)
         return feats
     except OperationCancelledException:
         print("Operation cancelled")
@@ -633,13 +644,12 @@ def multiprocessing_footprint_relative(line_args, processes):
 
 
 def main_line_footprint_relative(
-    callback,
     in_line,
     in_chm,
     max_ln_width,
-    exp_shk_cell,
     out_footprint,
     out_centerline,
+    exp_shk_cell,
     tree_radius,
     max_line_dist,
     canopy_avoidance,
@@ -648,14 +658,22 @@ def main_line_footprint_relative(
     canopy_thresh_percentage,
     processes,
     verbose,
+    debug_mode,
 ):
     # use_corridor_th_col = True
     line_seg = GeoDataFrame.from_file(in_line)
+    # if line_seg.empty:
+    #     print("[Error] : Empty Line.")
+    #     exit()
+    # else:
+    #     print("[Info] : Lines exist.")
 
     # If Dynamic canopy threshold column not found, create one
     if "DynCanTh" not in line_seg.columns.array:
-        print("Please create field {} first".format("DynCanTh"))
-        exit()
+        print("[Warning]: Field {} is not found and will be populated default values.".format("DynCanTh"))
+        line_seg['DynCanTh']=3.0
+        # print("Please create field {} first".format("DynCanTh"))
+        # exit()
     if not float(canopy_thresh_percentage):
         canopy_thresh_percentage = 50
     else:
@@ -673,7 +691,7 @@ def main_line_footprint_relative(
     if "OLnSEG" not in line_seg.columns.array:
         line_seg["OLnSEG"] = 0
 
-    print("%{}".format(10))
+    print("{}%".format(10))
 
     # check coordinate systems between line and raster features
     with rasterio.open(in_chm) as raster:
@@ -693,7 +711,7 @@ def main_line_footprint_relative(
                     print("Tool runs on input segment lines......")
                     line_seg_split = split_into_equal_Nth_segments(line_seg, 250)
 
-            print("%{}".format(20))
+            print("{}%".format(20))
 
             work_in_bufferL1 = GeoDataFrame.copy(line_seg_split)
             work_in_bufferL2 = GeoDataFrame.copy(line_seg_split)
@@ -754,6 +772,7 @@ def main_line_footprint_relative(
                 exponent,
                 work_in_bufferR,
                 canopy_thresh_percentage,
+                exp_shk_cell,
             )
 
         else:
@@ -789,7 +808,7 @@ def main_line_footprint_relative(
                     ' "PROGRESS_LABEL Dynamic Line Footprint {} of {}" '.format(step, total_steps),
                     flush=True,
                 )
-                print(" %{} ".format((step / total_steps) * 100))
+                print(" {}% ".format((step / total_steps) * 100))
                 step += 1
             step = 1
             total_steps = len(line_argsR)
@@ -800,11 +819,11 @@ def main_line_footprint_relative(
                     ' "PROGRESS_LABEL Dynamic Line Footprint {} of {}" '.format(step, total_steps),
                     flush=True,
                 )
-                print(" %{} ".format((step / total_steps) * 100))
+                print(" {}% ".format((step / total_steps) * 100))
                 step += 1
 
-    print("%{}".format(80))
-    print("Task done.")
+    print("{}%".format(80))
+
 
     for feat in feat_listL:
         if feat:
@@ -816,10 +835,9 @@ def main_line_footprint_relative(
             footprint_listR.append(feat[0])
             poly_listR.append(feat[1])
 
-    print("Writing shapefile ...")
-    resultsL = GeoDataFrame(pd.concat(footprint_listL))
+    resultsL = GeoDataFrame(pd.concat(footprint_listL,ignore_index=True))
     resultsL["geometry"] = resultsL["geometry"].buffer(0.005)
-    resultsR = GeoDataFrame(pd.concat(footprint_listR))
+    resultsR = GeoDataFrame(pd.concat(footprint_listR,ignore_index=True))
     resultsR["geometry"] = resultsR["geometry"].buffer(0.005)
     resultsL = resultsL.sort_values(by=["OLnFID", "OLnSEG"])
     resultsR = resultsR.sort_values(by=["OLnFID", "OLnSEG"])
@@ -827,7 +845,7 @@ def main_line_footprint_relative(
     resultsR = resultsR.reset_index(drop=True)
     #
 
-    resultsAll = GeoDataFrame(pd.concat([resultsL, resultsR]))
+    resultsAll = GeoDataFrame(pd.concat([resultsL, resultsR],ignore_index=True))
     dissolved_results = resultsAll.dissolve(by="OLnFID", as_index=False)
     dissolved_results["geometry"] = dissolved_results["geometry"].buffer(-0.005)
     print("Saving output ...")
@@ -860,13 +878,14 @@ def main_line_footprint_relative(
         centerline_gpd.to_file(out_centerline)
         print("Centerline file saved")
 
-        # save polygons
-        path = Path(out_centerline)
-        path = path.with_stem(path.stem + "_poly")
-        poly_gpd = poly_gpd.drop(columns=["centerline"])
-        poly_gpd.to_file(path)
+        # save polygons for debug
+        if debug_mode:
+            path = Path(out_centerline)
+            path = path.with_stem(path.stem + "_poly")
+            poly_gpd = poly_gpd.drop(columns=["centerline"])
+            poly_gpd.to_file(path)
 
-    print("%{}".format(100))
+    print("{}%".format(100))
 
 
 if __name__ == "__main__":
@@ -875,9 +894,9 @@ if __name__ == "__main__":
     print("Current time: {}".format(time.strftime("%d %b %Y %H:%M:%S", time.localtime())))
 
     in_args, in_verbose = check_arguments()
-    main_line_footprint_relative(print, **in_args.input, processes=int(in_args.processes), verbose=in_verbose)
+    main_line_footprint_relative(**in_args.input, processes=int(in_args.processes), verbose=in_verbose)
 
-    print("%{}".format(100))
+    print("{}%".format(100))
     print("Dynamic Footprint processing finished")
     print("Current time: {}".format(time.strftime("%d %b %Y %H:%M:%S", time.localtime())))
     print("Total processing time (seconds): {}".format(round(time.time() - start_time, 3)))

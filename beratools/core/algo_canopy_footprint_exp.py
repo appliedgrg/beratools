@@ -617,7 +617,7 @@ class LineInfo:
             print("Exception: {}".format(e))
 
 
-def line_footprint_rel(
+def line_footprint_exp(
     in_line,
     in_chm,
     out_footprint,
@@ -685,6 +685,6 @@ if __name__ == "__main__":
     """This part is to be another version of relative canopy footprint tool."""
     in_args, in_verbose = sp_common.check_arguments()
     start_time = time.time()
-    line_footprint_rel(**in_args.input, processes=int(in_args.processes), verbose=in_verbose)
+    line_footprint_exp(**in_args.input, processes=int(in_args.processes), verbose=in_verbose)
 
     print("Elapsed time: {}".format(time.time() - start_time))

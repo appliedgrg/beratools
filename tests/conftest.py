@@ -62,7 +62,7 @@ def tool_arguments(testdata_dir, available_cpu_cores):
             'processes': available_cpu_cores,
             'verbose': False
         },
-        "args_footprint_rel": {
+        "args_footprint_exp": {
             'in_line': testdata_dir.joinpath('centerline.gpkg').as_posix(),
             'in_chm': testdata_dir.joinpath('chm.tif').as_posix(),
             'out_footprint': testdata_dir.joinpath('footprint_rel.gpkg').as_posix(),
@@ -89,7 +89,34 @@ def tool_arguments(testdata_dir, available_cpu_cores):
             'out_layer': 'footprint_fixed',
             'processes': available_cpu_cores,
             'verbose': False
-        }
+        },
+        "arg_main_canopy_threshold_relative": {
+            'in_line':testdata_dir.joinpath('centerline.gpkg').as_posix(),
+            'in_chm': testdata_dir.joinpath('chm.tif').as_posix(),
+            'canopy_percentile': 90,
+            'canopy_thresh_percentage': 50,
+            'full_step': 'True',
+            'processes': available_cpu_cores,
+            'verbose': False,
+            'out_DynCenterline': testdata_dir.joinpath('DynCanTh_centerline.gpkg').as_posix(),
+        },
+        "arg_main_line_footprint_relative": {
+            'in_line': testdata_dir.joinpath('DynCanTh_centerline.gpkg').as_posix(),
+            'in_chm': testdata_dir.joinpath('chm.tif').as_posix(),
+            'max_ln_width': 32,
+            'out_footprint': testdata_dir.joinpath('footprint_rel.gpkg').as_posix(),
+            'out_centerline': testdata_dir.joinpath('smooth_centerline.gpkg').as_posix(),
+            'exp_shk_cell':5,
+            'tree_radius': 1.5,
+            'max_line_dist': 1.5,
+            'canopy_avoidance': 1.0,
+            'exponent': 1,
+            'full_step': 'True',
+            'canopy_thresh_percentage': 50,
+            'processes': available_cpu_cores,
+            'verbose': False,
+            'debug_mode':False,
+        },
     }
 
 # A test for cleaning up test output files
@@ -101,7 +128,10 @@ def test_output_files(testdata_dir):
         testdata_dir.joinpath('footprint_rel.gpkg'),
         testdata_dir.joinpath('footprint_final.gpkg'),
         testdata_dir.joinpath('footprint_final_aux.gpkg'),
-        testdata_dir.joinpath('line_percentile_rel.gpkg')
+        testdata_dir.joinpath('line_percentile_rel.gpkg'),
+        testdata_dir.joinpath('DynCanTh_centerline.gpkg'),
+        testdata_dir.joinpath('smooth_centerline.gpkg'),
+        testdata_dir.joinpath('smooth_centerline_poly.gpkg')
     ]
 
 @pytest.fixture
