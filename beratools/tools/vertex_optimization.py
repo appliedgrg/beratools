@@ -53,16 +53,16 @@ def vertex_optimization(
 
 
 if __name__ == "__main__":
-    #in_args, in_verbose = sp_common.check_arguments()
+    in_args, in_verbose = sp_common.check_arguments()
     start_time = time.time()
-    input = {   
-        "in_line" : "F:/BERATools/Test_Data/flm_small/seed_lines_checked.gpkg|seed_lines_checked",
-        "in_raster" : "F:/BERATools/Test_Data/flm_small/CHM.tif",
-        "search_distance" : 30.0,
-        "line_radius" : 15.0,
-        "out_line" : "F:/BERATools/Test_Data/flm_small/centerline.gpkg|centerline"
-    }
-    vertex_optimization(**input, processes=10, verbose=False)
+    # input = {   
+    #     "in_line" : "F:/BERATools/Test_Data/flm_small/seed_lines_checked.gpkg|seed_lines_checked",
+    #     "in_raster" : "F:/BERATools/Test_Data/flm_small/CHM.tif",
+    #     "search_distance" : 30.0,
+    #     "line_radius" : 15.0,
+    #     "out_line" : "F:/BERATools/Test_Data/flm_small/seed_lines_checked.gpkg|seed_lines_vo"
+    # }
+    # vertex_optimization(**input, processes=10, verbose=False)
 
-    # vertex_optimization(**in_args.input, processes=int(in_args.processes), verbose=in_verbose)
+    vertex_optimization(**in_args.input, processes=int(in_args.processes), verbose=in_verbose)
     print("Elapsed time: {}".format(time.time() - start_time))
