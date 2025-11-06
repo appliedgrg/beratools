@@ -481,8 +481,24 @@ class BTData(object):
         if "variable" in param.keys():
             single_param["flag"] = param["variable"]
             saved_value = self.get_saved_tool_params(tool["tool_api"], param["variable"])
-            if saved_value is not None:
-                single_param["saved_value"] = saved_value
+        if saved_value is not None:
+            single_param["saved_value"] = saved_value
+        # For backward compatibility, encode vector file:layer if layer saved separately
+        if param["type"] == "vector":
+                    layer_var = None
+                    var = param["variable"]
+                    if var == "in_line":
+                        layer_var = "in_layer"
+                    elif var == "out_line":
+                        layer_var = "out_layer"
+                    elif var == "in_footprint":
+                        layer_var = "in_layer_fp"
+                    elif var == "out_footprint":
+                        layer_var = "out_layer"
+                    if layer_var:
+                        layer_value = self.get_saved_tool_params(tool["tool_api"], layer_var)
+                        if layer_value:
+                            single_param["saved_value"] = f"{saved_value}:{layer_value}"
         else:
             single_param["flag"] = "FIXME"
 
@@ -514,12 +530,7 @@ class BTData(object):
                     if not isinstance(single_param["parameter_type"][i], list):
                         continue
                     single_param["parameter_type"][i] = [type_map[param["type"]]]
-        if param["type"] == "vector" and "layer" in param.keys():
-            layer_value = self.get_saved_tool_params(tool["tool_api"], param["layer"])
-            single_param["layer"] = {
-                "layer_name": param["layer"],
-                "layer_value": layer_value,
-            }
+        
 
     def get_bera_tool_params(self, tool_name):
         new_param_whole = {"parameters": []}

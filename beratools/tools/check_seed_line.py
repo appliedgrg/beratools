@@ -23,6 +23,7 @@ from beratools.core.algo_line_grouping import LineGrouping
 from beratools.core.algo_merge_lines import custom_line_merge
 from beratools.core.algo_split_with_lines import LineSplitter
 from beratools.core.logger import Logger
+from beratools.tools.common import decode_file_layer
 
 log = Logger("check_seed_line", file_level=logging.INFO)
 logger = log.get_logger()
@@ -99,15 +100,19 @@ def qc_split_lines_at_intersections(gdf):
         return gdf.reset_index(drop=True)
 
 def check_seed_line(
-    in_line, out_line, verbose, processes=-1, in_layer=None, out_layer=None, use_angle_grouping=True
+in_line, out_line, verbose, processes=-1, use_angle_grouping=True
 ):
-    in_line_gdf = gpd.read_file(in_line, layer=in_layer)
+    in_file, in_layer = decode_file_layer(in_line)
+    print(f"Input file: {in_file}, layer: {in_layer}")
+    out_file, out_layer = decode_file_layer(out_line)
+
+    in_line_gdf = gpd.read_file(in_file, layer=in_layer)
     in_line_gdf = qc_merge_multilinestring(in_line_gdf)
     in_line_gdf = qc_split_lines_at_intersections(in_line_gdf)
     lg = LineGrouping(in_line_gdf, use_angle_grouping=use_angle_grouping)
     lg.run_grouping()
-    lg.lines.to_file(out_line, layer=out_layer)
-    print(f"Output saved to file: {out_line}, layer: {out_layer}")
+    lg.lines.to_file(out_file, layer=out_layer)
+    print(f"Output saved to file: {out_file}, layer: {out_layer}")
 
 if __name__ == "__main__":
     in_args, in_verbose = sp_common.check_arguments()

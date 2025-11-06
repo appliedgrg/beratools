@@ -19,6 +19,7 @@ import time
 import beratools.core.algo_vertex_optimization as bt_vo
 import beratools.utility.spatial_common as sp_common
 from beratools.core.logger import Logger
+from beratools.tools.common import decode_file_layer
 
 log = Logger("vertex_optimization", file_level=logging.INFO)
 logger = log.get_logger()
@@ -32,18 +33,19 @@ def vertex_optimization(
     out_line,
     processes,
     verbose,
-    in_layer=None,
-    out_layer=None,
 ):
-    if not sp_common.compare_crs(sp_common.vector_crs(in_line), sp_common.raster_crs(in_raster)):
+    in_file, in_layer = decode_file_layer(in_line)
+    out_file, out_layer = decode_file_layer(out_line)
+
+    if not sp_common.compare_crs(sp_common.vector_crs(in_file), sp_common.raster_crs(in_raster)):
         return
 
     vg = bt_vo.VertexGrouping(
-        in_line,
+        in_file,
         in_raster,
         search_distance,
         line_radius,
-        out_line,
+        out_file,
         processes,
         verbose,
         in_layer,

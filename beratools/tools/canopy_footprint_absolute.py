@@ -30,6 +30,7 @@ import beratools.core.constants as bt_const
 import beratools.core.tool_base as bt_base
 import beratools.utility.spatial_common as sp_common
 from beratools.core.logger import Logger
+from beratools.tools.common import decode_file_layer
 
 log = Logger("canopy_footprint_abs", file_level=logging.INFO)
 logger = log.get_logger()
@@ -195,10 +196,11 @@ def canopy_footprint_abs(
     out_footprint,
     processes,
     verbose,
-    in_layer=None,
-    out_layer=None,
     parallel_mode=bt_const.ParallelMode.MULTIPROCESSING,
 ):
+    in_file, in_layer = decode_file_layer(in_line)
+    out_file, out_layer = decode_file_layer(out_footprint)
+
     max_ln_width = float(max_ln_width)
     exp_shk_cell = int(exp_shk_cell)
 
@@ -206,7 +208,7 @@ def canopy_footprint_abs(
     poly_list = []
 
     line_class_list = generate_line_class_list(
-        in_line, in_chm, corridor_thresh, max_ln_width, exp_shk_cell, in_layer
+        in_file, in_chm, corridor_thresh, max_ln_width, exp_shk_cell, in_layer
     )
 
     feat_list = bt_base.execute_multiprocessing(
@@ -229,8 +231,8 @@ def canopy_footprint_abs(
         results = gpd.GeoDataFrame(pd.concat(footprint_list))
         results = results.reset_index(drop=True)
         layer_name = out_layer if out_layer else "canopy_footprint"
-        results.to_file(out_footprint, layer=layer_name)
-        print(f"Saved footprint to {out_footprint} (layer: {layer_name})")
+        results.to_file(out_file, layer=layer_name)
+        print(f"Saved footprint to {out_file} (layer: {layer_name})")
     else:
         print("Warning: No footprints generated. Output file not written.")
 

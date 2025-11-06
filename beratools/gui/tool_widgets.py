@@ -180,12 +180,6 @@ class FileSelector(QtWidgets.QWidget):
         self.name = params["name"]
         self.description = params["description"]
         self.flag = params["flag"]
-        self.layer_flag = None
-        self.saved_layer = ""
-        if "layer" in params.keys():
-            self.layer_flag = params["layer"]["layer_name"]
-            self.saved_layer = params["layer"]["layer_value"]
-
         self.gpkg_layers = None
         self.output = params["output"]  # Ensure output flag is read
         self.parameter_type = params["parameter_type"]
@@ -198,9 +192,21 @@ class FileSelector(QtWidgets.QWidget):
 
         self.default_value = params["default_value"]
         self.value = self.default_value
-        self.selected_layer = None  # Add attribute for selected layer
+        self.selected_layer = ""  # Selected layer
         if "saved_value" in params.keys():
             self.value = params["saved_value"]
+
+        # Decode saved value if encoded (only for vector files)
+        if "Vector" in self.parameter_type:
+            if self.value and "|" in self.value:
+                self.value, layer_part = self.value.rsplit("|", 1)
+                self.selected_layer = layer_part if layer_part else ""
+            elif ":" in self.value:
+                # Fallback for old ":" format
+                self.value, layer_part = self.value.rsplit(":", 1)
+                self.selected_layer = layer_part if layer_part else ""
+        else:
+            self.selected_layer = ""
 
         self.layout = QtWidgets.QHBoxLayout()
         self.label = QtWidgets.QLabel(self.name)
@@ -238,10 +244,14 @@ class FileSelector(QtWidgets.QWidget):
                 self.layer_combo.setEditable(False)  # Non-editable if output is False
                 self.load_gpkg_layers(self.value)  # Load layers if output is False
 
-        # check saved layer existence, if True then set it to selected
-        index = self.search_saved_combo_items()
-        if index != -1:
-            self.layer_combo.setCurrentIndex(index)
+        # Set selected layer if any
+        if self.selected_layer and self.layer_combo.isVisible():
+            if self.output and self.layer_combo.isEditable():
+                self.layer_combo.setCurrentText(self.selected_layer)
+            else:
+                index = self.layer_combo.findText(self.selected_layer)
+                if index >= 0:
+                    self.layer_combo.setCurrentIndex(index)
 
         # If the file is not a .gpkg, don't show the combo box at all
         elif self.layer_combo.isVisible():
@@ -273,6 +283,15 @@ class FileSelector(QtWidgets.QWidget):
                     self.layer_combo.addItem("layer_name")
                 else:
                     self.layer_combo.addItem("layer_name")
+
+            # Set selected layer
+                if self.selected_layer:
+                    if self.output and self.layer_combo.isEditable():
+                        self.layer_combo.setCurrentText(self.selected_layer)
+                else:
+                    index = self.layer_combo.findText(self.selected_layer)
+                    if index >= 0:
+                        self.layer_combo.setCurrentIndex(index)
 
             self.layer_combo.adjustSize()
         else:
@@ -487,30 +506,15 @@ class FileSelector(QtWidgets.QWidget):
         # print(f"Selected Layer: {self.selected_layer}")
 
     def get_value(self):
-        # Return both the file path and the selected layer
-        value = {self.flag: self.value}
-        if self.layer_flag and self.selected_layer:
-            # Store the layer name (key)
-            value.update({self.layer_flag: self.selected_layer})
+    # Return encoded file|layer for vector, else file
+        if "Vector" in self.parameter_type:
+            encoded_value = f"{self.value}|{self.selected_layer}"
+        else:
+            encoded_value = self.value
+            
+        return {self.flag: encoded_value}
 
-        return value
 
-    def search_saved_combo_items(self):
-        """
-        Search saved layer in combo box items.
-
-        Returns:
-        If found, then return the index, or return -1
-
-        """
-        if not self.gpkg_layers:
-            return -1
-
-        for idx, key in enumerate(self.gpkg_layers.keys()):
-            if key == self.saved_layer:
-                return idx
-
-        return -1
 
 
 # TODO: check if this class is needed

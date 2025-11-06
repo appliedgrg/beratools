@@ -33,6 +33,7 @@ from beratools.core.algo_merge_lines import custom_line_merge
 from beratools.core.algo_split_with_lines import LineSplitter
 from beratools.core.logger import Logger
 from beratools.core.tool_base import execute_multiprocessing
+from beratools.tools.common import decode_file_layer
 
 log = Logger("ground_footprint", file_level=logging.INFO)
 logger = log.get_logger()
@@ -274,29 +275,30 @@ def ground_footprint(
     out_footprint,
     processes,
     verbose,
-    in_layer=None,
     in_layer_lc_path="least_cost_path",
-    in_layer_fp=None,
-    out_layer=None,
     merge_group=True,
     width_percentile=75,
     parallel_mode=bt_const.ParallelMode.MULTIPROCESSING,
     trim_output=True,
 ):
+    in_file, in_layer = decode_file_layer(in_line)
+    in_fp_file, in_layer_fp = decode_file_layer(in_footprint)
+    out_file, out_layer = decode_file_layer(out_footprint)
+
     n_samples = int(n_samples)
     offset = float(offset)
     width_percentile = int(width_percentile)
 
     # TODO: refactor this code for better line quality check
-    line_gdf = gpd.read_file(in_line, layer=in_layer)
+    line_gdf = gpd.read_file(in_file, layer=in_layer)
     if bt_const.BT_GROUP not in line_gdf.columns:
         line_gdf[bt_const.BT_GROUP] = range(1, len(line_gdf) + 1)
 
     use_least_cost_path = True
     try:
-        lc_path_gdf = gpd.read_file(in_line, layer=in_layer_lc_path)
+        lc_path_gdf = gpd.read_file(in_file, layer=in_layer_lc_path)
     except (ValueError, OSError, pyogrio.errors.DataLayerError):
-        print(f"Layer '{in_layer_lc_path}' not found in {in_line}, skipping least cost path logic.")
+        print(f"Layer '{in_layer_lc_path}' not found in {in_file}, skipping least cost path logic.")
         use_least_cost_path = False
 
     if not merge_group:
@@ -309,7 +311,7 @@ def ground_footprint(
     line_gdf = algo_common.clean_line_geometries(line_gdf)
 
     # read footprints and remove holes
-    poly_gdf = gpd.read_file(in_footprint, layer=in_layer_fp)
+    poly_gdf = gpd.read_file(in_fp_file, layer=in_layer_fp)
     poly_gdf["geometry"] = poly_gdf["geometry"].apply(algo_common.remove_holes)
 
     # merge group and/or split lines at intersections
@@ -356,7 +358,7 @@ def ground_footprint(
 
     # save original merged lines
     print("Step: Saving merged lines")
-    merged_line_gdf.to_file(out_footprint, layer="merged_lines_original")
+    merged_line_gdf.to_file(out_file, layer="merged_lines_original")
 
     # prepare line arguments
     print("Step: Preparing line arguments for multiprocessing")
@@ -404,7 +406,7 @@ def ground_footprint(
 
     print("Step: Saving untrimmed fixed width footprint")
     untrimmed_footprint = "untrimmed_footprint"
-    buffer_gdf.to_file(out_footprint, layer=untrimmed_footprint)
+    buffer_gdf.to_file(out_file, layer=untrimmed_footprint)
     print(f"Untrimmed fixed width footprint saved as '{untrimmed_footprint}'")
 
     # trim lines and footprints
@@ -422,14 +424,14 @@ def ground_footprint(
         if hasattr(lg, "merged_lines_trimmed") and lg.merged_lines_trimmed is not None:
             lg.merged_lines_trimmed = ensure_polygons(lg.merged_lines_trimmed)
             print("Step: Saving trimmed outputs")
-            lg.save_file(out_footprint, out_layer)
+            lg.save_file(out_file, out_layer)
         else:
             print("Skipping line and footprint trimming per user option.")
 
     # perpendicular lines
     layer = "perp_lines"
-    out_footprint = Path(out_footprint)
-    out_aux_gpkg = out_footprint.with_stem(out_footprint.stem + "_aux").with_suffix(".gpkg")
+    out_footprint_path = Path(out_file)
+    out_aux_gpkg = out_footprint_path.with_stem(out_footprint_path.stem + "_aux").with_suffix(".gpkg")
     print("Step: Saving auxiliary outputs")
     perp_lines_gdf = perp_lines_gdf.set_geometry("perp_lines")
     perp_lines_gdf = perp_lines_gdf.drop(columns=["perp_lines_original"])

@@ -40,34 +40,28 @@ def available_cpu_cores():
 def tool_arguments(testdata_dir, available_cpu_cores):
     return {
         "args_centerline": {
-            'in_line': testdata_dir.joinpath('seed_lines.gpkg').as_posix(),
-             'in_layer': 'seed_lines',
+            'in_line': f"{testdata_dir.joinpath('seed_lines.gpkg').as_posix()}:seed_lines",
             'in_raster': testdata_dir.joinpath('chm.tif').as_posix(),
             'line_radius': 15,
             'proc_segments': True,
-            'out_line': testdata_dir.joinpath('centerline.gpkg').as_posix(),
-            'out_layer': 'centerline',
+            'out_line': f"{testdata_dir.joinpath('centerline.gpkg').as_posix()}:centerline",
             'processes': available_cpu_cores,
             'verbose': False
         },
         "args_footprint_abs": {
-            'in_line': testdata_dir.joinpath('centerline.gpkg').as_posix(),
+            'in_line': f"{testdata_dir.joinpath('centerline.gpkg').as_posix()}:centerline",
             'in_chm': testdata_dir.joinpath('chm.tif').as_posix(),
-            'in_layer': 'centerline',
             'corridor_thresh': 3.0,
             'max_ln_width': 32.0,
             'exp_shk_cell': 0,
-            'out_footprint': testdata_dir.joinpath('footprint_abs.gpkg').as_posix(),
-            'out_layer': 'footprint_abs',
+            'out_footprint': f"{testdata_dir.joinpath('footprint_abs.gpkg').as_posix()}:footprint_abs",
             'processes': available_cpu_cores,
             'verbose': False
         },
         "args_footprint_rel": {
-            'in_line': testdata_dir.joinpath('centerline.gpkg').as_posix(),
+            'in_line': f"{testdata_dir.joinpath('centerline.gpkg').as_posix()}:centerline",
             'in_chm': testdata_dir.joinpath('chm.tif').as_posix(),
-            'out_footprint': testdata_dir.joinpath('footprint_rel.gpkg').as_posix(),
-            'in_layer': 'centerline',
-            'out_layer': 'footprint_rel',
+            'out_footprint': f"{testdata_dir.joinpath('footprint_rel.gpkg').as_posix()}:footprint_rel",
             'max_ln_width': 32,
             'tree_radius': 1.5,
             'max_line_dist': 1.5,
@@ -78,15 +72,12 @@ def tool_arguments(testdata_dir, available_cpu_cores):
             'verbose': False
         },
         "args_ground_footprint": {
-            'in_line': testdata_dir.joinpath('centerline.gpkg').as_posix(),
-            'in_footprint': testdata_dir.joinpath('footprint_rel.gpkg').as_posix(),
-            'in_layer': 'centerline',
-            'in_layer_fp': 'footprint_rel',
+            'in_line': f"{testdata_dir.joinpath('centerline.gpkg').as_posix()}:centerline",
+            'in_footprint': f"{testdata_dir.joinpath('footprint_rel.gpkg').as_posix()}:footprint_rel",
             'n_samples': 15,
             'offset': 30,
             'max_width': True,
-            'out_footprint': testdata_dir.joinpath('footprint_final.gpkg').as_posix(),
-            'out_layer': 'footprint_fixed',
+            'out_footprint': f"{testdata_dir.joinpath('footprint_final.gpkg').as_posix()}:footprint_fixed",
             'processes': available_cpu_cores,
             'verbose': False
         }

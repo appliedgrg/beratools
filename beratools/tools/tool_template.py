@@ -28,18 +28,17 @@ import pandas as pd
 
 import beratools.utility.spatial_common as sp_common
 from beratools.core.tool_base import execute_multiprocessing
+from beratools.tools.common import decode_file_layer
 
 
-def tool_name(in_feature, in_layer, buffer_dist, out_feature, out_layer, processes, verbose):
+def tool_name(in_feature, buffer_dist, out_feature, processes, verbose):
     """
     Define tool entry point.
 
     Args:
-        in_feature: input feature
-        in_layer: layer name
+        in_feature: input feature (encoded as "file:layer")
         buffer_dist: buffer for input lines
-        out_feature: output feature
-        out_layer: layer name
+        out_feature: output feature (encoded as "file:layer")
         processes: number of processes to use
         verbose: verbosity level
 
@@ -47,14 +46,17 @@ def tool_name(in_feature, in_layer, buffer_dist, out_feature, out_layer, process
     use execute_multiprocessing to run tasks in parallel to speedup.
 
     """
+    in_file, in_layer = decode_file_layer(in_feature)
+    out_file, out_layer = decode_file_layer(out_feature)
+
     buffer_dist = float(buffer_dist)
-    gdf = gpd.read_file(in_feature, layer=in_layer)
+    gdf = gpd.read_file(in_file, layer=in_layer)
     gdf_list = [(gdf.iloc[[i]], buffer_dist) for i in range(len(gdf))]
 
     results = execute_multiprocessing(buffer_worker, gdf_list, "tool_template", processes, verbose=verbose)
 
     buffered_gdf = gpd.GeoDataFrame(pd.concat(results, ignore_index=True), crs=gdf.crs)
-    buffered_gdf.to_file(out_feature, layer=out_layer)
+    buffered_gdf.to_file(out_file, layer=out_layer)
 
 
 # task executed in a worker process

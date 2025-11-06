@@ -18,7 +18,6 @@
                             "description": "Input seed line file.",
                             "type": "vector",
                             "subtype": "shp",
-                            "layer": "in_layer",
                             "default": "",
                             "output": false,
                             "optional": false
@@ -29,7 +28,6 @@
                             "description": "Output Seed Line file.",
                             "type": "vector",
                             "subtype": "shp",
-                            "layer": "out_layer",
                             "default": "",
                             "output": true,
                             "optional": false
@@ -50,7 +48,6 @@
                             "description": "Input lines to optimize.",
                             "type": "vector",
                             "subtype": "shp",
-                            "layer": "in_layer",
                             "default": "",
                             "output": false,
                             "optional": false
@@ -91,7 +88,6 @@
                             "description": "Output optimized line file.",
                             "type": "vector",
                             "subtype": "shp",
-                            "layer": "out_layer",
                             "default": "",
                             "output": true,
                             "optional": false
@@ -112,7 +108,6 @@
                             "description": "Input seed lines.",
                             "type": "vector",
                             "subtype": "shp",
-                            "layer": "in_layer",
                             "default": "",
                             "output": false,
                             "optional": false
@@ -157,7 +152,6 @@
                             "description": "Output centerline file.",
                             "type": "vector",
                             "subtype": "shp",
-                            "layer": "out_layer",
                             "default": "",
                             "output": true,
                             "optional": false
@@ -178,7 +172,6 @@
                             "description": "Input centerline file.",
                             "type": "vector",
                             "subtype": "shp",
-                            "layer": "in_layer",
                             "default": "",
                             "output": false,
                             "optional": false
@@ -229,7 +222,6 @@
                             "description": "Output footprint polygon file.",
                             "type": "vector",
                             "subtype": "shp",
-                            "layer": "out_layer",
                             "default": "",
                             "output": true,
                             "optional": false
@@ -402,7 +394,6 @@
                             "description": "Input centerline file.",
                             "type": "vector",
                             "subtype": "shp",
-                            "layer": "in_layer",
                             "default": "",
                             "output": false,
                             "optional": false
@@ -413,7 +404,6 @@
                             "description": "Input footprint.",
                             "type": "vector",
                             "subtype": "shp",
-                            "layer": "in_layer_fp",
                             "default": "",
                             "output": false,
                             "optional": false
@@ -458,7 +448,6 @@
                             "description": "Output fixed width ground footprint file.",
                             "type": "vector",
                             "subtype": "shp",
-                            "layer": "out_layer",
                             "default": "",
                             "output": true,
                             "optional": false
