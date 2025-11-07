@@ -25,6 +25,7 @@ log = Logger("vertex_optimization", file_level=logging.INFO)
 logger = log.get_logger()
 print = log.print
 
+
 def vertex_optimization(
     in_line,
     in_raster,
@@ -38,14 +39,7 @@ def vertex_optimization(
     if not sp_common.compare_crs(sp_common.vector_crs(in_file), sp_common.raster_crs(in_raster)):
         return
 
-    vg = bt_vo.VertexGrouping(
-        in_file,
-        in_raster,
-        search_distance,
-        line_radius,
-        processes,
-        verbose
-    )
+    vg = bt_vo.VertexGrouping(in_file, in_raster, search_distance, line_radius, processes, verbose)
     vg.create_all_vertex_groups()
     vg.compute()
     vg.update_all_lines()
@@ -55,14 +49,5 @@ def vertex_optimization(
 if __name__ == "__main__":
     in_args, in_verbose = sp_common.check_arguments()
     start_time = time.time()
-    # input = {   
-    #     "in_line" : "F:/BERATools/Test_Data/flm_small/seed_lines_checked.gpkg|seed_lines_checked",
-    #     "in_raster" : "F:/BERATools/Test_Data/flm_small/CHM.tif",
-    #     "search_distance" : 30.0,
-    #     "line_radius" : 15.0,
-    #     "out_line" : "F:/BERATools/Test_Data/flm_small/seed_lines_checked.gpkg|seed_lines_vo"
-    # }
-    # vertex_optimization(**input, processes=10, verbose=False)
-
     vertex_optimization(**in_args.input, processes=int(in_args.processes), verbose=in_verbose)
     print("Elapsed time: {}".format(time.time() - start_time))
