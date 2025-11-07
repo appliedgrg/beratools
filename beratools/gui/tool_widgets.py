@@ -69,7 +69,14 @@ class ToolWidgets(QtWidgets.QWidget):
 
     def create_widgets(self, tool_args):
         param_num = 0
+        valid_types = {"number", "file", "list", "text", "directory"}
         for p in tool_args:
+            # Validate parameter type is not a subtype value
+            sub_type = p.get("type", None)
+            if sub_type and sub_type not in valid_types:
+                print(f"Invalid sub type '{sub_type}' for '{p.get('label', '')}'. ")
+                continue
+
             json_str = json.dumps(p, sort_keys=True, indent=2, separators=(",", ": "))
             pt = p["parameter_type"]
             widget = None
@@ -87,9 +94,8 @@ class ToolWidgets(QtWidgets.QWidget):
                 widget = OptionsInput(json_str)
                 param_num = param_num + 1
             elif (
-                "Float" in pt
-                or "Integer" in pt
-                or "Text" in pt
+                "float" in pt
+                or "int" in pt
             ):
                 widget = DataInput(json_str)
                 param_num = param_num + 1
@@ -180,10 +186,16 @@ class FileSelector(QtWidgets.QWidget):
         self.output = params["output"]  # Ensure output flag is read
         self.parameter_type = params["parameter_type"]
         self.file_type = ""
+        # Support raw subtypes as list for file types
         if "ExistingFile" in self.parameter_type:
             self.file_type = params["parameter_type"]["ExistingFile"]
         elif "NewFile" in self.parameter_type:
             self.file_type = params["parameter_type"]["NewFile"]
+        # Always ensure file_type is a list
+        if isinstance(self.file_type, str):
+            self.file_type = [self.file_type]
+        elif not isinstance(self.file_type, list):
+            self.file_type = list(self.file_type)
         self.optional = params["optional"]
 
         self.default_value = params["default_value"]
@@ -313,23 +325,25 @@ class FileSelector(QtWidgets.QWidget):
 
             file_types = "All files (*.*)"
 
-            if "Raster" in get_first_type(self.file_type):
+            # Use raw subtypes for file type selection
+            ft = get_first_type(self.file_type)
+            if ft == "raster":
                 file_types = """Tiff raster files (*.tif *.tiff);; 
                                 Other raster files (*.dep *.bil *.flt *.sdat *.asc *grd)"""
-            elif "Lidar" in get_first_type(self.file_type):
+            elif ft == "lidar":
                 file_types = "LiDAR files (*.las *.zlidar *.laz *.zip)"
-            elif "Vector" in get_first_type(self.file_type):
+            elif ft == "vector":
                 file_types = """GeoPackage (*.gpkg);;
                                     Shapefiles (*.shp)"""
-            elif "Text" in self.file_type:
+            elif ft == "text":
                 file_types = "Text files (*.txt);; all files (*.*)"
-            elif "Csv" in self.file_type:
+            elif ft == "csv":
                 file_types = "CSV files (*.csv);; all files (*.*)"
-            elif "Dat" in self.file_type:
+            elif ft == "dat":
                 file_types = "Binary data files (*.dat);; all files (*.*)"
-            elif "Html" in self.file_type:
+            elif ft == "html":
                 file_types = "HTML files (*.html)"
-            elif "json" in self.file_type or "JSON" in self.file_type:
+            elif ft == "json":
                 file_types = "JSON files (*.json)"
 
             # Check for GeoPackage/Shapefile first in filter order by current value
@@ -616,18 +630,40 @@ class DataInput(QtWidgets.QWidget):
         self.label.setMinimumWidth(BT_LABEL_MIN_WIDTH)
         self.data_input = None
 
-        if "Integer" in self.parameter_type:
-            self.data_input = QtWidgets.QSpinBox()
-        elif "Float" in self.parameter_type:
-            self.data_input = QtWidgets.QDoubleSpinBox()
+        # Support raw subtypes as list
+        subtypes = []
+        if isinstance(self.parameter_type, list):
+            subtypes = self.parameter_type
+        elif isinstance(self.parameter_type, str):
+            subtypes = [self.parameter_type]
+        elif isinstance(self.parameter_type, dict):
+            # For OptionList, ExistingFile, etc.
+            for v in self.parameter_type.values():
+                if isinstance(v, list):
+                    subtypes.extend(v)
+                else:
+                    subtypes.append(v)
 
-        if self.data_input:
-            if "Integer" in self.parameter_type:
+        # Use first subtype for widget selection
+        main_subtype = subtypes[0] if subtypes else None
+
+        if main_subtype == "int":
+            self.data_input = QtWidgets.QSpinBox()
+        elif main_subtype == "float":
+            self.data_input = QtWidgets.QDoubleSpinBox()
+        elif main_subtype == "bool":
+            self.data_input = QtWidgets.QCheckBox()
+            self.data_input.setChecked(bool(self.value))
+            self.data_input.stateChanged.connect(self.update_value)
+        else:
+            if main_subtype is not None:
+                raise ValueError(f"Unsupported parameter type: {main_subtype}")
+
+        if self.data_input and main_subtype in ("int", "float"):
+            if main_subtype == "int":
                 self.data_input.setValue(int(self.value))
-            elif "Float" in self.parameter_type:
+            elif main_subtype == "float":
                 self.data_input.setValue(float(self.value))
-            else:
-                self.data_input.setValue(self.value)
             self.data_input.valueChanged.connect(self.update_value)
 
         self.layout = QtWidgets.QHBoxLayout()
@@ -637,14 +673,17 @@ class DataInput(QtWidgets.QWidget):
 
     def update_value(self):
         if self.data_input is not None:
-            self.value = self.data_input.value()
+            if isinstance(self.data_input, QtWidgets.QCheckBox):
+                self.value = self.data_input.isChecked()
+            else:
+                self.value = self.data_input.value()
 
     def get_value(self):
         v = self.value
         if v is not None:
-            if "Integer" in self.parameter_type:
+            if "int" in self.parameter_type:
                 value = int(self.value)
-            elif "Float" in self.parameter_type:
+            elif "float" in self.parameter_type:
                 value = float(self.value)
             else:  # Text
                 value = self.value

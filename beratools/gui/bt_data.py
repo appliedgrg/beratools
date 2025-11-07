@@ -167,19 +167,7 @@ class SettingsManager:
 
 class BTData(object):
     """An object for interfacing with the BERA Tools executable."""
-
-    subtype_map = {"int": "Integer", "float": "Float", "bool": "Boolean", "raster": "Raster", "vector": "Vector", "lidar": "Lidar"}
-
-    def _map_and_validate_subtypes(self, subtypes):
-        if not isinstance(subtypes, list):
-            subtypes = [subtypes]
-        mapped = []
-        for sub in subtypes:
-            if sub not in self.subtype_map:
-                raise ValueError(f"Unknown subtype: {sub}")
-            mapped.append(self.subtype_map[sub])
-        return mapped
-
+    
     def __init__(self):
         if running_windows:
             self.ext = ".exe"
@@ -502,25 +490,39 @@ class BTData(object):
             single_param["saved_value"] = saved_value
 
     def _set_param_type_for_input(self, single_param, param):
-        mapped_subtypes = self._map_and_validate_subtypes(param["subtype"])
+        # Always parse subtype into a list, splitting on "|" and stripping whitespace
+        raw_subtype = param["subtype"]
+        if isinstance(raw_subtype, str):
+            subtypes = [s.strip() for s in raw_subtype.split("|")]
+        elif isinstance(raw_subtype, list):
+            subtypes = [str(s).strip() for s in raw_subtype]
+        else:
+            subtypes = []
 
+        # No mapping, use raw subtypes directly
         if param["type"] == "list":
             single_param["parameter_type"] = {"OptionList": param["data"]}
-            single_param["data_type"] = mapped_subtypes
+            single_param["data_type"] = subtypes
         elif param["type"] == "text":
             single_param["parameter_type"] = "Text"
         elif param["type"] == "number":
-            single_param["parameter_type"] = mapped_subtypes
+            single_param["parameter_type"] = subtypes
         elif param["type"] == "file":
-            single_param["parameter_type"] = {"ExistingFile": mapped_subtypes}
+            single_param["parameter_type"] = {"ExistingFile": subtypes}
         elif param["type"] == "directory":
-            single_param["parameter_type"] = {"Directory": mapped_subtypes}
+            single_param["parameter_type"] = {"Directory": subtypes}
         else:
             raise ValueError(f"Unknown parameter type: {param['type']}")
 
     def _set_param_type_for_output(self, single_param, param):
-        mapped_subtypes = self._map_and_validate_subtypes(param["subtype"])
-        single_param["parameter_type"] = {"NewFile": mapped_subtypes}
+        raw_subtype = param["subtype"]
+        if isinstance(raw_subtype, str):
+            subtypes = [s.strip() for s in raw_subtype.split("|")]
+        elif isinstance(raw_subtype, list):
+            subtypes = [str(s).strip() for s in raw_subtype]
+        else:
+            subtypes = []
+        single_param["parameter_type"] = {"NewFile": subtypes}
 
     def _override_param_type_for_special_types(self, single_param, param, tool):
         type_map = {"raster": "Raster", "lidar": "Lidar", "vector": "Vector"}
