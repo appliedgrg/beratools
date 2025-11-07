@@ -21,9 +21,7 @@ def test_centerline_tool_e2e(tool_arguments):
 
     # Check if the output file is created
     in_file, _ = decode_file_layer(args_centerline["in_line"])
-    assert check_file_exists(in_file), (
-        "Centerline output file was not created!"
-    )
+    assert check_file_exists(in_file), ("Centerline no output!")
 
 def test_canopy_footprint_abs_tool_e2e(tool_arguments):
     """E2E test for the canopy_footprint_abs tool."""
@@ -31,9 +29,8 @@ def test_canopy_footprint_abs_tool_e2e(tool_arguments):
     pprint(args_footprint_abs)
     canopy_footprint_abs(**args_footprint_abs)
 
-    assert check_file_exists(args_footprint_abs["out_footprint"]), (
-        "Footprint Abs output file was not created!"
-    )
+    out_file, _ = decode_file_layer(args_footprint_abs["out_footprint"])
+    assert check_file_exists(out_file), ("Footprint Abs no output!")
 
 def test_footprint_rel_tool_e2e(tool_arguments):
     """E2E test for the FootprintCanopy tool."""
@@ -42,9 +39,8 @@ def test_footprint_rel_tool_e2e(tool_arguments):
 
     line_footprint_rel(**args_footprint_rel)
 
-    assert check_file_exists(args_footprint_rel["out_footprint"]), (
-        "Footprint Rel output file was not created!"
-    )
+    out_file, _ = decode_file_layer(args_footprint_rel["out_footprint"])
+    assert check_file_exists(out_file), ("Footprint Rel no output!")
 
 
 def test_ground_footprint_tool_e2e(tool_arguments):
@@ -53,9 +49,8 @@ def test_ground_footprint_tool_e2e(tool_arguments):
     ground_footprint(**args_ground_footprint)
     pprint(args_ground_footprint)
 
-    assert check_file_exists(args_ground_footprint["out_footprint"]), (
-        "Line footprint fixed output file was not created!"
-    )
+    out_file, _ = decode_file_layer(args_ground_footprint["out_footprint"])
+    assert check_file_exists(out_file), ("Ground footprint no output!")
 
 # CLEANUP TESTS
 def test_cleanup_output_files(cleanup_output_files):

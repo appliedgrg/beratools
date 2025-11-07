@@ -488,19 +488,18 @@ class BTData(object):
             single_param["saved_value"] = saved_value
 
     def _set_param_type_for_input(self, single_param, param):
+        subtype_map = {"text": "Text", "int": "Integer", "float": "Float", "bool": "Boolean"}
         if param["type"] == "list":
             single_param["parameter_type"] = {"OptionList": param["data"]}
-            single_param["data_type"] = "String"
-            subtype_map = {"text": "String", "int": "Integer", "float": "Float", "bool": "Boolean"}
-            single_param["data_type"] = subtype_map.get(param["subtype"], "String")
+            single_param["data_type"] = subtype_map.get(param["subtype"], "Text")
         elif param["type"] == "text":
-            single_param["parameter_type"] = "String"
+            single_param["parameter_type"] = "Text"
         elif param["type"] == "number":
-            single_param["parameter_type"] = "Integer" if param["subtype"] == "int" else "Float"
+            single_param["parameter_type"] = subtype_map.get(param["subtype"], "Float")
         elif param["type"] == "file":
             single_param["parameter_type"] = {"ExistingFile": [param["subtype"]]}
         elif param["type"] == "directory":
-            single_param["parameter_type"] = {"directory": [param["subtype"]]}
+            single_param["parameter_type"] = {"Directory": [param["subtype"]]}
         else:
             single_param["parameter_type"] = {"ExistingFile": ""}
 

@@ -73,7 +73,7 @@ def tool_arguments(testdata_dir, available_cpu_cores):
         },
         "args_ground_footprint": {
             'in_line': f"{testdata_dir.joinpath('centerline.gpkg').as_posix()}|centerline",
-            'in_footprint': f"{testdata_dir.joinpath('footprint_rel.gpkg').as_posix()}|footprint_rel",
+            'in_footprint': f"{testdata_dir.joinpath('footprint_abs.gpkg').as_posix()}|footprint_abs",
             'n_samples': 15,
             'offset': 30,
             'max_width': True,

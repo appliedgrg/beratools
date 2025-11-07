@@ -74,7 +74,7 @@ class ToolWidgets(QtWidgets.QWidget):
             pt = p["parameter_type"]
             widget = None
 
-            if "ExistingFile" in pt or "NewFile" in pt or "directory" in pt:
+            if "ExistingFile" in pt or "NewFile" in pt or "Directory" in pt:
                 widget = FileSelector(json_str, None)
                 param_num = param_num + 1
             elif "FileList" in pt:
@@ -90,10 +90,6 @@ class ToolWidgets(QtWidgets.QWidget):
                 "Float" in pt
                 or "Integer" in pt
                 or "Text" in pt
-                or "String" in pt
-                or "StringOrNumber" in pt
-                or "StringList" in pt
-                or "VectorAttributeField" in pt
             ):
                 widget = DataInput(json_str)
                 param_num = param_num + 1
@@ -196,15 +192,15 @@ class FileSelector(QtWidgets.QWidget):
         if "saved_value" in params.keys():
             self.value = params["saved_value"]
 
-        # Decode saved value if encoded (only for vector files)
+        # Always decode file and layer for vector type parameters
         if "Vector" in self.parameter_type:
-            if self.value and "|" in self.value:
-                self.value, layer_part = self.value.rsplit("|", 1)
-                self.selected_layer = layer_part if layer_part else ""
-            elif ":" in self.value:
-                # Fallback for old ":" format
-                self.value, layer_part = self.value.rsplit(":", 1)
-                self.selected_layer = layer_part if layer_part else ""
+            layer_part = ""
+            if self.value:
+                if "|" in self.value:
+                    self.value, layer_part = self.value.rsplit("|", 1)
+                elif ":" in self.value:
+                    self.value, layer_part = self.value.rsplit(":", 1)
+            self.selected_layer = layer_part
         else:
             self.selected_layer = ""
 
@@ -648,9 +644,7 @@ class DataInput(QtWidgets.QWidget):
                 value = int(self.value)
             elif "Float" in self.parameter_type:
                 value = float(self.value)
-            elif "Double" in self.parameter_type:
-                value = float(self.value)
-            else:  # String or StringOrNumber types
+            else:  # Text
                 value = self.value
 
             return {self.flag: value}
