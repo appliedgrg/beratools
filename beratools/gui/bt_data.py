@@ -20,8 +20,6 @@ import platform
 from collections import OrderedDict
 from pathlib import Path
 
-from pytest import param
-
 import beratools.core.constants as bt_const
 
 running_windows = platform.system() == "Windows"
@@ -167,7 +165,7 @@ class SettingsManager:
 
 class BTData(object):
     """An object for interfacing with the BERA Tools executable."""
-    
+
     def __init__(self):
         if running_windows:
             self.ext = ".exe"
