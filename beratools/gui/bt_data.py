@@ -61,6 +61,13 @@ class SettingsManager:
                 except json.decoder.JSONDecodeError:
                     logging.error("Failed to decode settings JSON file of saved tool info.", exc_info=True)
 
+            # Remove any entry with None or "null" as tool name
+            if isinstance(saved_parameters, dict):
+                saved_parameters = OrderedDict(
+                    (k, v) for k, v in saved_parameters.items()
+                    if k is not None and k != "null"
+                )
+
             self.settings = saved_parameters
         else:
             self.settings = saved_parameters
@@ -81,6 +88,11 @@ class SettingsManager:
                     logging.error("Failed to encode settings to JSON when writing.", exc_info=True)
 
     def save_setting(self, key, value):
+        # Guard against None/null tool name
+        if key is None:
+            print("Warning: tool_name is None, not saving parameters.")
+            return
+
         # check setting directory existence
         if self.setting_file is not None:
             data_path = Path(self.setting_file).resolve().parent
@@ -488,14 +500,8 @@ class BTData(object):
             single_param["saved_value"] = saved_value
 
     def _set_param_type_for_input(self, single_param, param):
-        # Always parse subtype into a list, splitting on "|" and stripping whitespace
-        raw_subtype = param["subtype"]
-        if isinstance(raw_subtype, str):
-            subtypes = [s.strip() for s in raw_subtype.split("|")]
-        elif isinstance(raw_subtype, list):
-            subtypes = [str(s).strip() for s in raw_subtype]
-        else:
-            subtypes = []
+        # Assume subtype is already a list
+        subtypes = param["subtype"]
 
         # No mapping, use raw subtypes directly
         if param["type"] == "list":
@@ -513,24 +519,10 @@ class BTData(object):
             raise ValueError(f"Unknown parameter type: {param['type']}")
 
     def _set_param_type_for_output(self, single_param, param):
-        raw_subtype = param["subtype"]
-        if isinstance(raw_subtype, str):
-            subtypes = [s.strip() for s in raw_subtype.split("|")]
-        elif isinstance(raw_subtype, list):
-            subtypes = [str(s).strip() for s in raw_subtype]
-        else:
-            subtypes = []
+        # Assume subtype is already a list
+        subtypes = param["subtype"]
         single_param["parameter_type"] = {"NewFile": subtypes}
 
-    def _override_param_type_for_special_types(self, single_param, param, tool):
-        type_map = {"raster": "Raster", "lidar": "Lidar", "vector": "Vector"}
-        if param["type"] in type_map:
-            if isinstance(single_param["parameter_type"], dict):
-                for i in single_param["parameter_type"].keys():
-                    if not isinstance(single_param["parameter_type"][i], list):
-                        continue
-                    single_param["parameter_type"][i] = [type_map[param["type"]]]
-        
 
     def get_bera_tool_params(self, tool_name):
         new_param_whole = {"parameters": []}
@@ -554,6 +546,9 @@ class BTData(object):
             if parameters is None:
                 return new_param_whole
             for param in parameters:
+                # Parse subtype string to list once, here
+                if isinstance(param.get("subtype", ""), str):
+                    param["subtype"] = [s.strip() for s in param["subtype"].split("|")]
                 single_param = {"name": param["label"]}
                 self._set_param_flag_and_saved_value(single_param, param, tool)
                 single_param["output"] = param["output"]
@@ -563,8 +558,6 @@ class BTData(object):
                     self._set_param_type_for_output(single_param, param)
 
                 single_param["description"] = param["description"]
-
-                self._override_param_type_for_special_types(single_param, param, tool)
 
                 single_param["default_value"] = param["default"]
                 single_param["optional"] = param.get("optional", False)

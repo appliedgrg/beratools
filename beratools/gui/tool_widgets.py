@@ -174,6 +174,14 @@ def get_layers(gpkg_file):
 class FileSelector(QtWidgets.QWidget):
     """FileSelector class for creating file selection widgets."""
 
+    @staticmethod
+    def has_vector_subtype(param_type):
+        if isinstance(param_type, dict):
+            for v in param_type.values():
+                if isinstance(v, list) and "vector" in v:
+                    return True
+        return False
+
     def __init__(self, json_str, parent=None):
         super(FileSelector, self).__init__(parent)
 
@@ -204,14 +212,14 @@ class FileSelector(QtWidgets.QWidget):
         if "saved_value" in params.keys():
             self.value = params["saved_value"]
 
-        # Always decode file and layer for vector type parameters
-        if "Vector" in self.parameter_type:
+        # Use has_vector_subtype for vector detection and decoding
+        if self.has_vector_subtype(self.parameter_type):
             layer_part = ""
             if self.value:
                 if "|" in self.value:
                     self.value, layer_part = self.value.rsplit("|", 1)
-                elif ":" in self.value:
-                    self.value, layer_part = self.value.rsplit(":", 1)
+                else:
+                    layer_part = ""
             self.selected_layer = layer_part
         else:
             self.selected_layer = ""
@@ -235,10 +243,7 @@ class FileSelector(QtWidgets.QWidget):
 
         self.setLayout(self.layout)
 
-        # text changed
-        self.in_file.textChanged.connect(self.file_name_edited)
-
-        # Handle showing the layer combo and making it editable when needed
+         # Handle showing the layer combo and making it editable when needed
         if self.value.lower().endswith(".gpkg"):
             self.layer_combo.setVisible(True)  # Show the combo box if it's a .gpkg
             if self.output:
@@ -265,6 +270,8 @@ class FileSelector(QtWidgets.QWidget):
         elif self.layer_combo.isVisible():
             self.layer_combo.setVisible(False)
 
+        # text changed
+        self.in_file.textChanged.connect(self.file_name_edited)
         self.update_combo_visibility()  # Update combo visibility after init
 
     def update_combo_visibility(self):
@@ -483,22 +490,15 @@ class FileSelector(QtWidgets.QWidget):
             self.parentWidget().update()
 
     def set_value(self, value):
-        # Check if the value has an extension
         base_name = str(Path(value).with_suffix(""))
         ext = Path(value).suffix
 
-        # Only append an extension if none exists AND the value doesn't end with a dot
-        if not ext:  # If there's no extension
-            if not value.endswith("."):  # If the user hasn't typed a dot at the end
-                # Don't force the .txt extension unless the filename doesn't have one
-                # Add default extension for other cases
+        if not ext:
+            if not value.endswith("."):
                 if not value.endswith(".gpkg") and not value.endswith(".shp"):
                     value = f"{base_name}.txt"
-            # If the value ends with a dot (like `file.`), don't append anything yet
-
-        # If the value ends with a dot, don't append an extension.
         elif value.endswith("."):
-            value = base_name  # Strip the dot
+            value = base_name
 
         self.value = value
         self.in_file.setText(self.value)
@@ -506,23 +506,17 @@ class FileSelector(QtWidgets.QWidget):
         self.update_combo_visibility()
 
     def set_layer(self, layer):
-        # Store only the selected layer's name (key) from the combo box display
-        # The layer is in the format: "layer_name (geometry_type)"
-        # Get only the layer name (before the space)
         self.selected_layer = layer.split(" ")[0]
-        # print(f"Selected Layer: {self.selected_layer}")
+
 
     def get_value(self):
     # Return encoded file|layer for vector, else file
-        if "Vector" in self.parameter_type:
+        if self.has_vector_subtype(self.parameter_type):
             encoded_value = f"{self.value}|{self.selected_layer}"
         else:
             encoded_value = self.value
             
         return {self.flag: encoded_value}
-
-
-
 
 # TODO: check if this class is needed
 class MultiFileSelector(QtWidgets.QWidget):
@@ -532,7 +526,6 @@ class MultiFileSelector(QtWidgets.QWidget):
         super(MultiFileSelector, self).__init__(parent)
         pass
 
-
 # TODO: check if this class is needed
 class BooleanInput(QtWidgets.QWidget):
     """BooleanInput class for creating boolean input widgets."""
@@ -540,7 +533,6 @@ class BooleanInput(QtWidgets.QWidget):
     def __init__(self, json_str, parent=None):
         super(BooleanInput, self).__init__(parent)
         pass
-
 
 class OptionsInput(QtWidgets.QWidget):
     """OptionsInput class for creating option selection widgets."""
