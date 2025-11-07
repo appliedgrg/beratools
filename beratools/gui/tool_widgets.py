@@ -224,6 +224,37 @@ class FileSelector(QtWidgets.QWidget):
         else:
             self.selected_layer = ""
 
+        # --- Widget creation validation logic ---
+        # Only for .gpkg files and vector subtype
+        if self.value and self.value.lower().endswith(".gpkg"):
+            gpkg_path = Path(self.value)
+            dir_exists = gpkg_path.parent.exists()
+            file_exists = gpkg_path.exists()
+            if self.output and (file_exists or dir_exists):
+                try:
+                    layers_dict = get_layers(self.value) if file_exists else {}
+                    # For output: always keep file/layer, even if layer not found
+                    # No clearing of value/selected_layer
+                except Exception as e:
+                    pass
+            else:
+                # For input files: only clear if neither file nor dir exists
+                if not file_exists and not dir_exists:
+                    self.value = ""
+                    self.selected_layer = ""
+                else:
+                    try:
+                        layers_dict = get_layers(self.value) if file_exists else {}
+                        if self.selected_layer:
+                            valid_layers = [str(k) for k in layers_dict.keys()]
+                            selected_layer_name = self.selected_layer.split(" ")[0]
+                            if selected_layer_name not in valid_layers:
+                                self.value = ""
+                                self.selected_layer = ""
+                    except Exception as e:
+                        self.value = ""
+                        self.selected_layer = ""
+
         self.layout = QtWidgets.QHBoxLayout()
         self.label = QtWidgets.QLabel(self.name)
         self.label.setMinimumWidth(200)
@@ -421,39 +452,41 @@ class FileSelector(QtWidgets.QWidget):
     def load_gpkg_layers(self, gpkg_file):
         """Load layers from a GeoPackage and populate the combo box using get_layers."""
         try:
-            # Print the file path to verify it's correct
-            # print(f"Attempting to load layers from: {gpkg_file}")
-
-            # Use get_layers to load layers from the GeoPackage
             self.gpkg_layers = get_layers(gpkg_file)
-
-            # Check if layers is empty
             if not self.gpkg_layers:
                 raise ValueError("No layers found in the GeoPackage.")
 
-            # Clear any existing layers in the combo box
             self.layer_combo.clear()
 
-            # Iterate over the layers dictionary
-            # and add each layer name with geometry type to the combo box
-            for layer_name, geometry_type in self.gpkg_layers.items():
-                self.layer_combo.addItem(f"{layer_name} ({geometry_type})")
+            # Determine selected layer name (without geometry type)
+            selected_layer_name = self.selected_layer.split(" ")[0] if self.selected_layer else ""
+            loaded_layer_names = [str(k) for k in self.gpkg_layers.keys()]
 
-            # Set the tooltip for the layer list widget
+            # Output logic: add provided layer if missing
+            if self.output and selected_layer_name and selected_layer_name not in loaded_layer_names:
+                self.layer_combo.addItem(selected_layer_name)
+                for layer_name, geometry_type in self.gpkg_layers.items():
+                    self.layer_combo.addItem(f"{layer_name} ({geometry_type})")
+                self.layer_combo.setEditable(True)
+                self.layer_combo.setCurrentText(selected_layer_name)
+            else:
+                for layer_name, geometry_type in self.gpkg_layers.items():
+                    self.layer_combo.addItem(f"{layer_name} ({geometry_type})")
+                self.layer_combo.setEditable(self.output)
+                if self.selected_layer:
+                    index = self.layer_combo.findText(self.selected_layer)
+                    if index >= 0:
+                        self.layer_combo.setCurrentIndex(index)
+
             self.layer_combo.setToolTip("Select layer")
-
-            # Make the combo box visible
             self.layer_combo.setVisible(True)
 
         except Exception as e:
-            # Print the full error message for debugging purposes
             print(f"Error loading GeoPackage layers: {e}")
-
-            # Show a message box with the error
             msg_box = QtWidgets.QMessageBox()
             msg_box.setIcon(QtWidgets.QMessageBox.Warning)
             msg_box.setText(f"Could not load layers from GeoPackage: {gpkg_file}")
-            msg_box.setDetailedText(str(e))  # Show detailed error message
+            msg_box.setDetailedText(str(e))
             msg_box.exec()
 
     def file_name_edited(self):
@@ -510,17 +543,30 @@ class FileSelector(QtWidgets.QWidget):
 
 
     def get_value(self):
-        # Always use only the file part before appending layer
-        if self.has_vector_subtype(self.parameter_type):
+        # Enhanced logic for output vector: check directory existence
+        if self.output and self.has_vector_subtype(self.parameter_type):
             file_part = self.value.split("|")[0]
+            dir_path = str(Path(file_part).parent)
+            # If directory does not exist, remove file name and only keep directory path
+            if not Path(dir_path).exists():
+                return {self.flag: dir_path}
+            # If directory exists, keep file and layer as usual
             if self.selected_layer:
                 encoded_value = f"{file_part}|{self.selected_layer}"
             else:
                 encoded_value = file_part
+            return {self.flag: encoded_value}
         else:
-            encoded_value = self.value
-
-        return {self.flag: encoded_value}
+            # Non-output or non-vector: default logic
+            if self.has_vector_subtype(self.parameter_type):
+                file_part = self.value.split("|")[0]
+                if self.selected_layer:
+                    encoded_value = f"{file_part}|{self.selected_layer}"
+                else:
+                    encoded_value = file_part
+            else:
+                encoded_value = self.value
+            return {self.flag: encoded_value}
 
 # TODO: check if this class is needed
 class MultiFileSelector(QtWidgets.QWidget):
