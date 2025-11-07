@@ -510,12 +510,16 @@ class FileSelector(QtWidgets.QWidget):
 
 
     def get_value(self):
-    # Return encoded file|layer for vector, else file
+        # Always use only the file part before appending layer
         if self.has_vector_subtype(self.parameter_type):
-            encoded_value = f"{self.value}|{self.selected_layer}"
+            file_part = self.value.split("|")[0]
+            if self.selected_layer:
+                encoded_value = f"{file_part}|{self.selected_layer}"
+            else:
+                encoded_value = file_part
         else:
             encoded_value = self.value
-            
+
         return {self.flag: encoded_value}
 
 # TODO: check if this class is needed

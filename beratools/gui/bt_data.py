@@ -76,8 +76,10 @@ class SettingsManager:
         self.settings = saved_parameters
 
     def save_tool_info(self, recent_tool=None):
-        if recent_tool and "gui_parameters" not in self.settings.keys():
-            self.settings["gui_parameters"] = {}
+        if recent_tool:
+            if "gui_parameters" not in self.settings:
+                self.settings["gui_parameters"] = {}
+                
             self.settings["gui_parameters"]["recent_tool"] = recent_tool
 
         if self.setting_file is not None:
@@ -220,6 +222,8 @@ class BTData(object):
 
         self.settings_manager.load_saved_tool_info()
         self.settings = self.settings_manager.settings
+        gui_settings = self.settings.get("gui_parameters", {})
+        self.recent_tool = gui_settings.get("recent_tool", None)
         self.load_gui_data()
         self.get_tool_history()
 
@@ -414,9 +418,9 @@ class BTData(object):
 
             if "recent_tool" in gui_settings and gui_settings["recent_tool"] is not None:
                 self.recent_tool = gui_settings["recent_tool"]
-                if not self.get_bera_tool_api(self.recent_tool):
+                api_result = self.get_bera_tool_api(self.recent_tool)
+                if not api_result:
                     self.recent_tool = None
-
     def load_gui_data(self):
         gui_settings = {}
         if not self.gui_setting_file.exists():
