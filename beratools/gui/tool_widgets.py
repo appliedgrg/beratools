@@ -313,10 +313,7 @@ class FileSelector(QtWidgets.QWidget):
 
             file_types = "All files (*.*)"
 
-            if "RasterAndVector" in self.file_type:
-                file_types = """Shapefiles (*.shp);; 
-                                Raster files (*.dep *.tif *.tiff *.bil *.flt *.sdat *.asc *grd)"""
-            elif "Raster" in get_first_type(self.file_type):
+            if "Raster" in get_first_type(self.file_type):
                 file_types = """Tiff raster files (*.tif *.tiff);; 
                                 Other raster files (*.dep *.bil *.flt *.sdat *.asc *grd)"""
             elif "Lidar" in get_first_type(self.file_type):
@@ -621,13 +618,17 @@ class DataInput(QtWidgets.QWidget):
 
         if "Integer" in self.parameter_type:
             self.data_input = QtWidgets.QSpinBox()
-        elif "Float" in self.parameter_type or "Double" in self.parameter_type:
+        elif "Float" in self.parameter_type:
             self.data_input = QtWidgets.QDoubleSpinBox()
 
         if self.data_input:
-            self.data_input.setValue(self.value)
-
-        self.data_input.valueChanged.connect(self.update_value)
+            if "Integer" in self.parameter_type:
+                self.data_input.setValue(int(self.value))
+            elif "Float" in self.parameter_type:
+                self.data_input.setValue(float(self.value))
+            else:
+                self.data_input.setValue(self.value)
+            self.data_input.valueChanged.connect(self.update_value)
 
         self.layout = QtWidgets.QHBoxLayout()
         self.layout.addWidget(self.label)
@@ -635,7 +636,8 @@ class DataInput(QtWidgets.QWidget):
         self.setLayout(self.layout)
 
     def update_value(self):
-        self.value = self.data_input.value()
+        if self.data_input is not None:
+            self.value = self.data_input.value()
 
     def get_value(self):
         v = self.value
