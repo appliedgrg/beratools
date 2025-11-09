@@ -17,7 +17,7 @@ sys.path.append(Path(__file__).resolve().parents[1].as_posix())
 from hydra import compose, initialize_config_dir
 from omegaconf import OmegaConf
 
-from beratools.core.algo_canopy_footprint_exp import line_footprint_rel
+from beratools.core.algo_canopy_footprint_exp import line_footprint_exp
 from beratools.tools.canopy_footprint_absolute import canopy_footprint_abs
 from beratools.tools.centerline import centerline
 from beratools.tools.check_seed_line import check_seed_line
@@ -67,10 +67,10 @@ def main():
 
     if "footprint_rel" in steps_to_run:
         print_message("Running footprint rel")
-        args = dict(cfg.args_footprint_rel)
+        args = dict(cfg.args_footprint_exp)
         args["processes"] = processes
         args["parallel_mode"] = parallel_mode
-        line_footprint_rel(**args)
+        line_footprint_exp(**args)
 
     if "footprint_fixed" in steps_to_run:
         print_message("Running footprint fixed")

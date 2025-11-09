@@ -12,6 +12,7 @@ Description:
 
     This file hosts the ground_footprint tool.
 """
+
 import logging
 import math
 import time
@@ -33,7 +34,7 @@ from beratools.core.algo_merge_lines import custom_line_merge
 from beratools.core.algo_split_with_lines import LineSplitter
 from beratools.core.logger import Logger
 from beratools.core.tool_base import execute_multiprocessing
-from beratools.tools.common import decode_file_layer
+from beratools.utility.tool_args import CallMode
 
 log = Logger("ground_footprint", file_level=logging.INFO)
 logger = log.get_logger()
@@ -273,17 +274,15 @@ def ground_footprint(
     offset,
     max_width,
     out_footprint,
-    processes,
-    verbose,
     in_layer_lc_path="least_cost_path",
     merge_group=True,
     width_percentile=75,
-    parallel_mode=bt_const.ParallelMode.MULTIPROCESSING,
     trim_output=True,
+    processes=0, call_mode=CallMode.CLI, log_level="INFO"
 ):
-    in_file, in_layer = decode_file_layer(in_line)
-    in_fp_file, in_layer_fp = decode_file_layer(in_footprint)
-    out_file, out_layer = decode_file_layer(out_footprint)
+    in_file, in_layer = sp_common.decode_file_layer(in_line)
+    in_fp_file, in_layer_fp = sp_common.decode_file_layer(in_footprint)
+    out_file, out_layer = sp_common.decode_file_layer(out_footprint)
 
     n_samples = int(n_samples)
     offset = float(offset)
@@ -366,7 +365,7 @@ def ground_footprint(
 
     print("Step: Running multiprocessing for fixed footprint calculation")
     out_lines = execute_multiprocessing(
-    process_single_line, line_args, "Fixed footprint", processes, mode=parallel_mode, verbose=verbose
+        process_single_line, line_args, "Fixed footprint", processes, call_mode
     )
     line_attr = pd.concat(out_lines)
 
@@ -413,13 +412,17 @@ def ground_footprint(
     if trim_output:
         print("Step: Trimming lines and footprints")
         lg.run_cleanup(buffer_gdf)
+
         # Ensure only polygons are saved in clean_footprint
         def ensure_polygons(gdf, buffer_width=0.01):
-            gdf['geometry'] = gdf['geometry'].apply(
-                lambda geom: geom.buffer(buffer_width) if geom.geom_type in ['LineString', 'MultiLineString'] else geom
+            gdf["geometry"] = gdf["geometry"].apply(
+                lambda geom: geom.buffer(buffer_width)
+                if geom.geom_type in ["LineString", "MultiLineString"]
+                else geom
             )
-            gdf = gdf[gdf.geometry.type.isin(['Polygon', 'MultiPolygon'])]
+            gdf = gdf[gdf.geometry.type.isin(["Polygon", "MultiPolygon"])]
             return gdf
+
         # Patch: after trimming, ensure polygons in clean_footprint layer
         if hasattr(lg, "merged_lines_trimmed") and lg.merged_lines_trimmed is not None:
             lg.merged_lines_trimmed = ensure_polygons(lg.merged_lines_trimmed)
@@ -458,8 +461,10 @@ def ground_footprint(
     print("Step: Finished fixed width footprint tool")
 
 
+from beratools.utility.tool_args import compose_tool_kwargs
+
 if __name__ == "__main__":
-    in_args, in_verbose = sp_common.check_arguments()
     start_time = time.time()
-    ground_footprint(**in_args.input, processes=int(in_args.processes), verbose=in_verbose)
+    kwargs = compose_tool_kwargs("ground_footprint")
+    ground_footprint(**kwargs)
     print("Elapsed time: {}".format(time.time() - start_time))

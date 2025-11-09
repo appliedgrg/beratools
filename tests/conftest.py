@@ -44,9 +44,7 @@ def tool_arguments(testdata_dir, available_cpu_cores):
             'in_raster': testdata_dir.joinpath('chm.tif').as_posix(),
             'line_radius': 15,
             'proc_segments': True,
-            'out_line': f"{testdata_dir.joinpath('centerline.gpkg').as_posix()}|centerline",
-            'processes': available_cpu_cores,
-            'verbose': False
+            'out_line': f"{testdata_dir.joinpath('centerline.gpkg').as_posix()}|centerline"
         },
         "args_footprint_abs": {
             'in_line': f"{testdata_dir.joinpath('centerline.gpkg').as_posix()}|centerline",
@@ -55,21 +53,17 @@ def tool_arguments(testdata_dir, available_cpu_cores):
             'max_ln_width': 32.0,
             'exp_shk_cell': 0,
             'out_footprint': f"{testdata_dir.joinpath('footprint_abs.gpkg').as_posix()}|footprint_abs",
-            'processes': available_cpu_cores,
-            'verbose': False
         },
-        "args_footprint_rel": {
+        "args_footprint_exp": {
             'in_line': f"{testdata_dir.joinpath('centerline.gpkg').as_posix()}|centerline",
             'in_chm': testdata_dir.joinpath('chm.tif').as_posix(),
-            'out_footprint': f"{testdata_dir.joinpath('footprint_rel.gpkg').as_posix()}|footprint_rel",
+            'out_footprint': f"{testdata_dir.joinpath('footprint_exp.gpkg').as_posix()}|footprint_exp",
             'max_ln_width': 32,
             'tree_radius': 1.5,
             'max_line_dist': 1.5,
             'canopy_avoidance': 0.0,
             'exponent': 0,
-            'canopy_thresh_percentage': 50,
-            'processes': available_cpu_cores,
-            'verbose': False
+            'canopy_thresh_percentage': 50
         },
         "args_ground_footprint": {
             'in_line': f"{testdata_dir.joinpath('centerline.gpkg').as_posix()}|centerline",
@@ -77,9 +71,7 @@ def tool_arguments(testdata_dir, available_cpu_cores):
             'n_samples': 15,
             'offset': 30,
             'max_width': True,
-            'out_footprint': f"{testdata_dir.joinpath('footprint_final.gpkg').as_posix()}|footprint_fixed",
-            'processes': available_cpu_cores,
-            'verbose': False
+            'out_footprint': f"{testdata_dir.joinpath('footprint_final.gpkg').as_posix()}|footprint_fixed"
         }
     }
 

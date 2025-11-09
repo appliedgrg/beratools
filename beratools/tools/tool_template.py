@@ -9,8 +9,8 @@ Author: AUTHOR NAME
 Description:
     This script is tool template for the BERA Tools. The tool showcases
     how to create a new tool for the BERA Tools framework. It is a
-    starting point for developers to implement their own tools. 
-    It uses the GeoPandas to read and write geospatial data, 
+    starting point for developers to implement their own tools.
+    It uses the GeoPandas to read and write geospatial data,
     and the multiprocessing library to process the geospatial data.
 
     To integrate with GUI, work in the gui/assets/beratools.json is needed.
@@ -27,11 +27,13 @@ import geopandas as gpd
 import pandas as pd
 
 import beratools.utility.spatial_common as sp_common
+import beratools.utility.tool_args as tool_args
 from beratools.core.tool_base import execute_multiprocessing
-from beratools.tools.common import decode_file_layer
+from beratools.utility.tool_args import CallMode
 
 
-def tool_name(in_feature, buffer_dist, out_feature, processes, verbose):
+def tool_template(in_feature, buffer_dist, out_feature, 
+                  processes=0, call_mode=CallMode.CLI, log_level="INFO"):
     """
     Define tool entry point.
 
@@ -46,14 +48,15 @@ def tool_name(in_feature, buffer_dist, out_feature, processes, verbose):
     use execute_multiprocessing to run tasks in parallel to speedup.
 
     """
-    in_file, in_layer = decode_file_layer(in_feature)
-    out_file, out_layer = decode_file_layer(out_feature)
+    in_file, in_layer = sp_common.decode_file_layer(in_feature)
+    out_file, out_layer = sp_common.decode_file_layer(out_feature)
 
     buffer_dist = float(buffer_dist)
     gdf = gpd.read_file(in_file, layer=in_layer)
     gdf_list = [(gdf.iloc[[i]], buffer_dist) for i in range(len(gdf))]
 
-    results = execute_multiprocessing(buffer_worker, gdf_list, "tool_template", processes, verbose=verbose)
+    # Set verbose based on log_level
+    results = execute_multiprocessing(buffer_worker, gdf_list, "tool_template", processes, call_mode)
 
     buffered_gdf = gpd.GeoDataFrame(pd.concat(results, ignore_index=True), crs=gdf.crs)
     buffered_gdf.to_file(out_file, layer=out_layer)
@@ -69,6 +72,6 @@ def buffer_worker(in_args):
 
 if __name__ == "__main__":
     start_time = time.time()
-    in_args, in_verbose = sp_common.check_arguments()
-    tool_name(**in_args.input, processes=int(in_args.processes), verbose=in_verbose)
+    kwargs = tool_args.compose_tool_kwargs("tool_template")
+    tool_template(**kwargs)
     print("Elapsed time: {}".format(time.time() - start_time))

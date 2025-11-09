@@ -109,9 +109,9 @@ class ToolWidgets(QtWidgets.QWidget):
                 param_value = p["default_value"]
             if param_value is not None:
                 if type(widget) is OptionsInput:
-                    widget.value = param_value
+                    widget.set_value(param_value)
                 elif widget:
-                    widget.value = param_value
+                    widget.set_value(param_value)
             else:
                 print("No default value found: {}".format(p["name"]))
 
@@ -218,11 +218,14 @@ class FileSelector(QtWidgets.QWidget):
         # Use dict for vector values
         if self.is_vector:
             val = self.saved_value if self.saved_value is not None else self.default_value
-            if val and "|" in val:
+            # Handle case where saved_value is already a dict (from previous saves)
+            if isinstance(val, dict):
+                self.value = val
+            elif val and isinstance(val, str) and "|" in val:
                 path, layer = val.rsplit("|", 1)
                 self.value = {"path": path, "layer": layer}
             else:
-                self.value = {"path": val, "layer": ""}
+                self.value = {"path": val if val else "", "layer": ""}
         else:
             self.value = self.saved_value if self.saved_value is not None else self.default_value
 
@@ -399,8 +402,11 @@ class FileSelector(QtWidgets.QWidget):
         """Initialize and configure QFileDialog."""
         dialog = QtWidgets.QFileDialog(self)
         dialog.setViewMode(QtWidgets.QFileDialog.Detail)
-        dialog.setDirectory(str(Path(self.value).parent))
-        dialog.selectFile(Path(self.value).name)
+        # Handle both string and dict values (for vector files)
+        path_value = self.value.get("path", "") if isinstance(self.value, dict) else self.value
+        if path_value:
+            dialog.setDirectory(str(Path(path_value).parent))
+            dialog.selectFile(Path(path_value).name)
         dialog.setNameFilter(file_types)
         if "ExistingFile" in self.parameter_type:
             dialog.setFileMode(QtWidgets.QFileDialog.ExistingFiles)

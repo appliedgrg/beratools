@@ -46,7 +46,7 @@ args_footprint_abs:
   out_layer: footprint_abs
   verbose: false
 
-args_footprint_rel:
+args_footprint_exp:
   in_line: ${DATA_DIR}/centerline.gpkg
   in_layer: centerline
   in_chm: ${DATA_DIR}/${CHM}

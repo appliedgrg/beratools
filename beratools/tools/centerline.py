@@ -21,11 +21,11 @@ import pandas as pd
 
 import beratools.core.algo_centerline as algo_centerline
 import beratools.core.algo_common as algo_common
-import beratools.core.constants as bt_const
 import beratools.utility.spatial_common as sp_common
-from beratools.tools.common import decode_file_layer
+import beratools.utility.tool_args as tool_args
 from beratools.core.logger import Logger
 from beratools.core.tool_base import execute_multiprocessing
+from beratools.utility.tool_args import CallMode
 
 log = Logger("centerline", file_level=logging.INFO)
 logger = log.get_logger()
@@ -47,18 +47,10 @@ def process_single_line_class(seed_line):
     return seed_line
 
 
-def centerline(
-in_line,
-in_raster,
-line_radius,
-proc_segments,
-out_line,
-processes,
-verbose,
-parallel_mode=bt_const.ParallelMode.MULTIPROCESSING,
-):
-    in_file, in_layer = decode_file_layer(in_line)
-    out_file, out_layer = decode_file_layer(out_line)
+def centerline(in_line, in_raster, line_radius, proc_segments, out_line, use_angle_grouping=True, 
+               processes=0, call_mode=CallMode.CLI, log_level="INFO"):
+    in_file, in_layer = sp_common.decode_file_layer(in_line)
+    out_file, out_layer = sp_common.decode_file_layer(out_line)
 
     if not sp_common.compare_crs(sp_common.vector_crs(in_file), sp_common.raster_crs(in_raster)):
         print("Line and CHM have different spatial references, please check.")
@@ -66,8 +58,8 @@ parallel_mode=bt_const.ParallelMode.MULTIPROCESSING,
 
     line_class_list = generate_line_class_list(
         in_file,
-in_raster,
-line_radius=float(line_radius),
+        in_raster,
+        line_radius=float(line_radius),
         layer=in_layer,
         proc_segments=proc_segments,
     )
@@ -82,8 +74,7 @@ line_radius=float(line_radius),
         line_class_list,
         "Centerline",
         processes,
-        verbose=verbose,
-        mode=parallel_mode,
+        call_mode,
     )
     if not result:
         print("No centerlines found.")
@@ -122,9 +113,8 @@ line_radius=float(line_radius),
     corridor_polys.to_file(aux_file, layer="corridor_polygon")
 
 
-# TODO: fix geometries when job done
 if __name__ == "__main__":
-    in_args, in_verbose = sp_common.check_arguments()
     start_time = time.time()
-    centerline(**in_args.input, processes=int(in_args.processes), verbose=in_verbose)
+    kwargs = tool_args.compose_tool_kwargs("centerline")
+    centerline(**kwargs)
     print("Elapsed time: {}".format(time.time() - start_time))

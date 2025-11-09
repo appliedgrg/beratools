@@ -15,39 +15,33 @@ Description:
 
 import logging
 import time
+from turtle import mode
 
 import beratools.core.algo_vertex_optimization as bt_vo
 import beratools.utility.spatial_common as sp_common
+import beratools.utility.tool_args as tool_args
 from beratools.core.logger import Logger
-from beratools.tools.common import decode_file_layer
+from beratools.utility.tool_args import CallMode
 
 log = Logger("vertex_optimization", file_level=logging.INFO)
 logger = log.get_logger()
 print = log.print
 
 
-def vertex_optimization(
-    in_line,
-    in_raster,
-    search_distance,
-    line_radius,
-    out_line,
-    processes,
-    verbose,
-):
-    in_file, _ = decode_file_layer(in_line)
+def vertex_optimization(in_line, in_raster, search_distance, line_radius, out_line, 
+                        processes=0, call_mode=CallMode.CLI, log_level="INFO"):
+    in_file, in_layer = sp_common.decode_file_layer(in_line)
     if not sp_common.compare_crs(sp_common.vector_crs(in_file), sp_common.raster_crs(in_raster)):
         return
 
-    vg = bt_vo.VertexGrouping(in_file, in_raster, search_distance, line_radius, processes, verbose)
+    vg = bt_vo.VertexGrouping(in_file, in_raster, search_distance, line_radius, processes, call_mode, layer=in_layer)
     vg.create_all_vertex_groups()
     vg.compute()
     vg.update_all_lines()
     vg.save_all_layers(out_line)
 
-
 if __name__ == "__main__":
-    in_args, in_verbose = sp_common.check_arguments()
     start_time = time.time()
-    vertex_optimization(**in_args.input, processes=int(in_args.processes), verbose=in_verbose)
+    kwargs = tool_args.compose_tool_kwargs("vertex_optimization")
+    vertex_optimization(**kwargs)
     print("Elapsed time: {}".format(time.time() - start_time))

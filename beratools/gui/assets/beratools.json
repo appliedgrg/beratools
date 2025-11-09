@@ -438,6 +438,52 @@
           ]
         }
       ]
+    },
+    {
+      "category": "Templates",
+      "description": "Tools template.",
+      "tools": [
+        {
+          "name": "Feature Buffer",
+          "info": "Buffer input feature class.",
+          "tool_type": "python",
+          "tool_api": "tool_template",
+          "icon": "tool_template.gif",
+          "tech_link": "https://appliedgrg.github.io/beratools/developer/tool_template/",
+          "parameters": [
+            {
+              "variable": "in_feature",
+              "label": "Input Feature Class",
+              "description": "Input Feature Class.",
+              "type": "file",
+              "subtype": "vector",
+              "default": "",
+              "output": false,
+              "optional": false
+            },
+            {
+              "variable": "buffer_dist",
+              "label": "Buffer Distance (m)",
+              "description": "Set distance to generate buffer for input features.",
+              "type": "number",
+              "subtype": "float",
+              "default": 10,
+              "output": false,
+              "optional": false
+            },
+            {
+              "variable": "out_feature",
+              "label": "Output Buffered Features",
+              "description": "Output buffered features.",
+              "type": "file",
+              "subtype": "vector",
+              "default": "",
+              "output": true,
+              "optional": false
+            }
+          ]
+        }
+      ]
     }
   ]
 }

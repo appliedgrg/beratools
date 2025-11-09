@@ -306,25 +306,3 @@ def generate_line_args_DFP_NoClip(
         line_id += 1
 
     return line_argsL, line_argsR, line_argsC
-
-
-def decode_file_layer(encoded):
-    """
-    Decode encoded file|layer string into file path and layer name.
-
-    Args:
-        encoded (str): Encoded string like "file.shp|" or "C:/path/file.gpkg|layer"
-
-    Returns:
-        tuple: (file_path, layer_name) where layer_name is None if empty
-    """
-    if "|" in encoded:
-        file_path, layer = encoded.rsplit("|", 1)
-        layer_name = layer if layer else None
-    elif "::" in encoded:
-        file_path, layer = encoded.rsplit("::", 1)
-        layer_name = layer if layer else None
-    else:
-        file_path = encoded
-        layer_name = None
-    return file_path, layer_name

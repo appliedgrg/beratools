@@ -16,13 +16,12 @@ Description:
 import json
 import logging
 import os
-import platform
 from collections import OrderedDict
 from pathlib import Path
 
 import beratools.core.constants as bt_const
+from beratools.utility.tool_args import CallMode, determine_cpu_core_limit
 
-running_windows = platform.system() == "Windows"
 BT_SHOW_ADVANCED_OPTIONS = False
 
 
@@ -181,10 +180,6 @@ class BTData(object):
     """An object for interfacing with the BERA Tools executable."""
 
     def __init__(self):
-        if running_windows:
-            self.ext = ".exe"
-        else:
-            self.ext = ""
         self.current_file_path = Path(__file__).resolve().parent
 
         self.work_dir = Path("")
@@ -192,14 +187,15 @@ class BTData(object):
         self.data_folder = Path("")
         self.verbose = True
         self.show_advanced = BT_SHOW_ADVANCED_OPTIONS
-        self.max_procs = -1
+        self.selected_cpu_cores = -1
         self.recent_tool = None
         self.ascii_art = ""
         self.get_working_dir()
         self.get_user_folder()
 
         # set maximum available cpu core for tools
-        self.max_cpu_cores = os.cpu_count()
+        max_cores = determine_cpu_core_limit()
+        self.max_cpu_cores = max_cores
 
         # load bera tools
         self.tool_history = []
@@ -297,25 +293,19 @@ class BTData(object):
     def get_setting_file(self):
         self.setting_file = self.data_folder.joinpath("saved_tool_parameters.json")
 
-    def set_max_procs(self, val=-1):
-        """Set the maximum cores to use."""
-        self.max_procs = val
-        self.save_setting("max_procs", val)
+    def set_selected_cpu_cores(self, val=-1):
+        """Set the number of CPU cores to use."""
+        self.selected_cpu_cores = val
+        self.save_setting("selected_cpu_cores", val)
 
-    def get_max_procs(self):
-        return self.max_procs
+    def get_selected_cpu_cores(self):
+        return self.selected_cpu_cores
 
     def get_max_cpu_cores(self):
         return self.max_cpu_cores
 
-    def run_tool(self, tool_api, args, callback=None):
-        """
-        Run a tool and specifies tool arguments.
-
-        Returns 0 if completes without error.
-        Returns 1 if error encountered (details are sent to callback).
-        Returns 2 if process is cancelled by user.
-        """
+    def prepare_tool_run(self, tool_api, args, callback=None):
+        """Prepare tool command and arguments."""
         try:
             if callback is None:
                 callback = self.default_callback
@@ -344,9 +334,10 @@ class BTData(object):
                     "-i",
                     args_string,
                     "-p",
-                    str(self.get_max_procs()),
-                    "-v",
-                    str(self.verbose),
+                    str(self.get_selected_cpu_cores()),
+                    "-c",
+                    CallMode.GUI,
+                    "l", "INFO"
                 ]
             elif tool_type == "executable":
                 print(globals().get(tool_api))
@@ -413,8 +404,8 @@ class BTData(object):
         ):
             gui_settings = self.settings["gui_parameters"]
 
-            if "max_procs" in gui_settings and gui_settings["max_procs"] is not None:
-                self.max_procs = gui_settings["max_procs"]
+            if "selected_cpu_cores" in gui_settings and gui_settings["selected_cpu_cores"] is not None:
+                self.selected_cpu_cores = gui_settings["selected_cpu_cores"]
 
             if "recent_tool" in gui_settings and gui_settings["recent_tool"] is not None:
                 self.recent_tool = gui_settings["recent_tool"]
@@ -496,9 +487,11 @@ class BTData(object):
             self.toolbox_list = []
 
     def _set_param_flag_and_saved_value(self, single_param, param, tool):
+        """Set parameter flag and load saved value if it exists in beratools.json."""
         saved_value = None
         if "variable" in param.keys():
             single_param["flag"] = param["variable"]
+            # Only load saved value if tool API exists - discard if API changed
             saved_value = self.get_saved_tool_params(tool["tool_api"], param["variable"])
         if saved_value is not None:
             single_param["saved_value"] = saved_value
