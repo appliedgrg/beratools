@@ -197,15 +197,18 @@ class FileSelector(QtWidgets.QWidget):
         self.gpkg_layers = None
         self.output = params["output"]
         self.parameter_type = params["parameter_type"]
+
         self.file_type = ""
         if "ExistingFile" in self.parameter_type:
             self.file_type = params["parameter_type"]["ExistingFile"]
         elif "NewFile" in self.parameter_type:
             self.file_type = params["parameter_type"]["NewFile"]
+
         if isinstance(self.file_type, str):
             self.file_type = [self.file_type]
         elif not isinstance(self.file_type, list):
             self.file_type = list(self.file_type)
+
         self.optional = params["optional"]
         self.default_value = params["default_value"]
         self.saved_value = params.get("saved_value", None)
@@ -296,6 +299,40 @@ class FileSelector(QtWidgets.QWidget):
         self.in_file.textChanged.connect(self.file_name_edited)
         self.update_combo_visibility()
 
+    def update_gpkg_combo(self, path, is_output, selected_layer):
+        """Handle combo population, and layer selection for .gpkg files."""
+        self.layer_combo.setVisible(True)
+        if Path(path).exists():
+            if is_output:
+                self.layer_combo.setEditable(True)
+                if self.layer_combo.count() == 0:
+                    self.layer_combo.addItem("layer_name")
+                    self.load_gpkg_layers(path)
+                elif self.layer_combo.itemText(0) != "layer_name":
+                    self.layer_combo.insertItem(0, "layer_name")
+                    self.load_gpkg_layers(path)
+            else:
+                self.layer_combo.setEditable(False)
+                if self.layer_combo.count() == 0 or self.layer_combo.itemText(0) == "layer_name":
+                    self.layer_combo.clear()
+                    self.load_gpkg_layers(path)
+        else:
+            self.layer_combo.clear()
+            if is_output:
+                self.layer_combo.setEditable(True)
+                self.layer_combo.addItem("layer_name")
+            else:
+                self.layer_combo.addItem("layer_name")
+        # Set selected layer
+        if selected_layer:
+            if is_output and self.layer_combo.isEditable():
+                self.layer_combo.setCurrentText(selected_layer)
+            else:
+                index = self.layer_combo.findText(selected_layer)
+                if index >= 0:
+                    self.layer_combo.setCurrentIndex(index)
+        self.layer_combo.adjustSize()
+
     def update_combo_visibility(self):
         # Support both string and dict for self.value
         if self.is_vector:
@@ -303,72 +340,13 @@ class FileSelector(QtWidgets.QWidget):
             layer = self.value.get("layer", "")
             is_gpkg = path.lower().endswith(".gpkg")
             if is_gpkg:
-                self.layer_combo.setVisible(True)
-                if Path(path).exists():
-                    if self.output:
-                        self.layer_combo.setEditable(True)
-                        if self.layer_combo.count() == 0:
-                            self.layer_combo.addItem("layer_name")
-                            self.load_gpkg_layers(path)
-                        elif self.layer_combo.itemText(0) != "layer_name":
-                            self.layer_combo.insertItem(0, "layer_name")
-                            self.load_gpkg_layers(path)
-                    else:
-                        self.layer_combo.setEditable(False)
-                        if self.layer_combo.count() == 0 or self.layer_combo.itemText(0) == "layer_name":
-                            self.layer_combo.clear()
-                            self.load_gpkg_layers(path)
-                else:
-                    self.layer_combo.clear()
-                    if self.output:
-                        self.layer_combo.setEditable(True)
-                        self.layer_combo.addItem("layer_name")
-                    else:
-                        self.layer_combo.addItem("layer_name")
-                # Set selected layer
-                if layer:
-                    if self.output and self.layer_combo.isEditable():
-                        self.layer_combo.setCurrentText(layer)
-                    else:
-                        index = self.layer_combo.findText(layer)
-                        if index >= 0:
-                            self.layer_combo.setCurrentIndex(index)
-                self.layer_combo.adjustSize()
+                self.update_gpkg_combo(path, self.output, layer)
             else:
                 self.layer_combo.setVisible(False)
         else:
             if isinstance(self.value, str) and self.value.lower().endswith(".gpkg"):
-                self.layer_combo.setVisible(True)
-                if Path(self.value).exists():
-                    if self.output:
-                        self.layer_combo.setEditable(True)
-                        if self.layer_combo.count() == 0:
-                            self.layer_combo.addItem("layer_name")
-                            self.load_gpkg_layers(self.value)
-                        elif self.layer_combo.itemText(0) != "layer_name":
-                            self.layer_combo.insertItem(0, "layer_name")
-                            self.load_gpkg_layers(self.value)
-                    else:
-                        self.layer_combo.setEditable(False)
-                        if self.layer_combo.count() == 0 or self.layer_combo.itemText(0) == "layer_name":
-                            self.layer_combo.clear()
-                            self.load_gpkg_layers(self.value)
-                else:
-                    self.layer_combo.clear()
-                    if self.output:
-                        self.layer_combo.setEditable(True)
-                        self.layer_combo.addItem("layer_name")
-                    else:
-                        self.layer_combo.addItem("layer_name")
-                # Set selected layer
-                if hasattr(self, "selected_layer") and self.selected_layer:
-                    if self.output and self.layer_combo.isEditable():
-                        self.layer_combo.setCurrentText(self.selected_layer)
-                    else:
-                        index = self.layer_combo.findText(self.selected_layer)
-                        if index >= 0:
-                            self.layer_combo.setCurrentIndex(index)
-                self.layer_combo.adjustSize()
+                selected_layer = getattr(self, "selected_layer", "")
+                self.update_gpkg_combo(self.value, self.output, selected_layer)
             else:
                 self.layer_combo.setVisible(False)
         self.adjustSize()
@@ -377,6 +355,94 @@ class FileSelector(QtWidgets.QWidget):
             self.parentWidget().adjustSize()
             self.parentWidget().update()
 
+    def get_file_filters(self):
+        """Return file type filter string based on self.file_type and current value."""
+
+        def get_first_type(type_val):
+            if isinstance(type_val, list):
+                return type_val[0]
+            return type_val
+
+        file_types = "All files (*.*)"
+        ft = get_first_type(self.file_type)
+        if ft == "raster":
+            file_types = """Tiff raster files (*.tif *.tiff);; 
+                                Other raster files (*.dep *.bil *.flt *.sdat *.asc *grd)"""
+        elif ft == "lidar":
+            file_types = "LiDAR files (*.las *.zlidar *.laz *.zip)"
+        elif ft == "vector":
+            file_types = """GeoPackage (*.gpkg);;
+                                     Shapefiles (*.shp)"""
+        elif ft == "text":
+            file_types = "Text files (*.txt);; all files (*.*)"
+        elif ft == "csv":
+            file_types = "CSV files (*.csv);; all files (*.*)"
+        elif ft == "dat":
+            file_types = "Binary data files (*.dat);; all files (*.*)"
+        elif ft == "html":
+            file_types = "HTML files (*.html)"
+        elif ft == "json":
+            file_types = "JSON files (*.json)"
+
+        # Check for GeoPackage/Shapefile first in filter order by current value
+        if isinstance(self.value, str) and self.value.lower().endswith(".gpkg"):
+            file_types = """GeoPackage (*.gpkg);;
+                               Shapefiles (*.shp);;
+                               All files (*.*)"""
+        elif isinstance(self.value, str) and self.value.lower().endswith(".shp"):
+            file_types = """Shapefiles (*.shp);;
+                               GeoPackage (*.gpkg);;
+                               All files (*.*)"""
+        return file_types
+
+    def setup_file_dialog(self, file_types):
+        """Initialize and configure QFileDialog."""
+        dialog = QtWidgets.QFileDialog(self)
+        dialog.setViewMode(QtWidgets.QFileDialog.Detail)
+        dialog.setDirectory(str(Path(self.value).parent))
+        dialog.selectFile(Path(self.value).name)
+        dialog.setNameFilter(file_types)
+        if "ExistingFile" in self.parameter_type:
+            dialog.setFileMode(QtWidgets.QFileDialog.ExistingFiles)
+        else:
+            dialog.setFileMode(QtWidgets.QFileDialog.AnyFile)
+        return dialog
+
+    def process_selected_file(self, result, dialog):
+        """Handle file name modification, extension adding, and GeoPackage logic."""
+        base_name = str(Path(result).with_suffix(""))
+        selected_ext = Path(result).suffix
+        selected_filter = dialog.selectedNameFilter()
+        if selected_filter:
+            filter_parts = selected_filter.split("(*")
+            if len(filter_parts) > 1:
+                extensions_str = filter_parts[1].replace(")", "")
+                extensions = extensions_str.split(" ")
+                if extensions:
+                    preferred_ext = extensions[0].strip()
+                    if not preferred_ext.startswith("."):
+                        preferred_ext = "." + preferred_ext
+                    if not selected_ext:
+                        result = f"{base_name}{preferred_ext}"
+        elif not selected_ext:
+            result = f"{base_name}.txt"
+        self.set_value(result)
+        return result
+
+    def handle_gpkg_selection(self, result):
+        """GeoPackage-specific logic after file selection."""
+        if result.lower().endswith(".gpkg"):
+            if not Path(result).exists():
+                self.layer_combo.clear()
+                self.layer_combo.addItem("layer_name")
+            else:
+                self.load_gpkg_layers(result)
+                if self.output:
+                    self.layer_combo.setEditable(True)
+        else:
+            self.layer_combo.setVisible(False)
+        self.update_combo_visibility()
+
     def select_file(self):
         def get_first_type(type_val):
             if isinstance(type_val, list):
@@ -384,93 +450,16 @@ class FileSelector(QtWidgets.QWidget):
             return type_val
 
         try:
-            dialog = QtWidgets.QFileDialog(self)
-            dialog.setViewMode(QtWidgets.QFileDialog.Detail)
-            dialog.setDirectory(str(Path(self.value).parent))
-            dialog.selectFile(Path(self.value).name)
+            file_types = self.get_file_filters()
+            dialog = self.setup_file_dialog(file_types)
             file_names = None
-
-            file_types = "All files (*.*)"
-
-            # Use raw subtypes for file type selection
-            ft = get_first_type(self.file_type)
-            if ft == "raster":
-                file_types = """Tiff raster files (*.tif *.tiff);; 
-                                Other raster files (*.dep *.bil *.flt *.sdat *.asc *grd)"""
-            elif ft == "lidar":
-                file_types = "LiDAR files (*.las *.zlidar *.laz *.zip)"
-            elif ft == "vector":
-                file_types = """GeoPackage (*.gpkg);;
-                                    Shapefiles (*.shp)"""
-            elif ft == "text":
-                file_types = "Text files (*.txt);; all files (*.*)"
-            elif ft == "csv":
-                file_types = "CSV files (*.csv);; all files (*.*)"
-            elif ft == "dat":
-                file_types = "Binary data files (*.dat);; all files (*.*)"
-            elif ft == "html":
-                file_types = "HTML files (*.html)"
-            elif ft == "json":
-                file_types = "JSON files (*.json)"
-
-            # Check for GeoPackage/Shapefile first in filter order by current value
-            if self.value.lower().endswith(".gpkg"):
-                file_types = """GeoPackage (*.gpkg);;
-                               Shapefiles (*.shp);;
-                               All files (*.*)"""
-            elif self.value.lower().endswith(".shp"):
-                file_types = """Shapefiles (*.shp);;
-                               GeoPackage (*.gpkg);;
-                               All files (*.*)"""
-
-            dialog.setNameFilter(file_types)
-
-            if "ExistingFile" in self.parameter_type:
-                dialog.setFileMode(QtWidgets.QFileDialog.ExistingFiles)
-            else:
-                dialog.setFileMode(QtWidgets.QFileDialog.AnyFile)
-
             if dialog.exec_():
                 file_names = dialog.selectedFiles()
-
             if not file_names:
                 return
-
             result = file_names[0]
-            base_name = str(Path(result).with_suffix(""))
-            selected_ext = Path(result).suffix
-            selected_filter = dialog.selectedNameFilter()
-
-            if selected_filter:
-                filter_parts = selected_filter.split("(*")
-                if len(filter_parts) > 1:
-                    extensions_str = filter_parts[1].replace(")", "")
-                    extensions = extensions_str.split(" ")
-
-                    if extensions:
-                        preferred_ext = extensions[0].strip()
-                        if not preferred_ext.startswith("."):
-                            preferred_ext = "." + preferred_ext
-                        if not selected_ext:
-                            result = f"{base_name}{preferred_ext}"
-            elif not selected_ext:  # No filter and no extension
-                result = f"{base_name}.txt"
-
-            self.set_value(result)
-
-            if result.lower().endswith(".gpkg"):
-                if not Path(result).exists():
-                    self.layer_combo.clear()
-                    self.layer_combo.addItem("layer_name")
-                else:
-                    self.load_gpkg_layers(result)
-                    if self.output:
-                        self.layer_combo.setEditable(True)
-            else:
-                self.layer_combo.setVisible(False)
-
-            # Update combo visibility after file selection
-            self.update_combo_visibility()
+            result = self.process_selected_file(result, dialog)
+            self.handle_gpkg_selection(result)
         except Exception as e:
             print(e)
             print("[Error] Could not find the selected file.")
@@ -590,6 +579,7 @@ class FileSelector(QtWidgets.QWidget):
             return {self.flag: encoded_value}
         else:
             return {self.flag: self.value}
+
 
 class OptionsInput(QtWidgets.QWidget):
     """OptionsInput class for creating option selection widgets."""
