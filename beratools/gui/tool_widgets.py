@@ -130,14 +130,14 @@ class ToolWidgets(QtWidgets.QWidget):
     def update_widgets(self, values_dict):
         for key, value in values_dict.items():
             for item in self.widget_list:
-                if key == item.flag:
+                if key == item.variable:
                     item.set_value(value)
 
     def save_tool_parameters(self):
         params = {}
         for item in self.widget_list:
-            if item.flag:
-                params[item.flag] = item.get_value()
+            if item.variable:
+                params[item.variable] = item.get_value()
 
         self.signal_save_tool_params.emit(params)
 
@@ -193,7 +193,7 @@ class FileSelector(QtWidgets.QWidget):
         params = json.loads(json_str)
         self.name = params["name"]
         self.description = params["description"]
-        self.flag = params["flag"]
+        self.variable = params["variable"]
         self.gpkg_layers = None
         self.output = params["output"]
         self.parameter_type = params["parameter_type"]
@@ -245,7 +245,6 @@ class FileSelector(QtWidgets.QWidget):
             pass
         else:
             # Input: validate file/directory existence
-            print(f"[Debug] Checking file existence: {path} -> {file_exists}")
             if not file_exists:
                 self.value = {"path": "", "layer": ""}
                 print(f"[Error] Invalid Input: File does not exist: {path}")
@@ -580,11 +579,11 @@ class FileSelector(QtWidgets.QWidget):
             else:
                 # Input: if path is empty, return empty
                 if not path:
-                    return {self.flag: ""}
+                    return {self.variable: ""}
                 encoded_value = f"{path}|{layer}" if layer else path
-            return {self.flag: encoded_value}
+            return {self.variable: encoded_value}
         else:
-            return {self.flag: self.value}
+            return {self.variable: self.value}
 
 
 class OptionsInput(QtWidgets.QWidget):
@@ -597,7 +596,7 @@ class OptionsInput(QtWidgets.QWidget):
         params = json.loads(json_str)
         self.name = params["name"]
         self.description = params["description"]
-        self.flag = params["flag"]
+        self.variable = params["variable"]
         self.parameter_type = params["parameter_type"]
         self.optional = params["optional"]
         self.data_type = params["data_type"]
@@ -649,7 +648,7 @@ class OptionsInput(QtWidgets.QWidget):
                 self.combobox.setCurrentIndex(self.option_list.index(v))
 
     def get_value(self):
-        return {self.flag: self.value}
+        return {self.variable: self.value}
 
 
 class DataInput(QtWidgets.QWidget):
@@ -662,7 +661,7 @@ class DataInput(QtWidgets.QWidget):
         params = json.loads(json_str)
         self.name = params["name"]
         self.description = params["description"]
-        self.flag = params["flag"]
+        self.variable = params["variable"]
         self.parameter_type = params["parameter_type"]
         self.optional = params["optional"]
 
@@ -733,12 +732,12 @@ class DataInput(QtWidgets.QWidget):
             else:  # Text
                 value = self.value
 
-            return {self.flag: value}
+            return {self.variable: value}
         else:
             if not self.optional:
                 msg_box = QtWidgets.QMessageBox()
                 msg_box.setIcon(QtWidgets.QMessageBox.Warning)
-                msg_box.setText("Unknown non-optional parameter {}.".format(self.flag))
+                msg_box.setText("Unknown non-optional parameter {}.".format(self.variable))
                 msg_box.exec()
 
         return None

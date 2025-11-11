@@ -487,10 +487,10 @@ class BTData(object):
             self.toolbox_list = []
 
     def _set_param_flag_and_saved_value(self, single_param, param, tool):
-        """Set parameter flag and load saved value if it exists in beratools.json."""
+        """Set parameter variable and load saved value if it exists in beratools.json."""
         saved_value = None
         if "variable" in param.keys():
-            single_param["flag"] = param["variable"]
+            single_param["variable"] = param["variable"]
             # Only load saved value if tool API exists - discard if API changed
             saved_value = self.get_saved_tool_params(tool["tool_api"], param["variable"])
         if saved_value is not None:
@@ -570,8 +570,8 @@ class BTData(object):
         if parameters is None:
             return param_list
         for item in parameters:
-            if item is not None and "flag" in item and "default_value" in item:
-                param_list[item["flag"]] = item["default_value"]
+            if item is not None and "variable" in item and "default_value" in item:
+                param_list[item["variable"]] = item["default_value"]
 
         return param_list
 

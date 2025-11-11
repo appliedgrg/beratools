@@ -42,7 +42,7 @@ def compose_tool_kwargs(tool_api):
 
     mode_parser = argparse.ArgumentParser(add_help=False)
     mode_parser.add_argument("-i", "--input", type=json.loads, default=None)
-    mode_parser.add_argument("-c", "--call_mode", default="cli")
+    mode_parser.add_argument("-c", "--call_mode", default=CallMode.CLI.value)
     mode_parser.add_argument("-p", "--processes", type=int, default=1)
     mode_parser.add_argument("-l", "--log_level", default="INFO")
     mode_args, remaining = mode_parser.parse_known_args()
@@ -58,14 +58,14 @@ def compose_tool_kwargs(tool_api):
 
         # Helper: Separate parameters by type
         required_params = [
-            p for p in tool_params.get("parameters", []) if p.get("flag") and not p.get("optional", False)
+            p for p in tool_params.get("parameters", []) if p.get("variable") and not p.get("optional", False)
         ]
         optional_params = [
-            p for p in tool_params.get("parameters", []) if p.get("flag") and p.get("optional", False)
+            p for p in tool_params.get("parameters", []) if p.get("variable") and p.get("optional", False)
         ]
 
         # Build usage string with only required parameters
-        required_flags = " ".join([f"--{p.get('flag')}" for p in required_params])
+        required_flags = " ".join([f"--{p.get('variable')}" for p in required_params])
         custom_usage = f"{tool_name} {required_flags}" if required_flags else tool_name
 
         full_parser = argparse.ArgumentParser(
@@ -90,7 +90,7 @@ def compose_tool_kwargs(tool_api):
                 if param.get("description"):
                     # Escape % in help text to prevent argparse formatting errors
                     arg_config["help"] = param.get("description").replace("%", "%%")
-                group.add_argument(f"--{param.get('flag')}", **arg_config)
+                group.add_argument(f"--{param.get('variable')}", **arg_config)
 
         # Add required and optional parameters using helper
         add_param_args(required_group, required_params, required=True)
@@ -105,7 +105,7 @@ def compose_tool_kwargs(tool_api):
             help="Number of CPU processes (default: 1)",
         )
         framework_group.add_argument(
-            "-c", "--call_mode", default=mode_args.call_mode, help="'cli' or 'gui' mode (default: cli)"
+            "-c", "--call_mode", default=mode_args.call_mode, help="'CLI' or 'GUI' mode (default: CLI)"
         )
         framework_group.add_argument(
             "-l",
