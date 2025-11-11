@@ -1,48 +1,76 @@
 """Test script for the tools in the beratools package."""
+
 import time
 
 from utils import check_file_exists
 
-from beratools.core.algo_canopy_footprint_exp import line_footprint_exp
 from beratools.tools.canopy_footprint_absolute import canopy_footprint_abs
+from beratools.tools.canopy_footprint_exp import line_footprint_exp
 from beratools.tools.centerline import centerline
+from beratools.tools.check_seed_line import check_seed_line
 from beratools.tools.ground_footprint import ground_footprint
+from beratools.tools.vertex_optimization import vertex_optimization
 
 
-# Integration test for the entire workflow
-def test_full_workflow(tool_arguments):
+# E2E test for the entire workflow
+def test_full_workflow(tool_arguments_workflow):
     """
-    Full integration test (actually an E2E test) running the entire workflow.
+    Full E2E test running the entire workflow.
 
     with real data, ensuring that each tool integrates properly with the next.
     """
-    # 1. Test the centerline tool
-    args_centerline = tool_arguments["args_centerline"]
-    centerline(**args_centerline)
-    assert check_file_exists(args_centerline["out_line"]), (
-        "Centerline output file was not created!"
+    # 1. Test the check_seed_line tool
+    args_check_seed_line = tool_arguments_workflow["args_check_seed_line"]
+    check_seed_line(**args_check_seed_line)
+    assert check_file_exists(args_check_seed_line["out_line"]), "Check Seed Line output file was not created!"
+
+    # 2. Test the vertex_optimization tool
+    args_vertex_optimization = tool_arguments_workflow["args_vertex_optimization"]
+    vertex_optimization(**args_vertex_optimization)
+    assert check_file_exists(args_vertex_optimization["out_line"]), (
+        "Vertex Optimization output file was not created!"
     )
-    
-    # 2. Test the canopy_footprint_abs tool
-    args_footprint_abs = tool_arguments["args_footprint_abs"]
+
+    # 3. Test the centerline tool
+    args_centerline = tool_arguments_workflow["args_centerline"]
+    centerline(**args_centerline)
+    assert check_file_exists(args_centerline["out_line"]), "Centerline output file was not created!"
+
+    # 4. Test the canopy_footprint_abs tool
+    args_footprint_abs = tool_arguments_workflow["args_footprint_abs"]
     canopy_footprint_abs(**args_footprint_abs)
     assert check_file_exists(args_footprint_abs["out_footprint"]), (
         "Footprint Abs output file was not created!"
     )
-    
+
+    # 5. Test the line_footprint_exp tool
+    args_footprint_exp = tool_arguments_workflow["args_footprint_exp"]
+    line_footprint_exp(**args_footprint_exp)
+    assert check_file_exists(args_footprint_exp["out_footprint"]), (
+        "Footprint exp output file was not created!"
+    )
+
+    # 6. Test the ground_footprint tool
+    args_ground_footprint = tool_arguments_workflow["args_ground_footprint"]
+    ground_footprint(**args_ground_footprint)
+    assert check_file_exists(args_ground_footprint["out_footprint"]), (
+        "Line footprint fixed output file was not created!"
+    )
+
     # 3. Test the line_footprint_exp tool
     args_footprint_exp = tool_arguments["args_footprint_exp"]
     line_footprint_exp(**args_footprint_exp)
     assert check_file_exists(args_footprint_exp["out_footprint"]), (
         "Footprint exp output file was not created!"
     )
-    
+
     # 4. Test the ground_footprint tool
     args_ground_footprint = tool_arguments["args_ground_footprint"]
     ground_footprint(**args_ground_footprint)
     assert check_file_exists(args_ground_footprint["out_footprint"]), (
         "Line footprint fixed output file was not created!"
     )
+
 
 # clean up files for workflow
 def test_cleanup_output_files_workflow(test_output_files):
@@ -52,6 +80,7 @@ def test_cleanup_output_files_workflow(test_output_files):
         if file_path.exists():
             file_path.unlink()
             assert not file_path.exists(), f"Failed to remove {file_path}"
+
 
 # CLEANUP TESTS
 def test_cleanup_output_files(cleanup_output_files):

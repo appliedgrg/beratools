@@ -1,4 +1,5 @@
 """Test script for the tools in the beratools package."""
+
 from pprint import pprint
 
 from utils import check_file_exists
@@ -7,50 +8,72 @@ import beratools.utility.spatial_common as sp_common
 from beratools.tools.canopy_footprint_absolute import canopy_footprint_abs
 from beratools.tools.canopy_footprint_exp import line_footprint_exp
 from beratools.tools.centerline import centerline
+from beratools.tools.check_seed_line import check_seed_line
 from beratools.tools.ground_footprint import ground_footprint
+from beratools.tools.vertex_optimization import vertex_optimization
 
 
-# E2E TESTS
-def test_centerline_tool_e2e(tool_arguments):
-    """E2E test for the centerline tool."""
-    args_centerline = tool_arguments["args_centerline"]
+# Integration TESTS
+def test_check_seed_line_tool(tool_arguments_integration):
+    """Test for the check_seed_line tool."""
+    args_check_seed_line = tool_arguments_integration["args_check_seed_line"]
+    pprint(args_check_seed_line)
+    check_seed_line(**args_check_seed_line)
+    out_file, layer = sp_common.decode_file_layer(args_check_seed_line["out_line"])
+    assert check_file_exists(out_file, layer), "Check Seed Line no output!"
+
+def test_vertex_optimization_tool(tool_arguments_integration):
+    """Test for the vertex_optimization tool."""
+    args_vertex_optimization = tool_arguments_integration["args_vertex_optimization"]
+    pprint(args_vertex_optimization)
+    vertex_optimization(**args_vertex_optimization)
+    out_file, layer = sp_common.decode_file_layer(args_vertex_optimization["out_line"])
+    assert check_file_exists(out_file, layer), "Vertex Optimization no output!"
+
+
+def test_centerline_tool(tool_arguments_integration):
+    """Test for the centerline tool."""
+    args_centerline = tool_arguments_integration["args_centerline"]
     pprint(args_centerline)
 
     # Call the actual centerline tool (no mocks)
     centerline(**args_centerline)
 
     # Check if the output file is created
-    in_file, _ = sp_common.decode_file_layer(args_centerline["in_line"])
-    assert check_file_exists(in_file), ("Centerline no output!")
+    in_file, layer = sp_common.decode_file_layer(args_centerline["in_line"])
+    assert check_file_exists(in_file, layer), "Centerline no output!"
 
-def test_canopy_footprint_abs_tool_e2e(tool_arguments):
-    """E2E test for the canopy_footprint_abs tool."""
-    args_footprint_abs = tool_arguments["args_footprint_abs"]
+
+def test_canopy_footprint_abs_tool(tool_arguments_integration):
+    """Test for the canopy_footprint_abs tool."""
+    args_footprint_abs = tool_arguments_integration["args_footprint_abs"]
     pprint(args_footprint_abs)
     canopy_footprint_abs(**args_footprint_abs)
 
-    out_file, _ = sp_common.decode_file_layer(args_footprint_abs["out_footprint"])
-    assert check_file_exists(out_file), ("Footprint Abs no output!")
+    out_file, layer = sp_common.decode_file_layer(args_footprint_abs["out_footprint"])
+    assert check_file_exists(out_file, layer), "Footprint Abs no output!"
 
-def test_footprint_exp_tool_e2e(tool_arguments):
-    """E2E test for the FootprintCanopy tool."""
-    args_footprint_exp = tool_arguments["args_footprint_exp"]
+
+def test_footprint_exp_tool(tool_arguments_integration):
+    """Test for the FootprintCanopy tool."""
+    args_footprint_exp = tool_arguments_integration["args_footprint_exp"]
     pprint(args_footprint_exp)
 
     line_footprint_exp(**args_footprint_exp)
 
-    out_file, _ = sp_common.decode_file_layer(args_footprint_exp["out_footprint"])
-    assert check_file_exists(out_file), ("Footprint Rel no output!")
+    out_file, layer = sp_common.decode_file_layer(args_footprint_exp["out_footprint"])
+    assert check_file_exists(out_file, layer), "Footprint Rel no output!"
 
 
-def test_ground_footprint_tool_e2e(tool_arguments):
-    """E2E test for the ground_footprint tool."""
-    args_ground_footprint = tool_arguments["args_ground_footprint"]
+def test_ground_footprint_tool(tool_arguments_integration):
+    """Test for the ground_footprint tool."""
+    args_ground_footprint = tool_arguments_integration["args_ground_footprint"]
     ground_footprint(**args_ground_footprint)
     pprint(args_ground_footprint)
 
-    out_file, _ = sp_common.decode_file_layer(args_ground_footprint["out_footprint"])
-    assert check_file_exists(out_file), ("Ground footprint no output!")
+    out_file, layer = sp_common.decode_file_layer(args_ground_footprint["out_footprint"])
+    assert check_file_exists(out_file, layer), "Ground footprint no output!"
+
 
 # CLEANUP TESTS
 def test_cleanup_output_files(cleanup_output_files):

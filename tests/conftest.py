@@ -11,6 +11,7 @@ import pytest
 
 sys.path.insert(0, Path(__file__).parents[1].as_posix())
 
+
 def pytest_configure(config):
     # Ignore the FutureWarning for the specific warning from osgeo.osr
     warnings.simplefilter("ignore", category=FutureWarning)
@@ -20,72 +21,136 @@ def pytest_configure(config):
     logging.basicConfig(level=logging.ERROR)
 
     # Set logger to ERROR to suppress debug logs
-    logging.getLogger('pyogrio').setLevel(logging.ERROR)
-    logging.getLogger('rasterio').setLevel(logging.ERROR)
-    logging.getLogger('rasterio.env').setLevel(logging.ERROR)
-    logging.getLogger('label_centerlines._src').setLevel(logging.ERROR)
+    logging.getLogger("pyogrio").setLevel(logging.ERROR)
+    logging.getLogger("rasterio").setLevel(logging.ERROR)
+    logging.getLogger("rasterio.env").setLevel(logging.ERROR)
+    logging.getLogger("label_centerlines._src").setLevel(logging.ERROR)
     logging.getLogger("pyproj").setLevel(logging.WARNING)
-    
+
+
 # Fixture to get the path to the 'data' directory
 @pytest.fixture
 def testdata_dir():
     return Path(__file__).parent.joinpath("data")
 
+
 @pytest.fixture(scope="session")
 def available_cpu_cores():
     return os.cpu_count()
 
-# Shared arguments for all tools, now using the `testdata_dir` fixture
+
+# Integration arguments: each tool uses original inputs
 @pytest.fixture
-def tool_arguments(testdata_dir, available_cpu_cores):
+def tool_arguments_integration(testdata_dir, available_cpu_cores):
     return {
+        "args_check_seed_line": {
+            "in_line": f"{testdata_dir.joinpath('integration_layers.gpkg').as_posix()}|seed_lines",
+            "out_line": f"{testdata_dir.joinpath('integration_inter.gpkg').as_posix()}|seed_lines_checked",
+        },
+        "args_vertex_optimization": {
+            "in_line": f"{testdata_dir.joinpath('integration_layers.gpkg').as_posix()}|seed_lines_checked",
+            "in_raster": testdata_dir.joinpath("chm.tif").as_posix(),
+            "search_distance": 5.0,
+            "line_radius": 15,
+            "out_line": f"{testdata_dir.joinpath('integration_inter.gpkg').as_posix()}|seed_lines_vo",
+        },
         "args_centerline": {
-            'in_line': f"{testdata_dir.joinpath('seed_lines.gpkg').as_posix()}|seed_lines",
-            'in_raster': testdata_dir.joinpath('chm.tif').as_posix(),
-            'line_radius': 15,
-            'proc_segments': True,
-            'out_line': f"{testdata_dir.joinpath('centerline.gpkg').as_posix()}|centerline"
+            "in_line": f"{testdata_dir.joinpath('integration_layers.gpkg').as_posix()}|seed_lines_vo",
+            "in_raster": testdata_dir.joinpath("chm.tif").as_posix(),
+            "line_radius": 15,
+            "proc_segments": True,
+            "out_line": f"{testdata_dir.joinpath('integration_inter.gpkg').as_posix()}|centerline",
         },
         "args_footprint_abs": {
-            'in_line': f"{testdata_dir.joinpath('centerline.gpkg').as_posix()}|centerline",
-            'in_chm': testdata_dir.joinpath('chm.tif').as_posix(),
-            'corridor_thresh': 3.0,
-            'max_ln_width': 32.0,
-            'exp_shk_cell': 0,
-            'out_footprint': f"{testdata_dir.joinpath('footprint_abs.gpkg').as_posix()}|footprint_abs",
+            "in_line": f"{testdata_dir.joinpath('integration_layers.gpkg').as_posix()}|centerline",
+            "in_chm": testdata_dir.joinpath("chm.tif").as_posix(),
+            "corridor_thresh": 3.0,
+            "max_ln_width": 32.0,
+            "exp_shk_cell": 0,
+            "out_footprint": f"{testdata_dir.joinpath('integration_inter.gpkg').as_posix()}|footprint_abs",
         },
         "args_footprint_exp": {
-            'in_line': f"{testdata_dir.joinpath('centerline.gpkg').as_posix()}|centerline",
-            'in_chm': testdata_dir.joinpath('chm.tif').as_posix(),
-            'out_footprint': f"{testdata_dir.joinpath('footprint_exp.gpkg').as_posix()}|footprint_exp",
-            'max_ln_width': 32,
-            'tree_radius': 1.5,
-            'max_line_dist': 1.5,
-            'canopy_avoidance': 0.0,
-            'exponent': 0,
-            'canopy_thresh_percentage': 50
+            "in_line": f"{testdata_dir.joinpath('integration_layers.gpkg').as_posix()}|centerline",
+            "in_chm": testdata_dir.joinpath("chm.tif").as_posix(),
+            "out_footprint": f"{testdata_dir.joinpath('integration_inter.gpkg').as_posix()}|footprint_exp",
+            "max_ln_width": 32,
+            "tree_radius": 1.5,
+            "max_line_dist": 1.5,
+            "canopy_avoidance": 0.0,
+            "exponent": 0,
+            "canopy_thresh_percentage": 50,
         },
         "args_ground_footprint": {
-            'in_line': f"{testdata_dir.joinpath('centerline.gpkg').as_posix()}|centerline",
-            'in_footprint': f"{testdata_dir.joinpath('footprint_abs.gpkg').as_posix()}|footprint_abs",
-            'n_samples': 15,
-            'offset': 30,
-            'max_width': True,
-            'out_footprint': f"{testdata_dir.joinpath('footprint_final.gpkg').as_posix()}|footprint_fixed"
-        }
+            "in_line": f"{testdata_dir.joinpath('integration_layers.gpkg').as_posix()}|centerline",
+            "in_footprint": f"{testdata_dir.joinpath('integration_layers.gpkg').as_posix()}|footprint_exp",
+            "n_samples": 15,
+            "offset": 30,
+            "max_width": True,
+            "out_footprint": f"{testdata_dir.joinpath('integration_inter.gpkg').as_posix()}|footprint_ground",
+        },
     }
+
+
+# Workflow arguments: chained outputs
+@pytest.fixture
+def tool_arguments_workflow(testdata_dir, available_cpu_cores):
+    return {
+        "args_check_seed_line": {
+            "in_line": f"{testdata_dir.joinpath('seed_lines.gpkg').as_posix()}|seed_lines",
+            "out_line": f"{testdata_dir.joinpath('workflow.gpkg').as_posix()}|seed_lines_checked",
+        },
+        "args_vertex_optimization": {
+            "in_line": f"{testdata_dir.joinpath('workflow.gpkg').as_posix()}|seed_lines_checked",
+            "in_raster": testdata_dir.joinpath("chm.tif").as_posix(),
+            "search_distance": 5.0,
+            "line_radius": 15,
+            "out_line": f"{testdata_dir.joinpath('workflow.gpkg').as_posix()}|seed_lines_vo",
+        },
+        "args_centerline": {
+            "in_line": f"{testdata_dir.joinpath('workflow.gpkg').as_posix()}|seed_lines_vo",
+            "in_raster": testdata_dir.joinpath("chm.tif").as_posix(),
+            "line_radius": 15,
+            "proc_segments": True,
+            "out_line": f"{testdata_dir.joinpath('workflow.gpkg').as_posix()}|centerline",
+        },
+        "args_footprint_abs": {
+            "in_line": f"{testdata_dir.joinpath('workflow.gpkg').as_posix()}|centerline",
+            "in_chm": testdata_dir.joinpath("chm.tif").as_posix(),
+            "corridor_thresh": 3.0,
+            "max_ln_width": 32.0,
+            "exp_shk_cell": 0,
+            "out_footprint": f"{testdata_dir.joinpath('workflow.gpkg').as_posix()}|footprint_abs",
+        },
+        "args_footprint_exp": {
+            "in_line": f"{testdata_dir.joinpath('workflow.gpkg').as_posix()}|centerline",
+            "in_chm": testdata_dir.joinpath("chm.tif").as_posix(),
+            "out_footprint": f"{testdata_dir.joinpath('workflow.gpkg').as_posix()}|footprint_exp",
+            "max_ln_width": 32,
+            "tree_radius": 1.5,
+            "max_line_dist": 1.5,
+            "canopy_avoidance": 0.0,
+            "exponent": 0,
+            "canopy_thresh_percentage": 50,
+        },
+        "args_ground_footprint": {
+            "in_line": f"{testdata_dir.joinpath('workflow.gpkg').as_posix()}|centerline",
+            "in_footprint": f"{testdata_dir.joinpath('workflow.gpkg').as_posix()}|footprint_abs",
+            "n_samples": 15,
+            "offset": 30,
+            "max_width": True,
+            "out_footprint": f"{testdata_dir.joinpath('workflow.gpkg').as_posix()}|footprint_ground",
+        },
+    }
+
 
 # A test for cleaning up test output files
 @pytest.fixture
 def test_output_files(testdata_dir):
     return [
-        testdata_dir.joinpath('centerline.gpkg'),
-        testdata_dir.joinpath('footprint_abs.gpkg'),
-        testdata_dir.joinpath('footprint_rel.gpkg'),
-        testdata_dir.joinpath('footprint_final.gpkg'),
-        testdata_dir.joinpath('footprint_final_aux.gpkg'),
-        testdata_dir.joinpath('line_percentile_rel.gpkg')
+        testdata_dir.joinpath("workflow.gpkg"),
+        testdata_dir.joinpath("integration_inter.gpkg"),
     ]
+
 
 @pytest.fixture
 def cleanup_output_files(test_output_files):

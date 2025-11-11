@@ -101,12 +101,9 @@ def centerline(in_line, in_raster, line_radius, proc_segments, out_line, use_ang
     # Check if the output file is a shapefile
     out_line_path = Path(out_file)
 
-    if out_line_path.suffix == ".shp":
-        # Generate the new file name for the GeoPackage with '_aux' appended
-        aux_file = out_line_path.with_name(out_line_path.stem + "_aux.gpkg")
-        print(f"Saved auxiliary data to: {aux_file}")
-    else:
-        aux_file = out_file  # continue using out_file (gpkg)
+    # Generate the new file name for the GeoPackage with '_aux' appended
+    aux_file = out_line_path.with_name(out_line_path.stem + "_aux.gpkg")
+    print(f"Saved auxiliary data to: {aux_file}")
 
     # Save lc_path_list and corridor_polys to the new GeoPackage with '_aux' suffix
     lc_path_list.to_file(aux_file, layer="least_cost_path")
