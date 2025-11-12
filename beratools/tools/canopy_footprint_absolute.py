@@ -224,7 +224,7 @@ def canopy_footprint_abs(
         results = results.reset_index(drop=True)
         layer_name = out_layer if out_layer else "canopy_footprint"
         results.to_file(out_file, layer=layer_name)
-        print(f"Saved footprint to {out_file} (layer: {layer_name})")
+        print(f"Saved footprint to {out_file}, layer: {layer_name}")
     else:
         print("Warning: No footprints generated. Output file not written.")
 

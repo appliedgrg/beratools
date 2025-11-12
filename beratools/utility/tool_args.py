@@ -43,7 +43,7 @@ def compose_tool_kwargs(tool_api):
     mode_parser = argparse.ArgumentParser(add_help=False)
     mode_parser.add_argument("-i", "--input", type=json.loads, default=None)
     mode_parser.add_argument("-c", "--call_mode", default=CallMode.CLI.value)
-    mode_parser.add_argument("-p", "--processes", type=int, default=1)
+    mode_parser.add_argument("-p", "--processes", type=int, default=0)
     mode_parser.add_argument("-l", "--log_level", default="INFO")
     mode_args, remaining = mode_parser.parse_known_args()
 

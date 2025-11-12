@@ -331,14 +331,11 @@ class BTData(object):
             if tool_type == "python":
                 tool_args = [
                     self.work_dir.joinpath(f"tools/{tool_api}.py").as_posix(),
-                    "-i",
-                    args_string,
-                    "-p",
-                    str(self.get_selected_cpu_cores()),
-                    "-c",
-                    CallMode.GUI,
-                    "l", "INFO"
-                ]
+                    "-i", args_string,
+                    "-p", str(self.get_selected_cpu_cores()),
+                    "-c", CallMode.GUI,
+                    "-l", "INFO"
+                ]  # fmt: skip
             elif tool_type == "executable":
                 print(globals().get(tool_api))
                 tool_args = globals()[tool_api](args_string)

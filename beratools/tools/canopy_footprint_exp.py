@@ -18,10 +18,6 @@ def line_footprint_exp(
     canopy_avoidance=0.0,
     exponent=1.0,
     canopy_thresh_percentage=50,
-    # exp_shk_cell=0.5, # TODO: unused?
-    # off_ln_dist=0.5,  # TODO: unused?
-    # canopy_percentile=95, # TODO: unused?
-    # out_centerline=None,   # TODO: unused?
     processes=0,
     call_mode=CallMode.CLI,
     log_level="INFO",

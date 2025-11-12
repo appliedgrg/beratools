@@ -301,12 +301,10 @@ def ground_footprint(
         use_least_cost_path = False
 
     if not merge_group:
-        print("Step: Merging lines")
         line_gdf["geometry"] = line_gdf.geometry.apply(custom_line_merge)
         if use_least_cost_path:
             lc_path_gdf["geometry"] = lc_path_gdf.geometry.apply(custom_line_merge)
 
-    print("Step: Cleaning line geometries")
     line_gdf = algo_common.clean_line_geometries(line_gdf)
 
     # read footprints and remove holes
@@ -316,12 +314,10 @@ def ground_footprint(
     # merge group and/or split lines at intersections
     merged_line_gdf = line_gdf.copy(deep=True)
     if merge_group:
-        print("Step: Running line grouping and merging")
         lg = LineGrouping(line_gdf, merge_group)
         lg.run_grouping()
         merged_line_gdf = lg.run_line_merge()
     else:
-        print("Step: Running line grouping, merging, and splitting")
         try:
             lg = LineGrouping(line_gdf, not merge_group)
             lg.run_grouping()
@@ -337,7 +333,6 @@ def ground_footprint(
 
             # least cost path merge and split
             if use_least_cost_path:
-                print("Step: Running least cost path grouping, merging, and splitting")
                 lg_leastcost = LineGrouping(lc_path_gdf, not merge_group)
                 lg_leastcost.run_grouping()
                 merged_lc_path_gdf = lg_leastcost.run_line_merge()
@@ -356,14 +351,11 @@ def ground_footprint(
             print(f"Exception: ground_footprint: {e}")
 
     # save original merged lines
-    print("Step: Saving merged lines")
     merged_line_gdf.to_file(out_file, layer="merged_lines_original")
 
     # prepare line arguments
-    print("Step: Preparing line arguments for multiprocessing")
     line_args = prepare_line_args(merged_line_gdf, poly_gdf, n_samples, offset, width_percentile)
 
-    print("Step: Running multiprocessing for fixed footprint calculation")
     out_lines = execute_multiprocessing(
         process_single_line, line_args, "Fixed footprint", processes, call_mode
     )
@@ -403,14 +395,12 @@ def ground_footprint(
     buffer_gdf = buffer_gdf.set_crs(perp_lines_gdf.crs, allow_override=True)
     buffer_gdf.reset_index(inplace=True, drop=True)
 
-    print("Step: Saving untrimmed fixed width footprint")
     untrimmed_footprint = "untrimmed_footprint"
     buffer_gdf.to_file(out_file, layer=untrimmed_footprint)
     print(f"Untrimmed fixed width footprint saved as '{untrimmed_footprint}'")
 
     # trim lines and footprints
     if trim_output:
-        print("Step: Trimming lines and footprints")
         lg.run_cleanup(buffer_gdf)
 
         # Ensure only polygons are saved in clean_footprint
@@ -435,7 +425,6 @@ def ground_footprint(
     layer = "perp_lines"
     out_footprint_path = Path(out_file)
     out_aux_gpkg = out_footprint_path.with_stem(out_footprint_path.stem + "_aux").with_suffix(".gpkg")
-    print("Step: Saving auxiliary outputs")
     perp_lines_gdf = perp_lines_gdf.set_geometry("perp_lines")
     perp_lines_gdf = perp_lines_gdf.drop(columns=["perp_lines_original"])
     perp_lines_gdf = perp_lines_gdf.drop(columns=["geometry"])
@@ -461,9 +450,8 @@ def ground_footprint(
     print("Step: Finished fixed width footprint tool")
 
 
-from beratools.utility.tool_args import compose_tool_kwargs
-
 if __name__ == "__main__":
+    from beratools.utility.tool_args import compose_tool_kwargs
     start_time = time.time()
     kwargs = compose_tool_kwargs("ground_footprint")
     ground_footprint(**kwargs)

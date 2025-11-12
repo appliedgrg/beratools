@@ -44,25 +44,25 @@ def available_cpu_cores():
 def tool_arguments_integration(testdata_dir, available_cpu_cores):
     return {
         "args_check_seed_line": {
-            "in_line": f"{testdata_dir.joinpath('integration_layers.gpkg').as_posix()}|seed_lines",
+            "in_line": f"{testdata_dir.joinpath('integration.gpkg').as_posix()}|seed_lines",
             "out_line": f"{testdata_dir.joinpath('integration_inter.gpkg').as_posix()}|seed_lines_checked",
         },
         "args_vertex_optimization": {
-            "in_line": f"{testdata_dir.joinpath('integration_layers.gpkg').as_posix()}|seed_lines_checked",
+            "in_line": f"{testdata_dir.joinpath('integration.gpkg').as_posix()}|seed_lines_checked",
             "in_raster": testdata_dir.joinpath("chm.tif").as_posix(),
             "search_distance": 5.0,
             "line_radius": 15,
             "out_line": f"{testdata_dir.joinpath('integration_inter.gpkg').as_posix()}|seed_lines_vo",
         },
         "args_centerline": {
-            "in_line": f"{testdata_dir.joinpath('integration_layers.gpkg').as_posix()}|seed_lines_vo",
+            "in_line": f"{testdata_dir.joinpath('integration.gpkg').as_posix()}|seed_lines_vo",
             "in_raster": testdata_dir.joinpath("chm.tif").as_posix(),
             "line_radius": 15,
             "proc_segments": True,
             "out_line": f"{testdata_dir.joinpath('integration_inter.gpkg').as_posix()}|centerline",
         },
         "args_footprint_abs": {
-            "in_line": f"{testdata_dir.joinpath('integration_layers.gpkg').as_posix()}|centerline",
+            "in_line": f"{testdata_dir.joinpath('integration.gpkg').as_posix()}|centerline",
             "in_chm": testdata_dir.joinpath("chm.tif").as_posix(),
             "corridor_thresh": 3.0,
             "max_ln_width": 32.0,
@@ -70,7 +70,7 @@ def tool_arguments_integration(testdata_dir, available_cpu_cores):
             "out_footprint": f"{testdata_dir.joinpath('integration_inter.gpkg').as_posix()}|footprint_abs",
         },
         "args_footprint_exp": {
-            "in_line": f"{testdata_dir.joinpath('integration_layers.gpkg').as_posix()}|centerline",
+            "in_line": f"{testdata_dir.joinpath('integration.gpkg').as_posix()}|centerline",
             "in_chm": testdata_dir.joinpath("chm.tif").as_posix(),
             "out_footprint": f"{testdata_dir.joinpath('integration_inter.gpkg').as_posix()}|footprint_exp",
             "max_ln_width": 32,
@@ -81,8 +81,8 @@ def tool_arguments_integration(testdata_dir, available_cpu_cores):
             "canopy_thresh_percentage": 50,
         },
         "args_ground_footprint": {
-            "in_line": f"{testdata_dir.joinpath('integration_layers.gpkg').as_posix()}|centerline",
-            "in_footprint": f"{testdata_dir.joinpath('integration_layers.gpkg').as_posix()}|footprint_exp",
+            "in_line": f"{testdata_dir.joinpath('integration.gpkg').as_posix()}|centerline",
+            "in_footprint": f"{testdata_dir.joinpath('integration.gpkg').as_posix()}|footprint_exp",
             "n_samples": 15,
             "offset": 30,
             "max_width": True,
@@ -149,6 +149,8 @@ def test_output_files(testdata_dir):
     return [
         testdata_dir.joinpath("workflow.gpkg"),
         testdata_dir.joinpath("integration_inter.gpkg"),
+        testdata_dir.joinpath("workflow_aux.gpkg"),
+        testdata_dir.joinpath("integration_inter_aux.gpkg"),
     ]
 
 

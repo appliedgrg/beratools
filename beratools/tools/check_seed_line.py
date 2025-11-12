@@ -106,7 +106,6 @@ def check_seed_line(in_line, out_line, use_angle_grouping=True,
     from beratools.core.algo_line_grouping import LineGrouping
     
     in_file, in_layer = sp_common.decode_file_layer(in_line)
-    print(f"Input file: {in_file}, layer: {in_layer}")
     out_file, out_layer = sp_common.decode_file_layer(out_line)
 
     in_line_gdf = gpd.read_file(in_file, layer=in_layer)
