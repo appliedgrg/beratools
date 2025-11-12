@@ -888,15 +888,15 @@ def main_line_footprint_relative(
     print("{}%".format(100))
 
 
-if __name__ == "__main__":
-    start_time = time.time()
-    print("Dynamic Footprint processing started")
-    print("Current time: {}".format(time.strftime("%d %b %Y %H:%M:%S", time.localtime())))
-
-    in_args, in_verbose = check_arguments()
-    main_line_footprint_relative(**in_args.input, processes=int(in_args.processes), verbose=in_verbose)
-
-    print("{}%".format(100))
-    print("Dynamic Footprint processing finished")
-    print("Current time: {}".format(time.strftime("%d %b %Y %H:%M:%S", time.localtime())))
-    print("Total processing time (seconds): {}".format(round(time.time() - start_time, 3)))
+# if __name__ == "__main__":
+#     start_time = time.time()
+#     print("Dynamic Footprint processing started")
+#     print("Current time: {}".format(time.strftime("%d %b %Y %H:%M:%S", time.localtime())))
+#
+#     in_args, in_verbose = check_arguments()
+#     main_line_footprint_relative(**in_args.input, processes=int(in_args.processes), verbose=in_verbose)
+#
+#     print("{}%".format(100))
+#     print("Dynamic Footprint processing finished")
+#     print("Current time: {}".format(time.strftime("%d %b %Y %H:%M:%S", time.localtime())))
+#     print("Total processing time (seconds): {}".format(round(time.time() - start_time, 3)))

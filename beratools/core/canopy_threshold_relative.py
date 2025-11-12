@@ -22,21 +22,20 @@ class OperationCancelledException(Exception):
 
 
 def main_canopy_threshold_relative(
-    in_line,
-    in_chm,
-    canopy_percentile,
-    canopy_thresh_percentage,
-    full_step,
-    processes,
-    verbose,
-    out_DynCenterline=None,
+    in_line: str, #path in string
+    in_chm: str, #path in string
+    canopy_percentile: int,
+    canopy_thresh_percentage: int,
+    full_step: bool,
+    processes:int,
+    verbose: bool,
+    out_DynCenterline: str=None,
 ): #callback,,off_ln_dist,tree_radius, max_line_dist,canopy_avoidance, exponent,verbose,
     file_path, in_file_name = os.path.split(Path(in_line))
     out_file = os.path.join(Path(file_path), "DynCanTh_" + in_file_name)
-    line_seg = gpd.GeoDataFrame.from_file(in_line)
+    line_seg = gpd.GeoDataFrame.from_file(Path(in_line))
 
     # check coordinate systems between line and raster features
-    # with rasterio.open(in_chm) as in_raster:
     if compare_crs(vector_crs(in_line), raster_crs(in_chm)):
         pass
     else:
@@ -49,47 +48,43 @@ def main_canopy_threshold_relative(
 
     # Check the Dynamic Canopy threshold column in data. If it is not, new column will be created
     if "DynCanTh" not in line_seg.columns.array:
-        if BT_DEBUGGING:
-            print("{} column not found in input line".format("DynCanTh"))
         print("New column created: {}".format("DynCanTh"))
         line_seg["DynCanTh"] = np.nan
 
     # Check the OLnFID column in data. If it is not, column will be created
     if "OLnFID" not in line_seg.columns.array:
-        if BT_DEBUGGING:
-            print("{} column not found in input line".format("OLnFID"))
-
         print("New column created: {}".format("OLnFID"))
         line_seg["OLnFID"] = line_seg.index
 
     # Check the OLnSEG column in data. If it is not, column will be created
     if "OLnSEG" not in line_seg.columns.array:
-        if BT_DEBUGGING:
-            print("{} column not found in input line".format("OLnSEG"))
-
         print("New column created: {}".format("OLnSEG"))
         line_seg["OLnSEG"] = 0
 
+    # Check input line for multipart
     line_seg = chk_df_multipart(line_seg, "LineString")[0]
 
+    #Not splitting lines
     proc_segments = False
     if proc_segments:
         line_seg = split_into_segments(line_seg)
     else:
         pass
 
-    # copy original line input to another GeoDataframe
+    # copy original line input to another GeoDataframe and simplify the line geometry for buffering
     workln_dfC = gpd.GeoDataFrame.copy((line_seg),deep=True)
     workln_dfC.geometry = workln_dfC.geometry.simplify(tolerance=0.5, preserve_topology=True)
 
     print("{}%".format(5))
-
+    # copy simplified line input for ring buffer for two sides buffering
     worklnbuffer_dfLRing = gpd.GeoDataFrame.copy((workln_dfC),deep=True)
     worklnbuffer_dfRRing = gpd.GeoDataFrame.copy((workln_dfC),deep=True)
 
     print("Create ring buffer for input line to find the forest edge....")
 
-    def multiringbuffer(df, nrings, ringdist):
+    def multiringbuffer(df: gpd.GeoDataFrame,
+                        nrings:int,
+                        ringdist:int)->list:
         """
         Buffers an input dataframes geometry nring (number of rings) times, with a distance between
         rings of ringdist and returns a list of non overlapping buffers
@@ -122,7 +117,7 @@ def main_canopy_threshold_relative(
         return rings  # return the list
 
     # Create a column with the rings as a list
-
+    print("Create ring buffer to the left forest edge....")
     worklnbuffer_dfLRing["mgeometry"] = worklnbuffer_dfLRing.apply(
         lambda x: multiringbuffer(df=x, nrings=1, ringdist=15), axis=1
     )
@@ -136,6 +131,7 @@ def main_canopy_threshold_relative(
     worklnbuffer_dfLRing = worklnbuffer_dfLRing.sort_values(by=["OLnFID", "OLnSEG", "iRing"])
     worklnbuffer_dfLRing = worklnbuffer_dfLRing.reset_index(drop=True)
 
+    print("Create ring buffer to the right forest edge....")
     worklnbuffer_dfRRing["mgeometry"] = worklnbuffer_dfRRing.apply(
         lambda x: multiringbuffer(df=x, nrings=-1, ringdist=-15), axis=1
     )
@@ -498,7 +494,12 @@ def multiprocessing_copyparallel_lineLRC(dfL, dfR, dfc, processes, left_dis, rig
         print("Operation cancelled")
 
 
-def multiprocessing_Percentile(df, CanPercentile, CanThrPercentage, in_CHM, processes, side):
+def multiprocessing_Percentile(df:gpd.GeoDataFrame,
+                               CanPercentile:int,
+                               CanThrPercentage:int,
+                               in_CHM: str,
+                               processes:int,
+                               side:int)->gpd.GeoDataFrame:
     try:
         line_arg = []
         total_steps = len(df)
@@ -747,28 +748,28 @@ def copyparallel_lineLRC(line_arg):
     return dfL.iloc[[line_arg[6]]], dfR.iloc[[line_arg[6]]]  # ,dfC.iloc[[line_arg[6]]]
 
 
-if __name__ == "__main__":
-    start_time = time.time()
-    print(
-        "Starting Dynamic Canopy Threshold calculation processing\n @ {}".format(
-            time.strftime("%d %b %Y %H:%M:%S", time.localtime())
-        )
-    )
-
-    parser = argparse.ArgumentParser()
-    parser.add_argument("-i", "--input", type=json.loads)
-    parser.add_argument("-p", "--processes")
-    parser.add_argument("-v", "--verbose")
-    args = parser.parse_args()
-    args.input["full_step"] = False
-
-    verbose = True if args.verbose == "True" else False
-    main_canopy_threshold_relative( **args.input, processes=int(args.processes), verbose=verbose)
-
-    print("{}%".format(100))
-    print(
-        "Finishing Dynamic Canopy Threshold calculation @ {}\n(or in {} second)".format(
-            time.strftime("%d %b %Y %H:%M:%S", time.localtime()),
-            round(time.time() - start_time, 5),
-        )
-    )
+# if __name__ == "__main__":
+#     start_time = time.time()
+#     print(
+#         "Starting Dynamic Canopy Threshold calculation processing\n @ {}".format(
+#             time.strftime("%d %b %Y %H:%M:%S", time.localtime())
+#         )
+#     )
+#
+#     parser = argparse.ArgumentParser()
+#     parser.add_argument("-i", "--input", type=json.loads)
+#     parser.add_argument("-p", "--processes")
+#     parser.add_argument("-v", "--verbose")
+#     args = parser.parse_args()
+#     args.input["full_step"] = False
+#
+#     verbose = True if args.verbose == "True" else False
+#     main_canopy_threshold_relative( **args.input, processes=int(args.processes), verbose=verbose)
+#
+#     print("{}%".format(100))
+#     print(
+#         "Finishing Dynamic Canopy Threshold calculation @ {}\n(or in {} second)".format(
+#             time.strftime("%d %b %Y %H:%M:%S", time.localtime()),
+#             round(time.time() - start_time, 5),
+#         )
+#     )
