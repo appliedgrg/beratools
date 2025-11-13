@@ -20,7 +20,6 @@ from pathlib import Path
 import geopandas as gpd
 import numpy as np
 import pandas as pd
-import scipy as sp
 import shapely.geometry as sh_geom
 from shapely import STRtree
 

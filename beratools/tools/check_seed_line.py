@@ -120,8 +120,8 @@ def check_seed_line(in_line, out_line, use_angle_grouping=True,
 if __name__ == "__main__":
     import time
 
-    import beratools.utility.tool_args as tool_args
+    from beratools.utility.tool_args import compose_tool_kwargs
     start_time = time.time()
-    kwargs = tool_args.compose_tool_kwargs("check_seed_line")
+    kwargs = compose_tool_kwargs("check_seed_line")
     check_seed_line(**kwargs)
     print("Elapsed time: {}".format(time.time() - start_time))

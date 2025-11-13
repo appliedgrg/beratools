@@ -14,7 +14,6 @@ Description:
 """
 
 import logging
-import time
 from pathlib import Path
 
 import pandas as pd
@@ -22,7 +21,6 @@ import pandas as pd
 import beratools.core.algo_centerline as algo_centerline
 import beratools.core.algo_common as algo_common
 import beratools.utility.spatial_common as sp_common
-import beratools.utility.tool_args as tool_args
 from beratools.core.logger import Logger
 from beratools.core.tool_base import execute_multiprocessing
 from beratools.utility.tool_args import CallMode
@@ -47,8 +45,17 @@ def process_single_line_class(seed_line):
     return seed_line
 
 
-def centerline(in_line, in_raster, line_radius, proc_segments, out_line, use_angle_grouping=True, 
-               processes=0, call_mode=CallMode.CLI, log_level="INFO"):
+def centerline(
+    in_line,
+    in_raster,
+    line_radius,
+    proc_segments,
+    out_line,
+    use_angle_grouping=True,
+    processes=0,
+    call_mode=CallMode.CLI,
+    log_level="INFO",
+):
     in_file, in_layer = sp_common.decode_file_layer(in_line)
     out_file, out_layer = sp_common.decode_file_layer(out_line)
 
@@ -78,7 +85,7 @@ def centerline(in_line, in_raster, line_radius, proc_segments, out_line, use_ang
     )
     if not result:
         print("No centerlines found.")
-        return
+        return 1
 
     for item in result:
         lc_path_list.append(item.lc_path)
@@ -109,9 +116,14 @@ def centerline(in_line, in_raster, line_radius, proc_segments, out_line, use_ang
     lc_path_list.to_file(aux_file, layer="least_cost_path")
     corridor_polys.to_file(aux_file, layer="corridor_polygon")
 
+    return 0
+
 
 if __name__ == "__main__":
+    import time
+
+    from beratools.utility.tool_args import compose_tool_kwargs
     start_time = time.time()
-    kwargs = tool_args.compose_tool_kwargs("centerline")
+    kwargs = compose_tool_kwargs("centerline")
     centerline(**kwargs)
     print("Elapsed time: {}".format(time.time() - start_time))

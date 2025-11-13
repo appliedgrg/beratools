@@ -21,8 +21,6 @@ Description:
     The purpose of this script is to provide template for tool.
 """
 
-import time
-
 import geopandas as gpd
 import pandas as pd
 
@@ -70,6 +68,8 @@ def buffer_worker(in_args):
 
 
 if __name__ == "__main__":
+    import time
+
     from beratools.utility.tool_args import compose_tool_kwargs
     start_time = time.time()
     kwargs = compose_tool_kwargs("tool_template")

@@ -197,7 +197,7 @@ def main_canopy_threshold_relative(
     print("Task done.")
 
     print("Saving percentile information to input line ...")
-    gpd.GeoDataFrame.to_file(result, out_cl_file, layer=out_layer, driver="GPKG")
+    gpd.GeoDataFrame.to_file(result, out_cl_file, layer=out_layer)
     print("Saving percentile information to input line ...done.")
 
     if full_step:

@@ -14,12 +14,9 @@ Description:
 """
 
 import logging
-import time
-from turtle import mode
 
 import beratools.core.algo_vertex_optimization as bt_vo
 import beratools.utility.spatial_common as sp_common
-import beratools.utility.tool_args as tool_args
 from beratools.core.logger import Logger
 from beratools.utility.tool_args import CallMode
 
@@ -41,7 +38,10 @@ def vertex_optimization(in_line, in_raster, search_distance, line_radius, out_li
     vg.save_all_layers(out_line)
 
 if __name__ == "__main__":
+    import time
+
+    from beratools.utility.tool_args import compose_tool_kwargs
     start_time = time.time()
-    kwargs = tool_args.compose_tool_kwargs("vertex_optimization")
+    kwargs = compose_tool_kwargs("vertex_optimization")
     vertex_optimization(**kwargs)
     print("Elapsed time: {}".format(time.time() - start_time))

@@ -15,7 +15,6 @@ Description:
 
 import logging
 import math
-import time
 from itertools import chain
 from pathlib import Path
 
@@ -451,6 +450,8 @@ def ground_footprint(
 
 
 if __name__ == "__main__":
+    import time
+
     from beratools.utility.tool_args import compose_tool_kwargs
     start_time = time.time()
     kwargs = compose_tool_kwargs("ground_footprint")
