@@ -13,8 +13,6 @@ Description:
     This file is intended to be hosting common spatial classes/functions for BERA Tools
 """
 
-import argparse
-import json
 import warnings
 
 import geopandas as gpd
@@ -33,6 +31,7 @@ warnings.simplefilter(action="ignore", category=UserWarning)
 # restore .shx for shapefile for using GDAL or pyogrio
 gdal.SetConfigOption("SHAPE_RESTORE_SHX", "YES")
 set_gdal_config_options({"SHAPE_RESTORE_SHX": "YES"})  # for pyogrio
+
 
 # suppress all kinds of warnings
 if not bt_const.BT_DEBUGGING:
@@ -92,22 +91,26 @@ def clip_raster(
     return out_image, out_meta
 
 
-def check_arguments():
-    # Get tool arguments
-    parser = argparse.ArgumentParser()
-    parser.add_argument("-i", "--input", type=json.loads)
-    parser.add_argument("-p", "--processes")
-    parser.add_argument("-v", "--verbose")
-    args = parser.parse_args()
+def decode_file_layer(encoded):
+    """
+    Decode encoded file|layer string into file path and layer name.
 
-    verbose = True if args.verbose == "True" else False
-    for item in args.input:
-        if args.input[item].lower() == "false":
-            args.input[item] = False
-        elif args.input[item].lower() == "true":
-            args.input[item] = True
+    Args:
+        encoded (str): Encoded string like "file.shp|" or "C:/path/file.gpkg|layer"
 
-    return args, verbose
+    Returns:
+        tuple: (file_path, layer_name) where layer_name is None if empty
+    """
+    if "|" in encoded:
+        file_path, layer = encoded.rsplit("|", 1)
+        layer_name = layer if layer else None
+    elif "::" in encoded:
+        file_path, layer = encoded.rsplit("::", 1)
+        layer_name = layer if layer else None
+    else:
+        file_path = encoded
+        layer_name = None
+    return file_path, layer_name
 
 
 def vector_crs(in_vector):
@@ -156,6 +159,7 @@ def raster_crs(in_raster):
 
 def get_crs_proj_name(crs_norm, label="crs"):
     import warnings
+
     if crs_norm.is_compound:
         op = crs_norm.sub_crs_list[0].coordinate_operation
         if op is None:
@@ -170,6 +174,7 @@ def get_crs_proj_name(crs_norm, label="crs"):
             warnings.warn(f"{label}.coordinate_operation is None; using 'unknown'")
             return "unknown"
         return op.name
+
 
 def compare_crs(crs_org, crs_dst):
     if crs_org and crs_dst:

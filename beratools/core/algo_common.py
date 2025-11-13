@@ -75,12 +75,11 @@ def read_geospatial_file(file_path, layer=None):
 
     """
     try:
-        if layer is None:
-            # Read the file without specifying a layer
-            gdf = gpd.read_file(file_path)
-        else:
-            # Read the file with the specified layer
-            gdf = gpd.read_file(file_path, layer=layer)
+        kwargs = {}
+        if layer is not None:
+            kwargs['layer'] = layer
+
+        gdf = gpd.read_file(file_path, **kwargs)
 
         # Clean the geometries in the GeoDataFrame
         gdf = clean_geometries(gdf)

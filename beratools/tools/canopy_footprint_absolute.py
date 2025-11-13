@@ -13,6 +13,7 @@ Description:
     The purpose of this script is to provide main interface for canopy footprint tool.
     The tool is used to generate the footprint of a line based on absolute threshold.
 """
+
 import logging
 import time
 
@@ -26,10 +27,10 @@ from shapely.geometry import MultiPolygon, Polygon, shape
 import beratools.core.algo_centerline as algo_cl
 import beratools.core.algo_common as algo_common
 import beratools.core.algo_cost as algo_cost
-import beratools.core.constants as bt_const
 import beratools.core.tool_base as bt_base
 import beratools.utility.spatial_common as sp_common
 from beratools.core.logger import Logger
+from beratools.utility.tool_args import CallMode
 
 log = Logger("canopy_footprint_abs", file_level=logging.INFO)
 logger = log.get_logger()
@@ -150,6 +151,7 @@ class FootprintAbsolute:
             geometry_list = []
 
         import pandas as pd
+
         self.footprint = gpd.GeoDataFrame({"geometry": geometry_list})
         self.footprint.set_crs(crs_str, inplace=True)
 
@@ -187,18 +189,11 @@ def generate_line_class_list(
 
 
 def canopy_footprint_abs(
-    in_line,
-    in_chm,
-    corridor_thresh,
-    max_ln_width,
-    exp_shk_cell,
-    out_footprint,
-    processes,
-    verbose,
-    in_layer=None,
-    out_layer=None,
-    parallel_mode=bt_const.ParallelMode.MULTIPROCESSING,
-):
+    in_line, in_chm, corridor_thresh, max_ln_width, exp_shk_cell, out_footprint, 
+    processes=0, call_mode=CallMode.CLI, log_level="INFO"):
+    in_file, in_layer = sp_common.decode_file_layer(in_line)
+    out_file, out_layer = sp_common.decode_file_layer(out_footprint)
+
     max_ln_width = float(max_ln_width)
     exp_shk_cell = int(exp_shk_cell)
 
@@ -206,7 +201,7 @@ def canopy_footprint_abs(
     poly_list = []
 
     line_class_list = generate_line_class_list(
-        in_line, in_chm, corridor_thresh, max_ln_width, exp_shk_cell, in_layer
+        in_file, in_chm, corridor_thresh, max_ln_width, exp_shk_cell, in_layer
     )
 
     feat_list = bt_base.execute_multiprocessing(
@@ -214,8 +209,7 @@ def canopy_footprint_abs(
         line_class_list,
         "Line footprint",
         processes,
-        parallel_mode,
-        verbose=verbose,
+        call_mode
     )
 
     if feat_list:
@@ -229,16 +223,16 @@ def canopy_footprint_abs(
         results = gpd.GeoDataFrame(pd.concat(footprint_list))
         results = results.reset_index(drop=True)
         layer_name = out_layer if out_layer else "canopy_footprint"
-        results.to_file(out_footprint, layer=layer_name)
-        print(f"Saved footprint to {out_footprint} (layer: {layer_name})")
+        results.to_file(out_file, layer=layer_name)
+        print(f"Saved footprint to {out_file}, layer: {layer_name}")
     else:
         print("Warning: No footprints generated. Output file not written.")
 
 
 if __name__ == "__main__":
+    from beratools.utility.tool_args import compose_tool_kwargs
     start_time = time.time()
     print("Footprint processing started")
-
-    in_args, in_verbose = sp_common.check_arguments()
-    canopy_footprint_abs(**in_args.input, processes=int(in_args.processes), verbose=in_verbose)
+    kwargs = compose_tool_kwargs("canopy_footprint_absolute")
+    canopy_footprint_abs(**kwargs)
     print("Elapsed time: {}".format(time.time() - start_time))

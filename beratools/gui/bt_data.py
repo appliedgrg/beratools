@@ -16,13 +16,12 @@ Description:
 import json
 import logging
 import os
-import platform
 from collections import OrderedDict
 from pathlib import Path
 
 import beratools.core.constants as bt_const
+from beratools.utility.tool_args import CallMode, determine_cpu_core_limit
 
-running_windows = platform.system() == "Windows"
 BT_SHOW_ADVANCED_OPTIONS = False
 
 
@@ -61,6 +60,13 @@ class SettingsManager:
                 except json.decoder.JSONDecodeError:
                     logging.error("Failed to decode settings JSON file of saved tool info.", exc_info=True)
 
+            # Remove any entry with None or "null" as tool name
+            if isinstance(saved_parameters, dict):
+                saved_parameters = OrderedDict(
+                    (k, v) for k, v in saved_parameters.items()
+                    if k is not None and k != "null"
+                )
+
             self.settings = saved_parameters
         else:
             self.settings = saved_parameters
@@ -69,8 +75,10 @@ class SettingsManager:
         self.settings = saved_parameters
 
     def save_tool_info(self, recent_tool=None):
-        if recent_tool and "gui_parameters" not in self.settings.keys():
-            self.settings["gui_parameters"] = {}
+        if recent_tool:
+            if "gui_parameters" not in self.settings:
+                self.settings["gui_parameters"] = {}
+                
             self.settings["gui_parameters"]["recent_tool"] = recent_tool
 
         if self.setting_file is not None:
@@ -81,6 +89,11 @@ class SettingsManager:
                     logging.error("Failed to encode settings to JSON when writing.", exc_info=True)
 
     def save_setting(self, key, value):
+        # Guard against None/null tool name
+        if key is None:
+            print("Warning: tool_name is None, not saving parameters.")
+            return
+
         # check setting directory existence
         if self.setting_file is not None:
             data_path = Path(self.setting_file).resolve().parent
@@ -167,10 +180,6 @@ class BTData(object):
     """An object for interfacing with the BERA Tools executable."""
 
     def __init__(self):
-        if running_windows:
-            self.ext = ".exe"
-        else:
-            self.ext = ""
         self.current_file_path = Path(__file__).resolve().parent
 
         self.work_dir = Path("")
@@ -178,14 +187,15 @@ class BTData(object):
         self.data_folder = Path("")
         self.verbose = True
         self.show_advanced = BT_SHOW_ADVANCED_OPTIONS
-        self.max_procs = -1
+        self.selected_cpu_cores = -1
         self.recent_tool = None
         self.ascii_art = ""
         self.get_working_dir()
         self.get_user_folder()
 
         # set maximum available cpu core for tools
-        self.max_cpu_cores = os.cpu_count()
+        max_cores = determine_cpu_core_limit()
+        self.max_cpu_cores = max_cores
 
         # load bera tools
         self.tool_history = []
@@ -208,6 +218,8 @@ class BTData(object):
 
         self.settings_manager.load_saved_tool_info()
         self.settings = self.settings_manager.settings
+        gui_settings = self.settings.get("gui_parameters", {})
+        self.recent_tool = gui_settings.get("recent_tool", None)
         self.load_gui_data()
         self.get_tool_history()
 
@@ -281,25 +293,19 @@ class BTData(object):
     def get_setting_file(self):
         self.setting_file = self.data_folder.joinpath("saved_tool_parameters.json")
 
-    def set_max_procs(self, val=-1):
-        """Set the maximum cores to use."""
-        self.max_procs = val
-        self.save_setting("max_procs", val)
+    def set_selected_cpu_cores(self, val=-1):
+        """Set the number of CPU cores to use."""
+        self.selected_cpu_cores = val
+        self.save_setting("selected_cpu_cores", val)
 
-    def get_max_procs(self):
-        return self.max_procs
+    def get_selected_cpu_cores(self):
+        return self.selected_cpu_cores
 
     def get_max_cpu_cores(self):
         return self.max_cpu_cores
 
-    def run_tool(self, tool_api, args, callback=None):
-        """
-        Run a tool and specifies tool arguments.
-
-        Returns 0 if completes without error.
-        Returns 1 if error encountered (details are sent to callback).
-        Returns 2 if process is cancelled by user.
-        """
+    def prepare_tool_run(self, tool_api, args, callback=None):
+        """Prepare tool command and arguments."""
         try:
             if callback is None:
                 callback = self.default_callback
@@ -325,13 +331,11 @@ class BTData(object):
             if tool_type == "python":
                 tool_args = [
                     self.work_dir.joinpath(f"tools/{tool_api}.py").as_posix(),
-                    "-i",
-                    args_string,
-                    "-p",
-                    str(self.get_max_procs()),
-                    "-v",
-                    str(self.verbose),
-                ]
+                    "-i", args_string,
+                    "-p", str(self.get_selected_cpu_cores()),
+                    "-c", CallMode.GUI,
+                    "-l", "INFO"
+                ]  # fmt: skip
             elif tool_type == "executable":
                 print(globals().get(tool_api))
                 tool_args = globals()[tool_api](args_string)
@@ -341,6 +345,8 @@ class BTData(object):
             callback(str(err))
             return 1
 
+        if tool_args is None:
+            tool_args = []
         return tool_type, tool_args
 
     def about(self):
@@ -395,14 +401,14 @@ class BTData(object):
         ):
             gui_settings = self.settings["gui_parameters"]
 
-            if "max_procs" in gui_settings and gui_settings["max_procs"] is not None:
-                self.max_procs = gui_settings["max_procs"]
+            if "selected_cpu_cores" in gui_settings and gui_settings["selected_cpu_cores"] is not None:
+                self.selected_cpu_cores = gui_settings["selected_cpu_cores"]
 
             if "recent_tool" in gui_settings and gui_settings["recent_tool"] is not None:
                 self.recent_tool = gui_settings["recent_tool"]
-                if not self.get_bera_tool_api(self.recent_tool):
+                api_result = self.get_bera_tool_api(self.recent_tool)
+                if not api_result:
                     self.recent_tool = None
-
     def load_gui_data(self):
         gui_settings = {}
         if not self.gui_setting_file.exists():
@@ -478,48 +484,39 @@ class BTData(object):
             self.toolbox_list = []
 
     def _set_param_flag_and_saved_value(self, single_param, param, tool):
+        """Set parameter variable and load saved value if it exists in beratools.json."""
+        saved_value = None
         if "variable" in param.keys():
-            single_param["flag"] = param["variable"]
+            single_param["variable"] = param["variable"]
+            # Only load saved value if tool API exists - discard if API changed
             saved_value = self.get_saved_tool_params(tool["tool_api"], param["variable"])
-            if saved_value is not None:
-                single_param["saved_value"] = saved_value
-        else:
-            single_param["flag"] = "FIXME"
+        if saved_value is not None:
+            single_param["saved_value"] = saved_value
 
     def _set_param_type_for_input(self, single_param, param):
+        # Assume subtype is already a list
+        subtypes = param["subtype"]
+
+        # No mapping, use raw subtypes directly
         if param["type"] == "list":
             single_param["parameter_type"] = {"OptionList": param["data"]}
-            single_param["data_type"] = "String"
-            subtype_map = {"text": "String", "int": "Integer", "float": "Float", "bool": "Boolean"}
-            single_param["data_type"] = subtype_map.get(param["subtype"], "String")
+            single_param["data_type"] = subtypes
         elif param["type"] == "text":
-            single_param["parameter_type"] = "String"
+            single_param["parameter_type"] = "Text"
         elif param["type"] == "number":
-            single_param["parameter_type"] = "Integer" if param["subtype"] == "int" else "Float"
+            single_param["parameter_type"] = subtypes
         elif param["type"] == "file":
-            single_param["parameter_type"] = {"ExistingFile": [param["subtype"]]}
+            single_param["parameter_type"] = {"ExistingFile": subtypes}
         elif param["type"] == "directory":
-            single_param["parameter_type"] = {"directory": [param["subtype"]]}
+            single_param["parameter_type"] = {"Directory": subtypes}
         else:
-            single_param["parameter_type"] = {"ExistingFile": ""}
+            raise ValueError(f"Unknown parameter type: {param['type']}")
 
     def _set_param_type_for_output(self, single_param, param):
-        single_param["parameter_type"] = {"NewFile": [param["subtype"]]}
+        # Assume subtype is already a list
+        subtypes = param["subtype"]
+        single_param["parameter_type"] = {"NewFile": subtypes}
 
-    def _override_param_type_for_special_types(self, single_param, param, tool):
-        type_map = {"raster": "Raster", "lidar": "Lidar", "vector": "Vector"}
-        if param["type"] in type_map:
-            if isinstance(single_param["parameter_type"], dict):
-                for i in single_param["parameter_type"].keys():
-                    if not isinstance(single_param["parameter_type"][i], list):
-                        continue
-                    single_param["parameter_type"][i] = [type_map[param["type"]]]
-        if param["type"] == "vector" and "layer" in param.keys():
-            layer_value = self.get_saved_tool_params(tool["tool_api"], param["layer"])
-            single_param["layer"] = {
-                "layer_name": param["layer"],
-                "layer_value": layer_value,
-            }
 
     def get_bera_tool_params(self, tool_name):
         new_param_whole = {"parameters": []}
@@ -543,6 +540,9 @@ class BTData(object):
             if parameters is None:
                 return new_param_whole
             for param in parameters:
+                # Parse subtype string to list once, here
+                if isinstance(param.get("subtype", ""), str):
+                    param["subtype"] = [s.strip() for s in param["subtype"].split("|")]
                 single_param = {"name": param["label"]}
                 self._set_param_flag_and_saved_value(single_param, param, tool)
                 single_param["output"] = param["output"]
@@ -552,8 +552,6 @@ class BTData(object):
                     self._set_param_type_for_output(single_param, param)
 
                 single_param["description"] = param["description"]
-
-                self._override_param_type_for_special_types(single_param, param, tool)
 
                 single_param["default_value"] = param["default"]
                 single_param["optional"] = param.get("optional", False)
@@ -569,8 +567,8 @@ class BTData(object):
         if parameters is None:
             return param_list
         for item in parameters:
-            if item is not None and "flag" in item and "default_value" in item:
-                param_list[item["flag"]] = item["default_value"]
+            if item is not None and "variable" in item and "default_value" in item:
+                param_list[item["variable"]] = item["default_value"]
 
         return param_list
 

@@ -15,7 +15,6 @@ Description:
 """
 
 import math
-import time
 from enum import Enum
 
 import geopandas as gpd
@@ -44,21 +43,21 @@ class Side(Enum):
 class FootprintCanopy:
     """Relative canopy footprint class."""
 
-    def __init__(self, in_geom, in_chm, in_layer=None):
-        data = gpd.read_file(in_geom, layer=in_layer)
+    def __init__(self, in_geom, in_chm):
+        in_file, in_layer = sp_common.decode_file_layer(in_geom)
+        data = gpd.read_file(in_file, layer=in_layer)
         self.lines = []
 
         for idx in data.index:
             line = LineInfo(data.iloc[[idx]], in_chm)
             self.lines.append(line)
 
-    def compute(self, processes, parallel_mode=bt_const.ParallelMode.MULTIPROCESSING):
+    def compute(self, processes):
         result = bt_base.execute_multiprocessing(
             algo_common.process_single_item,
             self.lines,
             "Canopy Footprint",
             processes,
-            parallel_mode,
         )
 
         fp = []
@@ -446,10 +445,6 @@ class LineInfo:
 
     def dyn_canopy_cost_raster(self, side):
         in_chm_raster = self.in_chm
-        # tree_radius = self.tree_radius
-        # max_line_dist = self.max_line_dist
-        # canopy_avoid = self.canopy_avoidance
-        # exponent = self.exponent
         line_df = self.line
         out_meta = self.out_meta
 
@@ -473,12 +468,6 @@ class LineInfo:
         canopy_ht_threshold = float(canopy_ht_threshold)
         if canopy_ht_threshold <= 0:
             canopy_ht_threshold = 0.5
-
-        # get the round up integer number for tree search radius
-        # tree_radius = float(tree_radius)
-        # max_line_dist = float(max_line_dist)
-        # canopy_avoid = float(canopy_avoid)
-        # cost_raster_exponent = float(exponent)
 
         try:
             clipped_rasterC, out_meta = sp_common.clip_raster(in_chm_raster, line_buffer, 0)
@@ -625,74 +614,3 @@ class LineInfo:
             return None
 
 
-def line_footprint_rel(
-    in_line,
-    in_chm,
-    out_footprint,
-    processes,
-    verbose=True,
-    in_layer=None,
-    out_layer=None,
-    max_ln_width=32,
-    tree_radius=1.5,
-    max_line_dist=1.5,
-    canopy_avoidance=0.0,
-    exponent=1.0,
-    canopy_thresh_percentage=50,
-    parallel_mode=bt_const.ParallelMode.MULTIPROCESSING,
-):
-    """Safe version of relative canopy footprint tool."""
-    try:
-        footprint = FootprintCanopy(in_line, in_chm, in_layer=in_layer)
-    except Exception as e:
-        print(f"Failed to initialize FootprintCanopy: {e}")
-        return
-
-    try:
-        footprint.compute(processes, parallel_mode)
-    except Exception as e:
-        print(f"Error in compute(): {e}")
-        import traceback
-
-        traceback.print_exc()
-        return
-
-    # Save only if footprints were actually generated
-    if (
-        hasattr(footprint, "footprints")
-        and footprint.footprints is not None
-        and hasattr(footprint.footprints, "empty")
-        and not footprint.footprints.empty
-    ):
-        try:
-            footprint.save_footprint(out_footprint, out_layer)
-            if verbose:
-                print(f"Footprint saved to {out_footprint} layer={out_layer}")
-        except Exception as e:
-            print(f"Failed to save footprint: {e}")
-    else:
-        print("No valid footprints to save.")
-
-    # Optionally save percentile lines (if needed)
-    if (
-        hasattr(footprint, "lines_percentile")
-        and footprint.lines_percentile is not None
-        and hasattr(footprint.lines_percentile, "empty")
-        and not footprint.lines_percentile.empty
-    ):
-        out_percentile = out_footprint.replace("footprint", "line_percentile")
-        try:
-            footprint.save_line_percentile(out_percentile)
-            if verbose:
-                print(f"Line percentile saved to {out_percentile}")
-        except Exception as e:
-            print(f"Failed to save line percentile: {e}")
-
-
-if __name__ == "__main__":
-    """This part is to be another version of relative canopy footprint tool."""
-    in_args, in_verbose = sp_common.check_arguments()
-    start_time = time.time()
-    line_footprint_rel(**in_args.input, processes=int(in_args.processes), verbose=in_verbose)
-
-    print("Elapsed time: {}".format(time.time() - start_time))

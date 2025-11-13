@@ -30,6 +30,9 @@
 #
 # ---------------------------------------------------------------------------
 import sys
+import json
+import time
+import argparse
 from pathlib import Path
 from inspect import getsourcefile
 
@@ -40,6 +43,7 @@ if __name__ == "__main__":
 
 from beratools.core.line_footprint_functions import *
 from beratools.core.canopy_threshold_relative import *
+from beratools.utility.tool_args import CallMode
 
 if __name__ == "__main__":
     start_time = time.time()
@@ -48,8 +52,13 @@ if __name__ == "__main__":
 
     parser = argparse.ArgumentParser()
     parser.add_argument("-i", "--input", type=json.loads)
-    parser.add_argument("-p", "--processes")
-    parser.add_argument("-v", "--verbose")
+    # parser.add_argument("-p", "--processes")
+    # parser.add_argument("-v", "--verbose")
+
+    parser.add_argument("-c", "--call_mode", default=CallMode.CLI.value)
+    parser.add_argument("-p", "--processes", type=int, default=1)
+    parser.add_argument("-l", "--log_level", default="INFO")
+
     args = parser.parse_args()
     args.input["full_step"] = True
     del args.input["out_footprint"]
@@ -57,7 +66,7 @@ if __name__ == "__main__":
     del args.input["exp_shk_cell"]
     del args.input["max_ln_width"]
 
-    verbose = True if args.verbose == "True" else False
+    verbose = True if args.call_mode == CallMode.GUI.value else False
     dy_cl_line = main_canopy_threshold_relative(
         print, **args.input, processes=int(args.processes), verbose=verbose
     )
@@ -66,7 +75,7 @@ if __name__ == "__main__":
     args.input["in_line"] = dy_cl_line
     del args.input["off_ln_dist"]
     del args.input["canopy_percentile"]
-    verbose = True if args.verbose == "True" else False
+    verbose = True if args.call_mode == CallMode.GUI.value else False
     main_line_footprint_relative(print, **args.input, processes=int(args.processes), verbose=verbose)
 
     print("%{}".format(100))

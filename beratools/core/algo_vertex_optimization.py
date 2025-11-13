@@ -298,22 +298,17 @@ class VertexGrouping:
         in_raster,
         search_distance,
         line_radius,
-        out_line,
         processes,
-        verbose,
-        in_layer=None,
-        out_layer=None,
+        call_mode,
+        layer=None,
     ):
         self.in_line = in_line
+        self.in_layer = layer
         self.in_raster = in_raster
         self.line_radius = float(line_radius)
         self.search_distance = float(search_distance)
-        self.out_line = out_line
         self.processes = processes
-        self.verbose = verbose
-        self.parallel_mode = bt_const.PARALLEL_MODE
-        self.in_layer = in_layer
-        self.out_layer = out_layer
+        self.call_mode = call_mode
 
         self.crs = None
         self.vertex_grp = []
@@ -324,9 +319,6 @@ class VertexGrouping:
 
         # calculate cost raster footprint
         self.cost_footprint = algo_common.generate_raster_footprint(self.in_raster, latlon=False)
-
-    def set_parallel_mode(self, parallel_mode):
-        self.parallel_mode = parallel_mode
 
     def create_vertex_group(self, line_obj):
         """
@@ -366,6 +358,9 @@ class VertexGrouping:
         self.vertex_grp.append(vertex_obj)
 
     def create_all_vertex_groups(self):
+        print(f"Preparing lines...{self.in_line}", flush=True)
+        print("create_all_vertex_groups")
+        print(f"in_file: {self.in_line}, in_layer: {self.in_layer}")
         self.line_list = algo_common.prepare_lines_gdf(self.in_line, layer=self.in_layer, proc_segments=True)
         self.sindex = STRtree([item.geometry[0] for item in self.line_list])
         self.line_visited = [{0: False, -1: False} for _ in range(len(self.line_list))]
@@ -406,9 +401,10 @@ class VertexGrouping:
                 ]
 
     def save_all_layers(self, line_file):
+        out_file, out_layer = sp_common.decode_file_layer(line_file)
         line_file = Path(line_file)
         lines = pd.concat(self.line_list)
-        lines.to_file(line_file, layer=self.out_layer)
+        lines.to_file(out_file, layer=out_layer)
         print(f"Saved output to: {line_file}", flush=True)
 
         aux_file = line_file
@@ -446,8 +442,7 @@ class VertexGrouping:
             self.vertex_grp,
             "Vertex Optimization",
             self.processes,
-            bt_const.PARALLEL_MODE.MULTIPROCESSING,
-            verbose=self.verbose,
+            self.call_mode,
         )
 
         self.vertex_grp = vertex_grp
