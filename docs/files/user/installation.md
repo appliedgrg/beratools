@@ -1,6 +1,6 @@
-# Installation
+# Advanced Installation
 
-Welcome to **BERA Tools**! This guide will help you install the package and get started quickly.
+Welcome to **BERA Tools**! This guide will give you advanced installation options and configurations.
 
 ## Prerequisites
 
@@ -44,7 +44,7 @@ This will start the main GUI.
 
 ## Update BERA Tools
 
-Run the follwing commands to update BERA Tools.
+Run the following commands to update BERA Tools.
 
 === "conda"
 

@@ -2,7 +2,10 @@ name: Publish to PyPI Test
 
 on:
   pull_request:
-    branches: [main]
+    branches: 
+      - main
+    paths:
+      - 'beratools/**'
 
 jobs:
   testpypi:
