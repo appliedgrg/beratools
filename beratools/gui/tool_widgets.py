@@ -91,10 +91,21 @@ class ToolWidgets(QtWidgets.QWidget):
                 widget = BooleanInput(json_str)
                 param_num = param_num + 1
             elif "OptionList" in pt:
-                widget = OptionsInput(json_str)
+                option_list = p["parameter_type"].get("OptionList", [])
+                # Check if OptionList contains only boolean values (handle both string and bool types)
+                is_bool_list = (
+                    option_list == ["True", "False"] or 
+                    option_list == ["true", "false"] or 
+                    option_list == [True, False] or 
+                    option_list == [False, True]
+                )
+                if is_bool_list:
+                    widget = BooleanInput(json_str)
+                else:
+                    widget = OptionsInput(json_str)
                 param_num = param_num + 1
             elif "float" in pt or "int" in pt:
-                widget = DataInput(json_str)
+                widget = NumericInput(json_str)
                 param_num = param_num + 1
             else:
                 msg_box = QtWidgets.QMessageBox()
@@ -573,6 +584,14 @@ class FileSelector(QtWidgets.QWidget):
         if self.is_vector:
             path = self.value.get("path", "")
             layer = self.value.get("layer", "")
+            # If no layer selected but combo has items, use first layer
+            if not layer and self.layer_combo.count() > 0:
+                first_layer = self.layer_combo.itemText(0)
+                # Remove geometry type if present
+                if "(" in first_layer:
+                    first_layer = first_layer.split(" (")[0]
+                self.value["layer"] = first_layer
+                layer = first_layer
             if self.output:
                 # Output: always encode path|layer
                 encoded_value = f"{path}|{layer}" if layer else path
@@ -651,65 +670,52 @@ class OptionsInput(QtWidgets.QWidget):
         return {self.variable: self.value}
 
 
-class DataInput(QtWidgets.QWidget):
-    """DataInput class for creating data input widgets."""
+class NumericInput(QtWidgets.QWidget):
+    """NumericInput class for creating numeric input widgets (int and float)."""
 
     def __init__(self, json_str, parent=None):
-        super(DataInput, self).__init__(parent)
-
-        # first make sure that the json data has the correct fields
+        super(NumericInput, self).__init__(parent)
         params = json.loads(json_str)
         self.name = params["name"]
         self.description = params["description"]
         self.variable = params["variable"]
         self.parameter_type = params["parameter_type"]
         self.optional = params["optional"]
-
         self.default_value = params["default_value"]
         self.value = self.default_value
         if "saved_value" in params.keys():
             self.value = params["saved_value"]
-
         self.label = QtWidgets.QLabel(self.name)
         self.label.setMinimumWidth(BT_LABEL_MIN_WIDTH)
         self.data_input = None
-
-        # Support raw subtypes as list
         subtypes = []
         if isinstance(self.parameter_type, list):
             subtypes = self.parameter_type
         elif isinstance(self.parameter_type, str):
             subtypes = [self.parameter_type]
         elif isinstance(self.parameter_type, dict):
-            # For OptionList, ExistingFile, etc.
             for v in self.parameter_type.values():
                 if isinstance(v, list):
                     subtypes.extend(v)
                 else:
                     subtypes.append(v)
-
-        # Use first subtype for widget selection
         main_subtype = subtypes[0] if subtypes else None
-
         if main_subtype == "int":
             self.data_input = QtWidgets.QSpinBox()
         elif main_subtype == "float":
             self.data_input = QtWidgets.QDoubleSpinBox()
-        elif main_subtype == "bool":
-            self.data_input = QtWidgets.QCheckBox()
-            self.data_input.setChecked(bool(self.value))
-            self.data_input.stateChanged.connect(self.update_value)
         else:
             if main_subtype is not None:
                 raise ValueError(f"Unsupported parameter type: {main_subtype}")
-
         if self.data_input and main_subtype in ("int", "float"):
-            if main_subtype == "int":
-                self.data_input.setValue(int(self.value))
-            elif main_subtype == "float":
-                self.data_input.setValue(float(self.value))
+            try:
+                if main_subtype == "int":
+                    self.data_input.setValue(int(self.value))
+                elif main_subtype == "float":
+                    self.data_input.setValue(float(self.value))
+            except (ValueError, TypeError):
+                self.data_input.setValue(0)
             self.data_input.valueChanged.connect(self.update_value)
-
         self.layout = QtWidgets.QHBoxLayout()
         self.layout.addWidget(self.label)
         self.layout.addWidget(self.data_input)
@@ -717,10 +723,7 @@ class DataInput(QtWidgets.QWidget):
 
     def update_value(self):
         if self.data_input is not None:
-            if isinstance(self.data_input, QtWidgets.QCheckBox):
-                self.value = self.data_input.isChecked()
-            else:
-                self.value = self.data_input.value()
+            self.value = self.data_input.value()
 
     def get_value(self):
         v = self.value
@@ -729,9 +732,8 @@ class DataInput(QtWidgets.QWidget):
                 value = int(self.value)
             elif "float" in self.parameter_type:
                 value = float(self.value)
-            else:  # Text
+            else:
                 value = self.value
-
             return {self.variable: value}
         else:
             if not self.optional:
@@ -739,7 +741,6 @@ class DataInput(QtWidgets.QWidget):
                 msg_box.setIcon(QtWidgets.QMessageBox.Warning)
                 msg_box.setText("Unknown non-optional parameter {}.".format(self.variable))
                 msg_box.exec()
-
         return None
 
     def set_value(self, value):
@@ -751,6 +752,80 @@ class DataInput(QtWidgets.QWidget):
         if self.data_input:
             self.data_input.setValue(self.default_value)
             self.update_value()
+
+
+class BooleanInput(QtWidgets.QWidget):
+    """BooleanInput class for creating boolean checkbox widgets."""
+
+    def __init__(self, json_str, parent=None):
+        super(BooleanInput, self).__init__(parent)
+        params = json.loads(json_str)
+        self.name = params["name"]
+        self.description = params["description"]
+        self.variable = params["variable"]
+        self.parameter_type = params["parameter_type"]
+        self.optional = params["optional"]
+        self.default_value = params["default_value"]
+        # Detect if this is pure Boolean or OptionList boolean
+        self._detect_boolean_source(params)
+        self.value = self._convert_to_bool(self.default_value)
+        if "saved_value" in params.keys():
+            self.value = self._convert_to_bool(params["saved_value"])
+        self.checkbox = QtWidgets.QCheckBox(f"{self.name} - {self.description}")
+        self.checkbox.setChecked(self.value)
+        self.checkbox.stateChanged.connect(self.update_value)
+        self.label = self.checkbox  # Reference checkbox as label for styling
+        self.layout = QtWidgets.QHBoxLayout()
+        self.layout.addWidget(self.checkbox)
+        self.layout.addStretch()
+        self.setLayout(self.layout)
+
+    def _detect_boolean_source(self, params):
+        """Determine if this is pure Boolean or OptionList boolean."""
+        pt = params["parameter_type"]
+        
+        if isinstance(pt, str) and pt == "Boolean":
+            self.is_option_list = False
+        elif isinstance(pt, dict) and "OptionList" in pt:
+            option_list = pt["OptionList"]
+            # Check if it's a boolean list (handle both string and bool types)
+            is_bool_list = (
+                option_list == ["True", "False"] or 
+                option_list == ["true", "false"] or 
+                option_list == [True, False] or 
+                option_list == [False, True]
+            )
+            if is_bool_list:
+                self.is_option_list = True
+            else:
+                raise ValueError("OptionList is not boolean, use OptionsInput instead")
+        else:
+            raise ValueError(f"Unsupported parameter type for BooleanInput: {pt}")
+
+    def _convert_to_bool(self, value):
+        """Convert various value types to boolean."""
+        if isinstance(value, bool):
+            return value
+        if isinstance(value, str):
+            return value.lower() in ("true", "1", "yes", "on")
+        if isinstance(value, (int, float)):
+            return bool(value)
+        return False
+
+    def update_value(self):
+        self.value = self.checkbox.isChecked()
+
+    def set_value(self, value):
+        """Set checkbox state from various value types."""
+        self.value = self._convert_to_bool(value)
+        self.checkbox.setChecked(self.value)
+
+    def get_value(self):
+        return {self.variable: self.checkbox.isChecked()}
+
+    def set_default_value(self):
+        self.value = self._convert_to_bool(self.default_value)
+        self.checkbox.setChecked(self.value)
 
 
 class DoubleSlider(QtWidgets.QSlider):
