@@ -135,7 +135,7 @@
             {
               "variable": "proc_segments",
               "label": "Process Segments",
-              "description": "If set to True, will process each segment between each vertex of the input lines separately. If set to False, will process each line from start to end ignoring midpoints. The default is True, since it is assumed that the input lines for this tool are lines manually digitized at regional-scale with sparse vertices at a fine-scale. If using fine-scale (1:1,000) lines as input this may be set to False.",
+              "description": "Process each segment between vertices separately",
               "type": "list",
               "subtype": "bool",
               "data": [true, false],
@@ -417,7 +417,7 @@
             {
               "variable": "max_width",
               "label": "Use maximum width",
-              "description": "Use maximum width",
+              "description": "Use maximum sampled width for footprint.",
               "type": "list",
               "subtype": "bool",
               "data": [true, false],
