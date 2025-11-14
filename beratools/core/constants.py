@@ -48,7 +48,4 @@ class ParallelMode(enum.IntEnum):
     CONCURRENT = 3
     DASK = 4
     SLURM = 5
-    # RAY = 6
 
-
-PARALLEL_MODE = ParallelMode.MULTIPROCESSING

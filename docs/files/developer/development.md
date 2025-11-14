@@ -45,7 +45,6 @@ Pixi is the easiest way to set up a consistent development environment for BERA 
 
     ```bash
     pixi shell
-    pip install -e .  # Install your local code in editable mode
     ```
 
 1. **Update the environment**

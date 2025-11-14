@@ -199,12 +199,12 @@ class VertexNode:
 
         if not internal_line:
             # print("No line is retrieved")
-            return
+            return None
         return internal_line.end_transect()
 
     def _trim_polygon(self, poly, trim_transect):
         if not poly or not trim_transect:
-            return
+            return None
 
         split_poly = shapely.ops.split(poly, trim_transect)
 
@@ -218,7 +218,7 @@ class VertexNode:
                 none_poly = True
 
         if none_poly:
-            return
+            return None
 
         # only two polygons in split_poly
         if split_poly.geoms[0].area > split_poly.geoms[1].area:
@@ -248,7 +248,7 @@ class VertexNode:
     def trim_end(self, poly):
         transect = self.get_trim_transect(poly, self.line_not_connected)
         if not transect:
-            return
+            return None
 
         poly = self._trim_polygon(poly, transect)
         return poly
@@ -262,6 +262,7 @@ class VertexNode:
             index += len(coords)
         if 0 <= index < len(coords):
             return sh_geom.Point(coords[index])
+        return None
 
     @staticmethod
     def get_neighbor(line_obj):
@@ -378,7 +379,7 @@ class VertexNode:
 
         """
         if len(self.line_connected) == 0:
-            return
+            return None
 
         new_polys = []
         line = self.line_connected[0]
@@ -584,6 +585,7 @@ class VertexNode:
             angle_diff = abs(new_angles[0] - new_angles[1])
             angle_diff = angle_diff if angle_diff <= np.pi else angle_diff - np.pi
 
+            # TODO: check if need to connect when turn angle < TURN_ANGLE_TOLERANCE
             # if angle_diff >= TURN_ANGLE_TOLERANCE:
             self.line_connected.append(
                 (

@@ -22,6 +22,7 @@ import pandas as pd
 from tqdm.auto import tqdm
 
 import beratools.core.constants as bt_const
+from beratools.utility.tool_args import CallMode, determine_cpu_core_limit
 
 warnings.simplefilter(action="ignore", category=FutureWarning)
 
@@ -59,17 +60,28 @@ def print_msg(app_name, step, total_steps):
     print(f" %{step / total_steps * 100} ", flush=True)
 
 
+def parallel_mode(processes):
+    if processes <= 0:
+        processes = determine_cpu_core_limit()
+
+    if processes == 1:
+        return bt_const.ParallelMode.SEQUENTIAL, processes
+    else:
+        return bt_const.ParallelMode.MULTIPROCESSING, processes
+
+
 def execute_multiprocessing(
     in_func,
     in_data,
     app_name,
-    processes,
-    mode=bt_const.PARALLEL_MODE,
-    verbose=False,
+    processes=0,
+    call_mode=CallMode.CLI,
 ):
     out_result = []
     step = 0
     total_steps = len(in_data)
+    mode, processes = parallel_mode(processes)
+    verbose = True if call_mode == CallMode.GUI else False
 
     try:
         if mode == bt_const.ParallelMode.MULTIPROCESSING:
