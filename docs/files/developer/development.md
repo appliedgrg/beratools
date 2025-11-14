@@ -24,10 +24,6 @@ A manual conda environment setup for local development (without using environmen
 
 This approach avoids installing the released beratools package and uses only the dependencies listed in [`environment.yml`](../../../../environment.yml:8).
 
----
-**Note:**
-If you use `environment.yml`, conda will install the released `beratools` package from the channel, not your local code.
-
 ### Using Pixi
 
 Pixi is the easiest way to set up a consistent development environment for BERA Tools. The configuration is defined in [`pixi.toml`](https://github.com/appliedgrg/beratools/blob/main/pixi.toml).
@@ -70,6 +66,74 @@ Activate your conda or pixi environment, then run:
    ```
 
 The editable mode (`-e`) allows you to make changes to the source code and have them reflected immediately without needing to reinstall the package.
+
+## GitHub Flow
+
+We use a [GitHub Flow](https://docs.github.com/en/get-started/quickstart/github-flow) for development. All changes are made through feature branches and pull requests.
+
+### Git flow (Mermaid)
+
+```mermaid
+flowchart TB
+    main[main branch]
+    feature["feature/my-new-feature <br/> (feature branch)"]
+    pr[Pull Request]
+    review[Review & CI]
+    merged[Merge into main]
+    deleted[Delete feature branch]
+
+    main -->|create branch| feature
+    feature -->|push changes & open PR| pr
+    pr --> review
+    review -->|approved| merged
+    merged --> main
+    merged --> deleted
+```
+
+1. Create a new branch for your feature or bugfix:
+
+   ```bash
+   git checkout -b feature/my-new-feature
+   ```
+
+1. Make your changes and commit them with descriptive messages:
+
+   ```bash
+   git add .
+   git commit -m "Add new feature X"
+   ```
+
+1. Push your branch to the remote repository:
+
+   ```bash
+   git push origin feature/my-new-feature
+   ```
+
+1. Open a pull request on GitHub and request reviews from team members.
+1. Once approved, merge your changes into the main branch.
+1. Delete your feature branch after merging.
+1. Keep your local main branch up to date:
+
+   ```bash
+   git checkout main
+   git pull origin main
+   ```
+
+## Branch Naming Conventions
+
+- Use descriptive names for branches, prefixed by the type of work being done:
+    - `feature/` for new features
+    - `bugfix/` for bug fixes
+    - `doc/` for documentation changes
+    - `refactor/` for code refactoring
+- Use hyphens to separate words (e.g., `feature/add-user-authentication`).
+- Keep branch names concise yet descriptive.
+- Avoid using special characters or spaces in branch names.
+- Example branch names:
+    - `feature/improve-performance`
+    - `bugfix/fix-login-issue`
+    - `doc/update-readme`
+    - `refactor/optimize-database-queries`
 
 ## pyproject.toml
 
