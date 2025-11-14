@@ -4,11 +4,33 @@ This document provides guidelines and instructions for setting up a local develo
 
 ## Local Development Setup
 
+### Using Conda
+
+A manual conda environment setup for local development (without using environment.yml) can be done as follows:
+
+1. Create a new environment:
+
+   ```bash
+   conda create -n bera python=3.11 -y
+   conda activate bera
+   ```
+
+1. Install dependencies individually:
+
+   ```bash
+   conda install -c appliedgrg bera_centerlines
+   conda install -c conda-forge dask gdal=3.9.3 geopandas pyogrio>=0.9.0 pyqt rasterio scikit-image>=0.24.0 tqdm xarray-spatial
+   ```
+
+This approach avoids installing the released beratools package and uses only the dependencies listed in [`environment.yml`](../../../../environment.yml:8).
+
+---
+**Note:**
+If you use `environment.yml`, conda will install the released `beratools` package from the channel, not your local code.
+
 ### Using Pixi
 
 Pixi is the easiest way to set up a consistent development environment for BERA Tools. The configuration is defined in [`pixi.toml`](https://github.com/appliedgrg/beratools/blob/main/pixi.toml).
-
-#### Setup Instructions
 
 1. **Install pixi**
 
@@ -36,37 +58,18 @@ Pixi is the easiest way to set up a consistent development environment for BERA 
 
     For more details, review the dependencies and tasks in [`pixi.toml`](../../../../pixi.toml:1).
 
-### Using Conda
+### Install local code in editable mode
 
-A manual conda environment setup for local development (without using environment.yml) can be done as follows:
-
-1. Create a new environment:
+Activate your conda or pixi environment, then run:
 
    ```bash
-   conda create -n bera python=3.11 -y
-   conda activate bera
+    > git clone https://github.com/appliedgrg/beratools.git
+    > cd beratools
+    > pip install -e .
+    > beratools  # This should start main GUI
    ```
 
-1. Install dependencies individually:
-
-   ```bash
-   conda install -c appliedgrg bera_centerlines
-   conda install -c conda-forge dask gdal=3.9.3 geopandas pyogrio>=0.9.0 pyqt rasterio scikit-image>=0.24.0 tqdm xarray-spatial
-   ```
-
-1. Install your local code in editable mode:
-
-   ```bash
-    git clone https://github.com/appliedgrg/beratools.git
-    cd beratools
-    pip install -e .
-   ```
-
-This approach avoids installing the released beratools package and uses only the dependencies listed in [`environment.yml`](../../../../environment.yml:8), but installs them step-by-step.
-
----
-**Note:**
-If you use `environment.yml`, conda will install the released `beratools` package from the channel, not your local code.
+The editable mode (`-e`) allows you to make changes to the source code and have them reflected immediately without needing to reinstall the package.
 
 ## pyproject.toml
 
