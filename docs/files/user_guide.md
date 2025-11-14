@@ -1,23 +1,23 @@
 # Quick Start
 
-BERA Tools provide a light weight GUI to use tools.
-
-![Main GUI](screenshots/bt_gui.png)
-
-
-
-Run the command in MiniConda/Anaconda Prompt to start BERA Tools main gui.
+Make sure [beratools is installed](user/installation.md). Run the command in MiniConda/Anaconda Prompt to start BERA Tools main gui.
 
 ``` bash
-$ conda activate bera
-$ beratools 
+> conda activate bera
+> beratools 
 ```
 
 ## Example Data
 
+Start working with BERA Tools using example data.
+
 [Download latest example data](https://github.com/appliedgrg/beratools/releases/latest/download/test_data.zip)
 
 ## Main GUI
+
+BERA Tools provide a light weight GUI to use tools.
+
+![Main GUI](screenshots/bt_gui.png)
 
 The BERA Tools main GUI consists of the following components:
 
@@ -48,3 +48,16 @@ graph TD
     click D2 "../user/line_footprint_rel" "Canopy Footprint Relative"
     click E "../user/ground_footprint" "Ground Footprint"
 ```
+
+## Data Preparation
+
+BERA Tools start with two main types of input data:
+
+- **CHM** (GeoTIFF).
+- **Seed Lines** (polylines): rough centerlines of seismic lines, which helps to detect accurate centerline.
+
+Ensure your input data meets the following criteria:
+
+- **Vector Format**: Supported vector formats include GeoPackage (.gpkg), Shapefile (.shp).
+- **Raster Format**: Supported raster formats include GeoTIFF (.tif).
+- **Coordinate System**: Data should be in a projected coordinate system (e.g., UTM) for accurate distance measurements.

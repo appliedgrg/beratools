@@ -36,5 +36,5 @@ linear disturbances in forests.
 | [Vertex Optimization](user/vertex_optimization.md) | Optimizes line vertices using raster data for improved delineation. |
 | [Centerline](user/centerline.md) | Generates centerlines from input lines and raster data. |
 | [Line Footprint (Absolute)](user/canopy_footprint_abs.md) | Generates line footprints based on absolute canopy thresholds. |
-| [Line Footprint (Relative)](user/line_footprint_rel.md) | Creates dynamic line footprints using least-cost corridor and relative thresholds. |
+| [Line Footprint (Relative)](user/canopy_footprint_rel.md) | Creates dynamic line footprints using least-cost corridor and relative thresholds. |
 | [Line Footprint (Fixed Width)](user/ground_footprint.md) | Computes fixed-width line footprints and associated statistics. |

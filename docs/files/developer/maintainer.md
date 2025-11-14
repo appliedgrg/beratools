@@ -22,7 +22,6 @@ branch protection rules help us enforce certain workflows in our repository. We 
 - Prevent force pushes and branch deletion (restrict to admins)
 - Limit merge types (e.g., enable only squash merges to keep history clean)
 
-
 ## Actions
 
 GitHub Actions allow you to automate workflows directly in our repository.

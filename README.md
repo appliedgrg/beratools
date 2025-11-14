@@ -22,10 +22,10 @@ Installation Steps:
 - Install Miniconda. Download Miniconda from [Miniconda](https://docs.anaconda.com/miniconda/) and install on your machine.
 - Download the file [environment.yml](https://raw.githubusercontent.com/appliedgrg/beratools/main/environment.yml
 ) and save to local storage. Launch **Anaconda Prompt** and change directory to where environment.yml is saved.
-- Run the following command to create a new environment. **BERA Tools** will be installed in the new environment at the same time. 
+- Run the following command to create a new environment named **bera**. **BERA Tools** will be installed in the new environment at the same time.
 
    ```bash
-   > conda env create -f environment.yml
+   > conda env create -n bera -f environment.yml
    ```
 
    Wait until the installation is done.
