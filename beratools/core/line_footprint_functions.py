@@ -474,7 +474,6 @@ def process_single_line_relative(segment):
         print("Cost raster empty")
 
     in_meta = segment[3]
-    max_line_dist = segment[4]
     no_data = segment[5]
     line_id = segment[6]
     Cut_Dist = segment[7]
@@ -662,11 +661,6 @@ def main_line_footprint_relative(
 ):
     # use_corridor_th_col = True
     line_seg = GeoDataFrame.from_file(in_line)
-    # if line_seg.empty:
-    #     print("[Error] : Empty Line.")
-    #     exit()
-    # else:
-    #     print("[Info] : Lines exist.")
 
     # If Dynamic canopy threshold column not found, create one
     if "DynCanTh" not in line_seg.columns.array:
@@ -886,17 +880,3 @@ def main_line_footprint_relative(
             poly_gpd.to_file(path)
 
     print("{}%".format(100))
-
-
-# if __name__ == "__main__":
-#     start_time = time.time()
-#     print("Dynamic Footprint processing started")
-#     print("Current time: {}".format(time.strftime("%d %b %Y %H:%M:%S", time.localtime())))
-#
-#     in_args, in_verbose = check_arguments()
-#     main_line_footprint_relative(**in_args.input, processes=int(in_args.processes), verbose=in_verbose)
-#
-#     print("{}%".format(100))
-#     print("Dynamic Footprint processing finished")
-#     print("Current time: {}".format(time.strftime("%d %b %Y %H:%M:%S", time.localtime())))
-#     print("Total processing time (seconds): {}".format(round(time.time() - start_time, 3)))

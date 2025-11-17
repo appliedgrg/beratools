@@ -492,7 +492,7 @@ def multiprocessing_copyparallel_lineLRC(dfL, dfR, dfc, processes, left_dis, rig
 
     except OperationCancelledException:
         print("Operation cancelled")
-
+        return None
 
 def multiprocessing_Percentile(df:gpd.GeoDataFrame,
                                CanPercentile:int,
@@ -505,22 +505,12 @@ def multiprocessing_Percentile(df:gpd.GeoDataFrame,
         total_steps = len(df)
         cal_percentile = cal_percentileRing
         which_side = side
-        # if side == "left":
-        #     PerCol = "Percentile_L"
-        #     which_side = "left"
-        #     cal_percentile = cal_percentileLR
-        # elif side == "right":
-        #     PerCol = "Percentile_R"
-        #     which_side = "right"
-        #     cal_percentile = cal_percentileLR
         if side == "LRing":
             PerCol = "Percentile_LRing"
-            # cal_percentile = cal_percentileRing
             which_side = "left"
         elif side == "RRing":
             PerCol = "Percentile_RRing"
             which_side = "right"
-            # cal_percentile = cal_percentileRing
 
         print("Calculating surrounding ({}) forest population for buffer area ...".format(which_side))
 
@@ -583,6 +573,7 @@ def multiprocessing_Percentile(df:gpd.GeoDataFrame,
 
     except OperationCancelledException:
         print("Operation cancelled")
+        return None
 
 
 def cal_percentileLR(line_arg):
@@ -746,30 +737,3 @@ def copyparallel_lineLRC(line_arg):
         dfR.loc[line_arg[6], "geometry"] = parallel_lineR
 
     return dfL.iloc[[line_arg[6]]], dfR.iloc[[line_arg[6]]]  # ,dfC.iloc[[line_arg[6]]]
-
-
-# if __name__ == "__main__":
-#     start_time = time.time()
-#     print(
-#         "Starting Dynamic Canopy Threshold calculation processing\n @ {}".format(
-#             time.strftime("%d %b %Y %H:%M:%S", time.localtime())
-#         )
-#     )
-#
-#     parser = argparse.ArgumentParser()
-#     parser.add_argument("-i", "--input", type=json.loads)
-#     parser.add_argument("-p", "--processes")
-#     parser.add_argument("-v", "--verbose")
-#     args = parser.parse_args()
-#     args.input["full_step"] = False
-#
-#     verbose = True if args.verbose == "True" else False
-#     main_canopy_threshold_relative( **args.input, processes=int(args.processes), verbose=verbose)
-#
-#     print("{}%".format(100))
-#     print(
-#         "Finishing Dynamic Canopy Threshold calculation @ {}\n(or in {} second)".format(
-#             time.strftime("%d %b %Y %H:%M:%S", time.localtime()),
-#             round(time.time() - start_time, 5),
-#         )
-#     )

@@ -3,7 +3,6 @@ import time
 
 from utils import check_file_exists
 
-from beratools.core.algo_canopy_footprint_exp import line_footprint_exp
 from beratools.core.canopy_threshold_relative import main_canopy_threshold_relative
 from beratools.core.line_footprint_functions import main_line_footprint_relative
 from beratools.tools.canopy_footprint_absolute import canopy_footprint_abs

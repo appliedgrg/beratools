@@ -52,24 +52,6 @@ if __name__ == "__main__":
     parser.add_argument("-v", "--verbose")
 
     args = parser.parse_args()
-    if debug_mode: ## debug for line_foot
-        args.input={
-        "in_line": "D:/Maverick/py_project/beratools/tests/data/centerline.gpkg",
-        "in_chm": "D:/Maverick/py_project/beratools/tests/data/chm.tif",
-        "max_ln_width": 32.0,
-        "exp_shk_cell": 2,
-        "out_footprint": "D:/Maverick/py_project/beratools/tests/data/rel_footprint.gpkg",
-        "out_centerline": "D:/Maverick/py_project/beratools/tests/data/smoothed_centerline.gpkg",
-        "off_ln_dist": 15.0,
-        "canopy_percentile": 90,
-        "canopy_thresh_percentage": 50.0,
-        "tree_radius": 1.5,
-        "max_line_dist": 1.5,
-        "canopy_avoidance": 1.0,
-        "exponent": 1
-    }
-        args.processes=20
-        args.verbose='True'
     args.input["full_step"] = True
     del args.input["out_footprint"]
     del args.input["out_centerline"]
@@ -91,24 +73,6 @@ if __name__ == "__main__":
     parser.add_argument("-p", "--processes")
     parser.add_argument("-v", "--verbose")
     args = parser.parse_args()
-    if debug_mode:
-        args.input = {
-        "in_line": "D:/Maverick/py_project/beratools/tests/data/centerline.gpkg",
-        "in_chm": "D:/Maverick/py_project/beratools/tests/data/chm.tif",
-        "max_ln_width": 32.0,
-        "exp_shk_cell": 2,
-        "out_footprint": "D:/Maverick/py_project/beratools/tests/data/rel_footprint.gpkg",
-        "out_centerline": "D:/Maverick/py_project/beratools/tests/data/smoothed_centerline.gpkg",
-        "off_ln_dist": 15.0,
-        "canopy_percentile": 90,
-        "canopy_thresh_percentage": 50.0,
-        "tree_radius": 1.5,
-        "max_line_dist": 1.5,
-        "canopy_avoidance": 1.0,
-        "exponent": 1
-        }
-        args.processes = 20
-        args.verbose = 'True'
     args.input["full_step"] = True
     args.input["in_line"] = dy_cl_line.replace("\\","/")
     del args.input["off_ln_dist"]
