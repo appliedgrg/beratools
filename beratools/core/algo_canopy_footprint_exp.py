@@ -10,12 +10,11 @@ Description:
     This script is part of the BERA Tools.
     Webpage: https://github.com/appliedgrg/beratools
 
-    The purpose of this script is to provide main interface for canopy footprint tool.
-    The tool is used to generate the footprint of a line based on relative threshold.
+    The purpose of this script is to provide main interface for experimental canopy footprint tool.
+    The tool is used to generate the canopy footprint of a line based on relative threshold.
 """
 
 import math
-import time
 from enum import Enum
 
 import geopandas as gpd
@@ -31,7 +30,6 @@ import beratools.core.algo_common as algo_common
 import beratools.core.algo_cost as algo_cost
 import beratools.core.constants as bt_const
 import beratools.core.tool_base as bt_base
-import beratools.tools.common as bt_common
 import beratools.utility.spatial_common as sp_common
 
 
@@ -45,21 +43,21 @@ class Side(Enum):
 class FootprintCanopy:
     """Relative canopy footprint class."""
 
-    def __init__(self, in_geom, in_chm, in_layer=None):
-        data = gpd.read_file(in_geom, layer=in_layer)
+    def __init__(self, in_geom, in_chm):
+        in_file, in_layer = sp_common.decode_file_layer(in_geom)
+        data = gpd.read_file(in_file, layer=in_layer)
         self.lines = []
 
         for idx in data.index:
             line = LineInfo(data.iloc[[idx]], in_chm)
             self.lines.append(line)
 
-    def compute(self, processes, parallel_mode=bt_const.ParallelMode.MULTIPROCESSING):
+    def compute(self, processes):
         result = bt_base.execute_multiprocessing(
             algo_common.process_single_item,
             self.lines,
             "Canopy Footprint",
             processes,
-            parallel_mode,
         )
 
         fp = []
@@ -447,10 +445,6 @@ class LineInfo:
 
     def dyn_canopy_cost_raster(self, side):
         in_chm_raster = self.in_chm
-        # tree_radius = self.tree_radius
-        # max_line_dist = self.max_line_dist
-        # canopy_avoid = self.canopy_avoidance
-        # exponent = self.exponent
         line_df = self.line
         out_meta = self.out_meta
 
@@ -475,12 +469,6 @@ class LineInfo:
         if canopy_ht_threshold <= 0:
             canopy_ht_threshold = 0.5
 
-        # get the round up integer number for tree search radius
-        # tree_radius = float(tree_radius)
-        # max_line_dist = float(max_line_dist)
-        # canopy_avoid = float(canopy_avoid)
-        # cost_raster_exponent = float(exponent)
-
         try:
             clipped_rasterC, out_meta = sp_common.clip_raster(in_chm_raster, line_buffer, 0)
             negative_cost_clip, dyn_canopy_ndarray = algo_cost.cost_raster(
@@ -501,13 +489,21 @@ class LineInfo:
 
     def process_single_footprint(self, side):
         # this will change segment content, and parameters will be changed
-        in_canopy_r, in_cost_r, in_meta, Cut_Dist = self.dyn_canopy_cost_raster(side)
+        result = self.dyn_canopy_cost_raster(side)
+        if result is None:
+            return None
+        in_canopy_r, in_cost_r, in_meta, Cut_Dist = result
+
+        if in_canopy_r is None or in_cost_r is None or in_meta is None or Cut_Dist is None:
+            return None
 
         if np.isnan(in_canopy_r).all():
             print("Canopy raster empty")
+            return None
 
         if np.isnan(in_cost_r).all():
             print("Cost raster empty")
+            return None
 
         exp_shk_cell = self.exponent  # TODO: duplicate vars
         no_data = self.nodata
@@ -615,6 +611,7 @@ class LineInfo:
 
         except Exception as e:
             print("Exception: {}".format(e))
+            return None
 
 
 def line_footprint_exp(

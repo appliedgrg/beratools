@@ -69,12 +69,19 @@ class ToolWidgets(QtWidgets.QWidget):
 
     def create_widgets(self, tool_args):
         param_num = 0
+        valid_types = {"number", "file", "list", "text", "directory"}
         for p in tool_args:
+            # Validate parameter type is not a subtype value
+            sub_type = p.get("type", None)
+            if sub_type and sub_type not in valid_types:
+                print(f"Invalid sub type '{sub_type}' for '{p.get('label', '')}'. ")
+                continue
+
             json_str = json.dumps(p, sort_keys=True, indent=2, separators=(",", ": "))
             pt = p["parameter_type"]
             widget = None
 
-            if "ExistingFile" in pt or "NewFile" in pt or "directory" in pt:
+            if "ExistingFile" in pt or "NewFile" in pt or "Directory" in pt:
                 widget = FileSelector(json_str, None)
                 param_num = param_num + 1
             elif "FileList" in pt:
@@ -84,18 +91,21 @@ class ToolWidgets(QtWidgets.QWidget):
                 widget = BooleanInput(json_str)
                 param_num = param_num + 1
             elif "OptionList" in pt:
-                widget = OptionsInput(json_str)
+                option_list = p["parameter_type"].get("OptionList", [])
+                # Check if OptionList contains only boolean values (handle both string and bool types)
+                is_bool_list = (
+                    option_list == ["True", "False"] or 
+                    option_list == ["true", "false"] or 
+                    option_list == [True, False] or 
+                    option_list == [False, True]
+                )
+                if is_bool_list:
+                    widget = BooleanInput(json_str)
+                else:
+                    widget = OptionsInput(json_str)
                 param_num = param_num + 1
-            elif (
-                "Float" in pt
-                or "Integer" in pt
-                or "Text" in pt
-                or "String" in pt
-                or "StringOrNumber" in pt
-                or "StringList" in pt
-                or "VectorAttributeField" in pt
-            ):
-                widget = DataInput(json_str)
+            elif "float" in pt or "int" in pt:
+                widget = NumericInput(json_str)
                 param_num = param_num + 1
             else:
                 msg_box = QtWidgets.QMessageBox()
@@ -110,9 +120,9 @@ class ToolWidgets(QtWidgets.QWidget):
                 param_value = p["default_value"]
             if param_value is not None:
                 if type(widget) is OptionsInput:
-                    widget.value = param_value
+                    widget.set_value(param_value)
                 elif widget:
-                    widget.value = param_value
+                    widget.set_value(param_value)
             else:
                 print("No default value found: {}".format(p["name"]))
 
@@ -131,14 +141,14 @@ class ToolWidgets(QtWidgets.QWidget):
     def update_widgets(self, values_dict):
         for key, value in values_dict.items():
             for item in self.widget_list:
-                if key == item.flag:
+                if key == item.variable:
                     item.set_value(value)
 
     def save_tool_parameters(self):
         params = {}
         for item in self.widget_list:
-            if item.flag:
-                params[item.flag] = item.get_value()
+            if item.variable:
+                params[item.variable] = item.get_value()
 
         self.signal_save_tool_params.emit(params)
 
@@ -172,280 +182,360 @@ def get_layers(gpkg_file):
 class FileSelector(QtWidgets.QWidget):
     """FileSelector class for creating file selection widgets."""
 
+    VECTOR_FORMATS = {"gpkg": ["vector"], "shp": ["vector"]}
+
+    @staticmethod
+    def has_vector_subtype(param_type):
+        if isinstance(param_type, dict):
+            for v in param_type.values():
+                if isinstance(v, list) and "vector" in v:
+                    return True
+        return False
+
     def __init__(self, json_str, parent=None):
         super(FileSelector, self).__init__(parent)
+        self.selected_layer = ""
+        self.parse_params(json_str)
+        self.initialize_values()
+        self.handle_vector_io()
+        self.setup_ui()
 
-        # Parsing the JSON data
+    def parse_params(self, json_str):
         params = json.loads(json_str)
         self.name = params["name"]
         self.description = params["description"]
-        self.flag = params["flag"]
-        self.layer_flag = None
-        self.saved_layer = ""
-        if "layer" in params.keys():
-            self.layer_flag = params["layer"]["layer_name"]
-            self.saved_layer = params["layer"]["layer_value"]
-
+        self.variable = params["variable"]
         self.gpkg_layers = None
-        self.output = params["output"]  # Ensure output flag is read
+        self.output = params["output"]
         self.parameter_type = params["parameter_type"]
+
         self.file_type = ""
         if "ExistingFile" in self.parameter_type:
             self.file_type = params["parameter_type"]["ExistingFile"]
         elif "NewFile" in self.parameter_type:
             self.file_type = params["parameter_type"]["NewFile"]
+
+        if isinstance(self.file_type, str):
+            self.file_type = [self.file_type]
+        elif not isinstance(self.file_type, list):
+            self.file_type = list(self.file_type)
+
         self.optional = params["optional"]
-
         self.default_value = params["default_value"]
-        self.value = self.default_value
-        self.selected_layer = None  # Add attribute for selected layer
-        if "saved_value" in params.keys():
-            self.value = params["saved_value"]
+        self.saved_value = params.get("saved_value", None)
+        self.is_vector = self.has_vector_subtype(self.parameter_type)
 
+    def initialize_values(self):
+        # Use dict for vector values
+        if self.is_vector:
+            val = self.saved_value if self.saved_value is not None else self.default_value
+            # Handle case where saved_value is already a dict (from previous saves)
+            if isinstance(val, dict):
+                self.value = val
+            elif val and isinstance(val, str) and "|" in val:
+                path, layer = val.rsplit("|", 1)
+                self.value = {"path": path, "layer": layer}
+            else:
+                self.value = {"path": val if val else "", "layer": ""}
+        else:
+            self.value = self.saved_value if self.saved_value is not None else self.default_value
+
+    def handle_vector_io(self):
+        if not self.is_vector:
+            return
+        path = self.value["path"]
+        layer = self.value["layer"]
+        ext = Path(path).suffix.lower().replace(".", "")
+        if ext not in self.VECTOR_FORMATS:
+            return
+        gpkg_path = Path(path)
+        dir_exists = gpkg_path.parent.exists()
+        file_exists = gpkg_path.exists()
+        if self.output:
+            # Output: preserve path/layer even if file doesn't exist
+            pass
+        else:
+            # Input: validate file/directory existence
+            if not file_exists:
+                self.value = {"path": "", "layer": ""}
+                print(f"[Error] Invalid Input: File does not exist: {path}")
+                return
+            elif not dir_exists:
+                self.value = {"path": "", "layer": ""}
+                print(f"[Error] Invalid Input: Directory does not exist for file: {path}")
+                return
+            else:
+                try:
+                    layers_dict = get_layers(path)
+                    if layer:
+                        valid_layers = [str(k) for k in layers_dict.keys()]
+                        if layer not in valid_layers:
+                            self.value = {"path": "", "layer": ""}
+                            print(f"[Error] Invalid Layer: Layer '{layer}' not found in file: {path}")
+                except Exception:
+                    self.value = {"path": "", "layer": ""}
+                    print(f"[Error] Layer Error: Could not load layers from file: {path}")
+
+    def setup_ui(self):
         self.layout = QtWidgets.QHBoxLayout()
         self.label = QtWidgets.QLabel(self.name)
         self.label.setMinimumWidth(200)
-        self.in_file = QtWidgets.QLineEdit(self.value)
+        if self.is_vector:
+            self.in_file = QtWidgets.QLineEdit(self.value["path"])
+        else:
+            self.in_file = QtWidgets.QLineEdit(self.value)
         self.btn_select = QtWidgets.QPushButton("...")
         self.btn_select.clicked.connect(self.select_file)
-
-        # ComboBox for displaying GeoPackage layers
         self.layer_combo = QtWidgets.QComboBox()
-        self.layer_combo.setVisible(False)  # Initially hidden
-        # Connect layer change event
+        self.layer_combo.setVisible(False)
         self.layer_combo.currentTextChanged.connect(self.set_layer)
         self.layout.addWidget(self.label)
         self.layout.addWidget(self.in_file)
         self.layout.addWidget(self.layer_combo)
         self.layout.addWidget(self.btn_select)
-
         self.setLayout(self.layout)
-
-        # text changed
+        # Populate combo box if vector and file exists
+        if self.is_vector and self.value["path"] and Path(self.value["path"]).exists():
+            try:
+                layers_dict = get_layers(self.value["path"])
+                self.layer_combo.clear()
+                for layer_name, geometry_type in layers_dict.items():
+                    self.layer_combo.addItem(f"{layer_name} ({geometry_type})")
+                self.layer_combo.setVisible(True)
+                if self.value["layer"]:
+                    index = self.layer_combo.findText(self.value["layer"])
+                    if index >= 0:
+                        self.layer_combo.setCurrentIndex(index)
+            except Exception:
+                self.layer_combo.clear()
+                self.layer_combo.setVisible(False)
         self.in_file.textChanged.connect(self.file_name_edited)
+        self.update_combo_visibility()
 
-        # Handle showing the layer combo and making it editable when needed
-        if self.value.lower().endswith(".gpkg"):
-            self.layer_combo.setVisible(True)  # Show the combo box if it's a .gpkg
-            if self.output:
-                self.layer_combo.setEditable(True)  # Ensure editable if output is True
-                self.layer_combo.addItem("")  # Add an empty item to the combo box
-                # If the .gpkg file doesn't exist, show empty layer
-                if not Path(self.value).exists():
-                    self.layer_combo.clear()  # Clear the combo box
-                    self.layer_combo.addItem("layer_name")  # Show "layer_name"
+    def update_gpkg_combo(self, path, is_output, selected_layer):
+        """Handle combo population, and layer selection for .gpkg files."""
+        self.layer_combo.setVisible(True)
+        if Path(path).exists():
+            if is_output:
+                self.layer_combo.setEditable(True)
+                if self.layer_combo.count() == 0:
+                    self.layer_combo.addItem("layer_name")
+                    self.load_gpkg_layers(path)
+                elif self.layer_combo.itemText(0) != "layer_name":
+                    self.layer_combo.insertItem(0, "layer_name")
+                    self.load_gpkg_layers(path)
             else:
-                self.layer_combo.setEditable(False)  # Non-editable if output is False
-                self.load_gpkg_layers(self.value)  # Load layers if output is False
-
-        # check saved layer existence, if True then set it to selected
-        index = self.search_saved_combo_items()
-        if index != -1:
-            self.layer_combo.setCurrentIndex(index)
-
-        # If the file is not a .gpkg, don't show the combo box at all
-        elif self.layer_combo.isVisible():
-            self.layer_combo.setVisible(False)
-
-        self.update_combo_visibility()  # Update combo visibility after init
+                self.layer_combo.setEditable(False)
+                if self.layer_combo.count() == 0 or self.layer_combo.itemText(0) == "layer_name":
+                    self.layer_combo.clear()
+                    self.load_gpkg_layers(path)
+        else:
+            self.layer_combo.clear()
+            if is_output:
+                self.layer_combo.setEditable(True)
+                self.layer_combo.addItem("layer_name")
+            else:
+                self.layer_combo.addItem("layer_name")
+        # Set selected layer
+        if selected_layer:
+            if is_output and self.layer_combo.isEditable():
+                self.layer_combo.setCurrentText(selected_layer)
+            else:
+                index = self.layer_combo.findText(selected_layer)
+                if index >= 0:
+                    self.layer_combo.setCurrentIndex(index)
+        self.layer_combo.adjustSize()
 
     def update_combo_visibility(self):
-        if self.value.lower().endswith(".gpkg"):
-            self.layer_combo.setVisible(True)
-            if Path(self.value).exists():
-                if self.output:
-                    self.layer_combo.setEditable(True)
-                    if self.layer_combo.count() == 0:
-                        self.layer_combo.addItem("layer_name")
-                        self.load_gpkg_layers(self.value)
-                    elif self.layer_combo.itemText(0) != "layer_name":
-                        self.layer_combo.insertItem(0, "layer_name")
-                        self.load_gpkg_layers(self.value)
-                else:  # output is False
-                    self.layer_combo.setEditable(False)
-                    if self.layer_combo.count() == 0 or self.layer_combo.itemText(0) == "layer_name":
-                        self.layer_combo.clear()
-                        self.load_gpkg_layers(self.value)
-            else:  # gpkg does not exist
-                self.layer_combo.clear()
-                if self.output:
-                    self.layer_combo.setEditable(True)
-                    self.layer_combo.addItem("layer_name")
-                else:
-                    self.layer_combo.addItem("layer_name")
-
-            self.layer_combo.adjustSize()
+        # Support both string and dict for self.value
+        if self.is_vector:
+            path = self.value.get("path", "")
+            layer = self.value.get("layer", "")
+            is_gpkg = path.lower().endswith(".gpkg")
+            if is_gpkg:
+                self.update_gpkg_combo(path, self.output, layer)
+            else:
+                self.layer_combo.setVisible(False)
         else:
-            self.layer_combo.setVisible(False)
-
+            if isinstance(self.value, str) and self.value.lower().endswith(".gpkg"):
+                selected_layer = getattr(self, "selected_layer", "")
+                self.update_gpkg_combo(self.value, self.output, selected_layer)
+            else:
+                self.layer_combo.setVisible(False)
         self.adjustSize()
         if self.parentWidget():
             self.parentWidget().layout().invalidate()
             self.parentWidget().adjustSize()
             self.parentWidget().update()
 
-    def select_file(self):
-        try:
-            dialog = QtWidgets.QFileDialog(self)
-            dialog.setViewMode(QtWidgets.QFileDialog.Detail)
-            dialog.setDirectory(str(Path(self.value).parent))
-            dialog.selectFile(Path(self.value).name)
-            file_names = None
+    def get_file_filters(self):
+        """Return file type filter string based on self.file_type and current value."""
 
-            file_types = "All files (*.*)"
+        def get_first_type(type_val):
+            if isinstance(type_val, list):
+                return type_val[0]
+            return type_val
 
-            if "RasterAndVector" in self.file_type:
-                file_types = """Shapefiles (*.shp);; 
-                                Raster files (*.dep *.tif *.tiff *.bil *.flt *.sdat *.asc *grd)"""
-            elif "Raster" in self.file_type:
-                file_types = """Tiff raster files (*.tif *.tiff);; 
+        file_types = "All files (*.*)"
+        ft = get_first_type(self.file_type)
+        if ft == "raster":
+            file_types = """Tiff raster files (*.tif *.tiff);; 
                                 Other raster files (*.dep *.bil *.flt *.sdat *.asc *grd)"""
-            elif "Lidar" in self.file_type:
-                file_types = "LiDAR files (*.las *.zlidar *.laz *.zip)"
-            elif "Vector" in self.file_type:
-                file_types = """GeoPackage (*.gpkg);;
-                                    Shapefiles (*.shp)"""
-            elif "Text" in self.file_type:
-                file_types = "Text files (*.txt);; all files (*.*)"
-            elif "Csv" in self.file_type:
-                file_types = "CSV files (*.csv);; all files (*.*)"
-            elif "Dat" in self.file_type:
-                file_types = "Binary data files (*.dat);; all files (*.*)"
-            elif "Html" in self.file_type:
-                file_types = "HTML files (*.html)"
-            elif "json" in self.file_type or "JSON" in self.file_type:
-                file_types = "JSON files (*.json)"
+        elif ft == "lidar":
+            file_types = "LiDAR files (*.las *.zlidar *.laz *.zip)"
+        elif ft == "vector":
+            file_types = """GeoPackage (*.gpkg);;
+                                     Shapefiles (*.shp)"""
+        elif ft == "text":
+            file_types = "Text files (*.txt);; all files (*.*)"
+        elif ft == "csv":
+            file_types = "CSV files (*.csv);; all files (*.*)"
+        elif ft == "dat":
+            file_types = "Binary data files (*.dat);; all files (*.*)"
+        elif ft == "html":
+            file_types = "HTML files (*.html)"
+        elif ft == "json":
+            file_types = "JSON files (*.json)"
 
-            # Check for GeoPackage/Shapefile first in filter order by current value
-            if self.value.lower().endswith(".gpkg"):
-                file_types = """GeoPackage (*.gpkg);;
+        # Check for GeoPackage/Shapefile first in filter order by current value
+        if isinstance(self.value, str) and self.value.lower().endswith(".gpkg"):
+            file_types = """GeoPackage (*.gpkg);;
                                Shapefiles (*.shp);;
                                All files (*.*)"""
-            elif self.value.lower().endswith(".shp"):
-                file_types = """Shapefiles (*.shp);;
+        elif isinstance(self.value, str) and self.value.lower().endswith(".shp"):
+            file_types = """Shapefiles (*.shp);;
                                GeoPackage (*.gpkg);;
                                All files (*.*)"""
+        return file_types
 
-            dialog.setNameFilter(file_types)
+    def setup_file_dialog(self, file_types):
+        """Initialize and configure QFileDialog."""
+        dialog = QtWidgets.QFileDialog(self)
+        dialog.setViewMode(QtWidgets.QFileDialog.Detail)
+        # Handle both string and dict values (for vector files)
+        path_value = self.value.get("path", "") if isinstance(self.value, dict) else self.value
+        if path_value:
+            dialog.setDirectory(str(Path(path_value).parent))
+            dialog.selectFile(Path(path_value).name)
+        dialog.setNameFilter(file_types)
+        if "ExistingFile" in self.parameter_type:
+            dialog.setFileMode(QtWidgets.QFileDialog.ExistingFiles)
+        else:
+            dialog.setFileMode(QtWidgets.QFileDialog.AnyFile)
+        return dialog
 
-            if "ExistingFile" in self.parameter_type:
-                dialog.setFileMode(QtWidgets.QFileDialog.ExistingFiles)
+    def process_selected_file(self, result, dialog):
+        """Handle file name modification, extension adding, and GeoPackage logic."""
+        base_name = str(Path(result).with_suffix(""))
+        selected_ext = Path(result).suffix
+        selected_filter = dialog.selectedNameFilter()
+        if selected_filter:
+            filter_parts = selected_filter.split("(*")
+            if len(filter_parts) > 1:
+                extensions_str = filter_parts[1].replace(")", "")
+                extensions = extensions_str.split(" ")
+                if extensions:
+                    preferred_ext = extensions[0].strip()
+                    if not preferred_ext.startswith("."):
+                        preferred_ext = "." + preferred_ext
+                    if not selected_ext:
+                        result = f"{base_name}{preferred_ext}"
+        elif not selected_ext:
+            result = f"{base_name}.txt"
+        self.set_value(result)
+        return result
+
+    def handle_gpkg_selection(self, result):
+        """GeoPackage-specific logic after file selection."""
+        if result.lower().endswith(".gpkg"):
+            if not Path(result).exists():
+                self.layer_combo.clear()
+                self.layer_combo.addItem("layer_name")
             else:
-                dialog.setFileMode(QtWidgets.QFileDialog.AnyFile)
+                self.load_gpkg_layers(result)
+                if self.output:
+                    self.layer_combo.setEditable(True)
+        else:
+            self.layer_combo.setVisible(False)
+        self.update_combo_visibility()
 
+    def select_file(self):
+        def get_first_type(type_val):
+            if isinstance(type_val, list):
+                return type_val[0]
+            return type_val
+
+        try:
+            file_types = self.get_file_filters()
+            dialog = self.setup_file_dialog(file_types)
+            file_names = None
             if dialog.exec_():
                 file_names = dialog.selectedFiles()
-
             if not file_names:
                 return
-
             result = file_names[0]
-            base_name = str(Path(result).with_suffix(""))
-            selected_ext = Path(result).suffix
-            selected_filter = dialog.selectedNameFilter()
-
-            if selected_filter:
-                filter_parts = selected_filter.split("(*")
-                if len(filter_parts) > 1:
-                    extensions_str = filter_parts[1].replace(")", "")
-                    extensions = extensions_str.split(" ")
-
-                    if extensions:
-                        preferred_ext = extensions[0].strip()
-                        if not preferred_ext.startswith("."):
-                            preferred_ext = "." + preferred_ext
-                        if not selected_ext:
-                            result = f"{base_name}{preferred_ext}"
-            elif not selected_ext:  # No filter and no extension
-                result = f"{base_name}.txt"
-
-            self.set_value(result)
-
-            if result.lower().endswith(".gpkg"):
-                if not Path(result).exists():
-                    self.layer_combo.clear()
-                    self.layer_combo.addItem("layer_name")
-                else:
-                    self.load_gpkg_layers(result)
-                    if self.output:
-                        self.layer_combo.setEditable(True)
-            else:
-                self.layer_combo.setVisible(False)
-
-            # Update combo visibility after file selection
-            self.update_combo_visibility()
+            result = self.process_selected_file(result, dialog)
+            self.handle_gpkg_selection(result)
         except Exception as e:
             print(e)
-            msg_box = QtWidgets.QMessageBox()
-            msg_box.setIcon(QtWidgets.QMessageBox.Warning)
-            msg_box.setText("Could not find the selected file.")
-            msg_box.exec()
+            print("[Error] Could not find the selected file.")
 
     def load_gpkg_layers(self, gpkg_file):
         """Load layers from a GeoPackage and populate the combo box using get_layers."""
         try:
-            # Print the file path to verify it's correct
-            # print(f"Attempting to load layers from: {gpkg_file}")
-
-            # Use get_layers to load layers from the GeoPackage
             self.gpkg_layers = get_layers(gpkg_file)
-
-            # Check if layers is empty
             if not self.gpkg_layers:
                 raise ValueError("No layers found in the GeoPackage.")
 
-            # Clear any existing layers in the combo box
             self.layer_combo.clear()
 
-            # Iterate over the layers dictionary
-            # and add each layer name with geometry type to the combo box
-            for layer_name, geometry_type in self.gpkg_layers.items():
-                self.layer_combo.addItem(f"{layer_name} ({geometry_type})")
+            # Determine selected layer name (without geometry type)
+            selected_layer_name = self.selected_layer.split(" ")[0] if self.selected_layer else ""
+            loaded_layer_names = [str(k) for k in self.gpkg_layers.keys()]
 
-            # Set the tooltip for the layer list widget
+            # Output logic: add provided layer if missing
+            if self.output and selected_layer_name and selected_layer_name not in loaded_layer_names:
+                self.layer_combo.addItem(selected_layer_name)
+                for layer_name, geometry_type in self.gpkg_layers.items():
+                    self.layer_combo.addItem(f"{layer_name} ({geometry_type})")
+                self.layer_combo.setEditable(True)
+                self.layer_combo.setCurrentText(selected_layer_name)
+            else:
+                for layer_name, geometry_type in self.gpkg_layers.items():
+                    self.layer_combo.addItem(f"{layer_name} ({geometry_type})")
+                self.layer_combo.setEditable(self.output)
+                if self.selected_layer:
+                    index = self.layer_combo.findText(self.selected_layer)
+                    if index >= 0:
+                        self.layer_combo.setCurrentIndex(index)
+
             self.layer_combo.setToolTip("Select layer")
-
-            # Make the combo box visible
             self.layer_combo.setVisible(True)
 
         except Exception as e:
-            # Print the full error message for debugging purposes
-            print(f"Error loading GeoPackage layers: {e}")
-
-            # Show a message box with the error
-            msg_box = QtWidgets.QMessageBox()
-            msg_box.setIcon(QtWidgets.QMessageBox.Warning)
-            msg_box.setText(f"Could not load layers from GeoPackage: {gpkg_file}")
-            msg_box.setDetailedText(str(e))  # Show detailed error message
-            msg_box.exec()
+            print(f"[Error] Could not load layers from GeoPackage: {gpkg_file}\nDetails: {e}")
 
     def file_name_edited(self):
-        # Step 1: Get the current value in the file input field
         new_value = self.in_file.text()
-        self.value = new_value  # update file name
-
-        # Step 2: Check if the new value ends with a .gpkg extension
-        if new_value.lower().endswith(".gpkg"):
-            # If it's a GeoPackage, check if the file exists
+        if self.is_vector:
+            self.value["path"] = new_value
+        else:
+            self.value = new_value
+        # Step 2: Check if the new value ends with a supported vector extension
+        ext = Path(new_value).suffix.lower().replace(".", "")
+        if self.is_vector and ext in self.VECTOR_FORMATS:
             if Path(new_value).exists():
-                # File exists, load layers from the GeoPackage
                 self.load_gpkg_layers(new_value)
-                self.layer_combo.setVisible(True)  # Show the layer combo box
-                self.update_combo_visibility()  # Ensure layers are updated properly
+                self.layer_combo.setVisible(True)
+                self.update_combo_visibility()
             else:
-                # File doesn't exist, clear the layer combo box and show message
                 self.layer_combo.clear()
                 self.layer_combo.addItem("layer_name")
                 if self.output:
                     self.layer_combo.setEditable(True)
-
-                # Show the layer combo box but indicate no layers
                 self.layer_combo.setVisible(True)
         else:
-            # If it's not a GeoPackage, hide the layer combo box
             self.layer_combo.setVisible(False)
-
-        # Optional: Adjust the combo box visibility and layout
         self.adjustSize()
         if self.parentWidget():
             self.parentWidget().layout().invalidate()
@@ -453,78 +543,66 @@ class FileSelector(QtWidgets.QWidget):
             self.parentWidget().update()
 
     def set_value(self, value):
-        # Check if the value has an extension
-        base_name = str(Path(value).with_suffix(""))
-        ext = Path(value).suffix
-
-        # Only append an extension if none exists AND the value doesn't end with a dot
-        if not ext:  # If there's no extension
-            if not value.endswith("."):  # If the user hasn't typed a dot at the end
-                # Don't force the .txt extension unless the filename doesn't have one
-                # Add default extension for other cases
-                if not value.endswith(".gpkg") and not value.endswith(".shp"):
-                    value = f"{base_name}.txt"
-            # If the value ends with a dot (like `file.`), don't append anything yet
-
-        # If the value ends with a dot, don't append an extension.
-        elif value.endswith("."):
-            value = base_name  # Strip the dot
-
-        self.value = value
-        self.in_file.setText(self.value)
-        self.in_file.setToolTip(self.value)
+        # Accept both string and dict for compatibility
+        if self.is_vector:
+            if isinstance(value, dict):
+                self.value = value
+            elif isinstance(value, str):
+                if "|" in value:
+                    path, layer = value.rsplit("|", 1)
+                    self.value = {"path": path, "layer": layer}
+                else:
+                    self.value = {"path": value, "layer": ""}
+            self.in_file.setText(self.value["path"])
+            self.in_file.setToolTip(self.value["path"])
+        else:
+            base_name = str(Path(value).with_suffix(""))
+            ext = Path(value).suffix
+            if not ext:
+                if not value.endswith("."):
+                    if not value.endswith(".gpkg") and not value.endswith(".shp"):
+                        value = f"{base_name}.txt"
+            elif value.endswith("."):
+                value = base_name
+            self.value = value
+            self.in_file.setText(self.value)
+            self.in_file.setToolTip(self.value)
         self.update_combo_visibility()
 
     def set_layer(self, layer):
-        # Store only the selected layer's name (key) from the combo box display
-        # The layer is in the format: "layer_name (geometry_type)"
-        # Get only the layer name (before the space)
-        self.selected_layer = layer.split(" ")[0]
-        # print(f"Selected Layer: {self.selected_layer}")
+        # For vector, update dict
+        if self.is_vector:
+            # Remove geometry type if present
+            if "(" in layer:
+                layer = layer.split(" (")[0]
+            self.value["layer"] = layer
+        else:
+            self.selected_layer = layer
 
     def get_value(self):
-        # Return both the file path and the selected layer
-        value = {self.flag: self.value}
-        if self.layer_flag and self.selected_layer:
-            # Store the layer name (key)
-            value.update({self.layer_flag: self.selected_layer})
-
-        return value
-
-    def search_saved_combo_items(self):
-        """
-        Search saved layer in combo box items.
-
-        Returns:
-        If found, then return the index, or return -1
-
-        """
-        if not self.gpkg_layers:
-            return -1
-
-        for idx, key in enumerate(self.gpkg_layers.keys()):
-            if key == self.saved_layer:
-                return idx
-
-        return -1
-
-
-# TODO: check if this class is needed
-class MultiFileSelector(QtWidgets.QWidget):
-    """MultiFileSelector class for creating multiple file selection widgets."""
-
-    def __init__(self, json_str, parent=None):
-        super(MultiFileSelector, self).__init__(parent)
-        pass
-
-
-# TODO: check if this class is needed
-class BooleanInput(QtWidgets.QWidget):
-    """BooleanInput class for creating boolean input widgets."""
-
-    def __init__(self, json_str, parent=None):
-        super(BooleanInput, self).__init__(parent)
-        pass
+        # For vector, encode from dict for compatibility
+        if self.is_vector:
+            path = self.value.get("path", "")
+            layer = self.value.get("layer", "")
+            # If no layer selected but combo has items, use first layer
+            if not layer and self.layer_combo.count() > 0:
+                first_layer = self.layer_combo.itemText(0)
+                # Remove geometry type if present
+                if "(" in first_layer:
+                    first_layer = first_layer.split(" (")[0]
+                self.value["layer"] = first_layer
+                layer = first_layer
+            if self.output:
+                # Output: always encode path|layer
+                encoded_value = f"{path}|{layer}" if layer else path
+            else:
+                # Input: if path is empty, return empty
+                if not path:
+                    return {self.variable: ""}
+                encoded_value = f"{path}|{layer}" if layer else path
+            return {self.variable: encoded_value}
+        else:
+            return {self.variable: self.value}
 
 
 class OptionsInput(QtWidgets.QWidget):
@@ -537,7 +615,7 @@ class OptionsInput(QtWidgets.QWidget):
         params = json.loads(json_str)
         self.name = params["name"]
         self.description = params["description"]
-        self.flag = params["flag"]
+        self.variable = params["variable"]
         self.parameter_type = params["parameter_type"]
         self.optional = params["optional"]
         self.data_type = params["data_type"]
@@ -589,70 +667,80 @@ class OptionsInput(QtWidgets.QWidget):
                 self.combobox.setCurrentIndex(self.option_list.index(v))
 
     def get_value(self):
-        return {self.flag: self.value}
+        return {self.variable: self.value}
 
 
-class DataInput(QtWidgets.QWidget):
-    """DataInput class for creating data input widgets."""
+class NumericInput(QtWidgets.QWidget):
+    """NumericInput class for creating numeric input widgets (int and float)."""
 
     def __init__(self, json_str, parent=None):
-        super(DataInput, self).__init__(parent)
-
-        # first make sure that the json data has the correct fields
+        super(NumericInput, self).__init__(parent)
         params = json.loads(json_str)
         self.name = params["name"]
         self.description = params["description"]
-        self.flag = params["flag"]
+        self.variable = params["variable"]
         self.parameter_type = params["parameter_type"]
         self.optional = params["optional"]
-
         self.default_value = params["default_value"]
         self.value = self.default_value
         if "saved_value" in params.keys():
             self.value = params["saved_value"]
-
         self.label = QtWidgets.QLabel(self.name)
         self.label.setMinimumWidth(BT_LABEL_MIN_WIDTH)
         self.data_input = None
-
-        if "Integer" in self.parameter_type:
+        subtypes = []
+        if isinstance(self.parameter_type, list):
+            subtypes = self.parameter_type
+        elif isinstance(self.parameter_type, str):
+            subtypes = [self.parameter_type]
+        elif isinstance(self.parameter_type, dict):
+            for v in self.parameter_type.values():
+                if isinstance(v, list):
+                    subtypes.extend(v)
+                else:
+                    subtypes.append(v)
+        main_subtype = subtypes[0] if subtypes else None
+        if main_subtype == "int":
             self.data_input = QtWidgets.QSpinBox()
-        elif "Float" in self.parameter_type or "Double" in self.parameter_type:
+        elif main_subtype == "float":
             self.data_input = QtWidgets.QDoubleSpinBox()
-
-        if self.data_input:
-            self.data_input.setValue(self.value)
-
-        self.data_input.valueChanged.connect(self.update_value)
-
+        else:
+            if main_subtype is not None:
+                raise ValueError(f"Unsupported parameter type: {main_subtype}")
+        if self.data_input and main_subtype in ("int", "float"):
+            try:
+                if main_subtype == "int":
+                    self.data_input.setValue(int(self.value))
+                elif main_subtype == "float":
+                    self.data_input.setValue(float(self.value))
+            except (ValueError, TypeError):
+                self.data_input.setValue(0)
+            self.data_input.valueChanged.connect(self.update_value)
         self.layout = QtWidgets.QHBoxLayout()
         self.layout.addWidget(self.label)
         self.layout.addWidget(self.data_input)
         self.setLayout(self.layout)
 
     def update_value(self):
-        self.value = self.data_input.value()
+        if self.data_input is not None:
+            self.value = self.data_input.value()
 
     def get_value(self):
         v = self.value
         if v is not None:
-            if "Integer" in self.parameter_type:
+            if "int" in self.parameter_type:
                 value = int(self.value)
-            elif "Float" in self.parameter_type:
+            elif "float" in self.parameter_type:
                 value = float(self.value)
-            elif "Double" in self.parameter_type:
-                value = float(self.value)
-            else:  # String or StringOrNumber types
+            else:
                 value = self.value
-
-            return {self.flag: value}
+            return {self.variable: value}
         else:
             if not self.optional:
                 msg_box = QtWidgets.QMessageBox()
                 msg_box.setIcon(QtWidgets.QMessageBox.Warning)
-                msg_box.setText("Unknown non-optional parameter {}.".format(self.flag))
+                msg_box.setText("Unknown non-optional parameter {}.".format(self.variable))
                 msg_box.exec()
-
         return None
 
     def set_value(self, value):
@@ -664,6 +752,80 @@ class DataInput(QtWidgets.QWidget):
         if self.data_input:
             self.data_input.setValue(self.default_value)
             self.update_value()
+
+
+class BooleanInput(QtWidgets.QWidget):
+    """BooleanInput class for creating boolean checkbox widgets."""
+
+    def __init__(self, json_str, parent=None):
+        super(BooleanInput, self).__init__(parent)
+        params = json.loads(json_str)
+        self.name = params["name"]
+        self.description = params["description"]
+        self.variable = params["variable"]
+        self.parameter_type = params["parameter_type"]
+        self.optional = params["optional"]
+        self.default_value = params["default_value"]
+        # Detect if this is pure Boolean or OptionList boolean
+        self._detect_boolean_source(params)
+        self.value = self._convert_to_bool(self.default_value)
+        if "saved_value" in params.keys():
+            self.value = self._convert_to_bool(params["saved_value"])
+        self.checkbox = QtWidgets.QCheckBox(f"{self.name} - {self.description}")
+        self.checkbox.setChecked(self.value)
+        self.checkbox.stateChanged.connect(self.update_value)
+        self.label = self.checkbox  # Reference checkbox as label for styling
+        self.layout = QtWidgets.QHBoxLayout()
+        self.layout.addWidget(self.checkbox)
+        self.layout.addStretch()
+        self.setLayout(self.layout)
+
+    def _detect_boolean_source(self, params):
+        """Determine if this is pure Boolean or OptionList boolean."""
+        pt = params["parameter_type"]
+        
+        if isinstance(pt, str) and pt == "Boolean":
+            self.is_option_list = False
+        elif isinstance(pt, dict) and "OptionList" in pt:
+            option_list = pt["OptionList"]
+            # Check if it's a boolean list (handle both string and bool types)
+            is_bool_list = (
+                option_list == ["True", "False"] or 
+                option_list == ["true", "false"] or 
+                option_list == [True, False] or 
+                option_list == [False, True]
+            )
+            if is_bool_list:
+                self.is_option_list = True
+            else:
+                raise ValueError("OptionList is not boolean, use OptionsInput instead")
+        else:
+            raise ValueError(f"Unsupported parameter type for BooleanInput: {pt}")
+
+    def _convert_to_bool(self, value):
+        """Convert various value types to boolean."""
+        if isinstance(value, bool):
+            return value
+        if isinstance(value, str):
+            return value.lower() in ("true", "1", "yes", "on")
+        if isinstance(value, (int, float)):
+            return bool(value)
+        return False
+
+    def update_value(self):
+        self.value = self.checkbox.isChecked()
+
+    def set_value(self, value):
+        """Set checkbox state from various value types."""
+        self.value = self._convert_to_bool(value)
+        self.checkbox.setChecked(self.value)
+
+    def get_value(self):
+        return {self.variable: self.checkbox.isChecked()}
+
+    def set_default_value(self):
+        self.value = self._convert_to_bool(self.default_value)
+        self.checkbox.setChecked(self.value)
 
 
 class DoubleSlider(QtWidgets.QSlider):

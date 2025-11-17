@@ -9,8 +9,8 @@ Author: AUTHOR NAME
 Description:
     This script is tool template for the BERA Tools. The tool showcases
     how to create a new tool for the BERA Tools framework. It is a
-    starting point for developers to implement their own tools. 
-    It uses the GeoPandas to read and write geospatial data, 
+    starting point for developers to implement their own tools.
+    It uses the GeoPandas to read and write geospatial data,
     and the multiprocessing library to process the geospatial data.
 
     To integrate with GUI, work in the gui/assets/beratools.json is needed.
@@ -21,25 +21,23 @@ Description:
     The purpose of this script is to provide template for tool.
 """
 
-import time
-
 import geopandas as gpd
 import pandas as pd
 
 import beratools.utility.spatial_common as sp_common
 from beratools.core.tool_base import execute_multiprocessing
+from beratools.utility.tool_args import CallMode
 
 
-def tool_name(in_feature, in_layer, buffer_dist, out_feature, out_layer, processes, verbose):
+def tool_template(in_feature, buffer_dist, out_feature, 
+                  processes=0, call_mode=CallMode.CLI, log_level="INFO"):
     """
     Define tool entry point.
 
     Args:
-        in_feature: input feature
-        in_layer: layer name
+        in_feature: input feature (encoded as "file:layer")
         buffer_dist: buffer for input lines
-        out_feature: output feature
-        out_layer: layer name
+        out_feature: output feature (encoded as "file:layer")
         processes: number of processes to use
         verbose: verbosity level
 
@@ -47,14 +45,18 @@ def tool_name(in_feature, in_layer, buffer_dist, out_feature, out_layer, process
     use execute_multiprocessing to run tasks in parallel to speedup.
 
     """
+    in_file, in_layer = sp_common.decode_file_layer(in_feature)
+    out_file, out_layer = sp_common.decode_file_layer(out_feature)
+
     buffer_dist = float(buffer_dist)
-    gdf = gpd.read_file(in_feature, layer=in_layer)
+    gdf = gpd.read_file(in_file, layer=in_layer)
     gdf_list = [(gdf.iloc[[i]], buffer_dist) for i in range(len(gdf))]
 
-    results = execute_multiprocessing(buffer_worker, gdf_list, "tool_template", processes, verbose=verbose)
+    # Set verbose based on log_level
+    results = execute_multiprocessing(buffer_worker, gdf_list, "tool_template", processes, call_mode)
 
     buffered_gdf = gpd.GeoDataFrame(pd.concat(results, ignore_index=True), crs=gdf.crs)
-    buffered_gdf.to_file(out_feature, layer=out_layer)
+    buffered_gdf.to_file(out_file, layer=out_layer)
 
 
 # task executed in a worker process
@@ -66,7 +68,10 @@ def buffer_worker(in_args):
 
 
 if __name__ == "__main__":
+    import time
+
+    from beratools.utility.tool_args import compose_tool_kwargs
     start_time = time.time()
-    in_args, in_verbose = sp_common.check_arguments()
-    tool_name(**in_args.input, processes=int(in_args.processes), verbose=in_verbose)
+    kwargs = compose_tool_kwargs("tool_template")
+    tool_template(**kwargs)
     print("Elapsed time: {}".format(time.time() - start_time))

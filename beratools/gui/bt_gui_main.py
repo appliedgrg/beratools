@@ -261,7 +261,7 @@ class BTSlider(QtWidgets.QWidget):
         self.slider.sliderMoved.connect(self.slider_moved)
 
     def slider_moved(self, value):
-        bt.set_max_procs(value)
+        bt.set_selected_cpu_cores(value)
         QtWidgets.QToolTip.showText(QtGui.QCursor.pos(), f"{value}")
         self.label.setText(self.generate_label_text())
 
@@ -428,7 +428,7 @@ class MainWindow(QtWidgets.QMainWindow):
         self.tool_widget = ToolWidgets(self.recent_tool, tool_args, bt.show_advanced)
 
         # bottom buttons
-        slider = BTSlider(bt.max_procs, bt.max_cpu_cores)
+        slider = BTSlider(bt.selected_cpu_cores, bt.max_cpu_cores)
         btn_default_args = QtWidgets.QPushButton("Load Default Arguments")
         self.btn_run = QtWidgets.QPushButton("Run")
         btn_cancel = QtWidgets.QPushButton("Cancel")
@@ -535,8 +535,8 @@ class MainWindow(QtWidgets.QMainWindow):
         self.print_to_output(bt.license())
 
     def update_procs(self, value):
-        max_procs = int(value)
-        bt.set_max_procs(max_procs)
+        selected_cpu_cores = int(value)
+        bt.set_selected_cpu_cores(selected_cpu_cores)
 
     def print_to_output(self, text):
         self.text_edit.moveCursor(QtGui.QTextCursor.End)
@@ -620,7 +620,7 @@ class MainWindow(QtWidgets.QMainWindow):
             if type(args[key]) is not str:
                 args[key] = str(args[key])
 
-        tool_type, tool_args = bt.run_tool(self.tool_api, args, self.custom_callback)
+        tool_type, tool_args = bt.prepare_tool_run(self.tool_api, args, self.custom_callback)
 
         if self.process is None:  # No process running.
             self.print_line_to_output(f"Tool {self.tool_name} started")

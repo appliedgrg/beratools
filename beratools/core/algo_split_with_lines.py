@@ -279,13 +279,6 @@ class LineSplitter:
         else:
             print("No intersection points found, no lines to split.")
 
-
-def split_with_lines(input_gpkg, layer_name):
-    splitter = LineSplitter(input_gpkg, layer_name)
-    splitter.process()
-    splitter.save_to_geopackage()
-
-
 if __name__ == "__main__":
     input_gpkg = r"I:\Temp\footprint_final.gpkg"
     layer_name = "merged_lines_original"

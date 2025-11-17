@@ -1,6 +1,6 @@
-# run: conda env create -f environment.yml -q
+# run: conda env create -n bera -f environment.yml -q
 
-name: bera
+# name: bera
 channels:
   - nodefaults
   - appliedgrg

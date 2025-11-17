@@ -65,8 +65,8 @@ def main():
         args["parallel_mode"] = parallel_mode
         canopy_footprint_abs(**args)
 
-    if "footprint_exp" in steps_to_run:
-        print_message("Running footprint exp")
+    if "footprint_rel" in steps_to_run:
+        print_message("Running footprint rel")
         args = dict(cfg.args_footprint_exp)
         args["processes"] = processes
         args["parallel_mode"] = parallel_mode

@@ -1,4 +1,4 @@
-# Tool Template
+# How to Add a New Tool
 
 ## tool_template.py
 
