@@ -58,10 +58,10 @@ Pixi is the easiest way to set up a consistent development environment for BERA 
 Activate your conda or pixi environment, then run:
 
    ```bash
-    > git clone https://github.com/appliedgrg/beratools.git
-    > cd beratools
-    > pip install -e .
-    > beratools  # This should start main GUI
+    $ git clone https://github.com/appliedgrg/beratools.git
+    $ cd beratools
+    $ pip install -e .
+    $ beratools  # This should start main GUI
    ```
 
 The editable mode (`-e`) allows you to make changes to the source code and have them reflected immediately without needing to reinstall the package.

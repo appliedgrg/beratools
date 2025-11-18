@@ -22,3 +22,5 @@ config.ini
 
 *.egg-info
 _build
+.mypy_cache
+.pytest_cache

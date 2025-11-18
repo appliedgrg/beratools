@@ -39,6 +39,7 @@ def compose_tool_kwargs(tool_api):
 
     bt_data = BTData()
     tool_name = bt_data.get_bera_tool_name(tool_api)
+    tool_api_name = tool_api
 
     mode_parser = argparse.ArgumentParser(add_help=False)
     mode_parser.add_argument("-i", "--input", type=json.loads, default=None)
@@ -66,7 +67,7 @@ def compose_tool_kwargs(tool_api):
 
         # Build usage string with only required parameters
         required_flags = " ".join([f"--{p.get('variable')}" for p in required_params])
-        custom_usage = f"{tool_name} {required_flags}" if required_flags else tool_name
+        custom_usage = f"python {tool_api_name}.py {required_flags}" if required_flags else f"python {tool_api_name}.py"
 
         full_parser = argparse.ArgumentParser(
             prog=tool_name,
