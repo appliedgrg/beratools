@@ -22,15 +22,27 @@ class OperationCancelledException(Exception):
 
 
 def main_canopy_threshold_relative(
-    in_line: str, #path in string
-    in_chm: str, #path in string
+    in_line: str,
+    in_chm: str,
     canopy_percentile: int,
     canopy_thresh_percentage: int,
     full_step: bool,
     processes:int,
     verbose: bool,
-    out_DynCenterline: str=None,
-): #callback,,off_ln_dist,tree_radius, max_line_dist,canopy_avoidance, exponent,verbose,
+    out_DynCenterline: str=None, #for Test tool only
+)-> str | None:
+    """
+    This is a function finding approximate surrounding forest canopy height
+    and surrounding forest edge distance from input CHM
+    Args:
+        in_line: Path like string
+        in_chm: Path like string
+        canopy_percentile: Percentile as integer range 1-100
+        canopy_thresh_percentage: Percentage as integer range 1-100
+
+    Returns:
+        Path like string of the saved centerlines with extra attributes
+    """
     file_path, in_file_name = os.path.split(Path(in_line))
     out_file = os.path.join(Path(file_path), "DynCanTh_" + in_file_name)
     line_seg = gpd.GeoDataFrame.from_file(Path(in_line))
@@ -505,22 +517,12 @@ def multiprocessing_Percentile(df:gpd.GeoDataFrame,
         total_steps = len(df)
         cal_percentile = cal_percentileRing
         which_side = side
-        # if side == "left":
-        #     PerCol = "Percentile_L"
-        #     which_side = "left"
-        #     cal_percentile = cal_percentileLR
-        # elif side == "right":
-        #     PerCol = "Percentile_R"
-        #     which_side = "right"
-        #     cal_percentile = cal_percentileLR
         if side == "LRing":
             PerCol = "Percentile_LRing"
-            # cal_percentile = cal_percentileRing
             which_side = "left"
         elif side == "RRing":
             PerCol = "Percentile_RRing"
             which_side = "right"
-            # cal_percentile = cal_percentileRing
 
         print("Calculating surrounding ({}) forest population for buffer area ...".format(which_side))
 
@@ -541,8 +543,7 @@ def multiprocessing_Percentile(df:gpd.GeoDataFrame,
             print(" {}% ".format(item / len(df) * 100), flush=True)
 
         features = []
-        # chunksize = math.ceil(total_steps / processes)
-        # PARALLEL_MODE=False
+
         if PARALLEL_MODE == ParallelMode.MULTIPROCESSING:
             with Pool(processes=int(processes)) as pool:
                 step = 0
@@ -679,9 +680,7 @@ def cal_percentileRing(line_arg):
         CanPercentile =50
     Dyn_Canopy_Threshold = 0.05
     try:
-        # with rasterio.open(in_CHM) as raster:
-        # clipped_raster, out_transform = rasterio.mask.mask(raster, [line_buffer], crop=True,
-        #                                                    nodata=BT_NODATA, filled=True)
+
         clipped_raster, out_meta = clip_raster(in_CHM, line_buffer, 0)
         clipped_raster = np.squeeze(clipped_raster, axis=0)
 
@@ -689,21 +688,18 @@ def cal_percentileRing(line_arg):
         masked_raster = np.ma.masked_where(clipped_raster == BT_NODATA, clipped_raster)
         filled_raster = np.ma.filled(masked_raster, np.nan)
 
-        # Calculate the percentile
-        # masked_mean = np.ma.mean(masked_raster)
-        percentile = np.nanpercentile(filled_raster, CanPercentile)# p=50,method='hazen')
+        percentile = np.nanpercentile(filled_raster, CanPercentile)
 
-        if percentile > 1:  # (percentile+median)>0.0:
+        if percentile > 1:
             Dyn_Canopy_Threshold = percentile * (CanThrPercentage/100)
         else:
             Dyn_Canopy_Threshold = 1
 
         del clipped_raster, out_meta
-        # del raster
+
     # return the generated value
     except Exception as e:
         print(e)
-        # print('Something wrong in ID:{}'.format(row_index))
         print("Default values are used.")
 
     finally:
@@ -745,31 +741,4 @@ def copyparallel_lineLRC(line_arg):
     if not parallel_lineR.is_empty:
         dfR.loc[line_arg[6], "geometry"] = parallel_lineR
 
-    return dfL.iloc[[line_arg[6]]], dfR.iloc[[line_arg[6]]]  # ,dfC.iloc[[line_arg[6]]]
-
-
-# if __name__ == "__main__":
-#     start_time = time.time()
-#     print(
-#         "Starting Dynamic Canopy Threshold calculation processing\n @ {}".format(
-#             time.strftime("%d %b %Y %H:%M:%S", time.localtime())
-#         )
-#     )
-#
-#     parser = argparse.ArgumentParser()
-#     parser.add_argument("-i", "--input", type=json.loads)
-#     parser.add_argument("-p", "--processes")
-#     parser.add_argument("-v", "--verbose")
-#     args = parser.parse_args()
-#     args.input["full_step"] = False
-#
-#     verbose = True if args.verbose == "True" else False
-#     main_canopy_threshold_relative( **args.input, processes=int(args.processes), verbose=verbose)
-#
-#     print("{}%".format(100))
-#     print(
-#         "Finishing Dynamic Canopy Threshold calculation @ {}\n(or in {} second)".format(
-#             time.strftime("%d %b %Y %H:%M:%S", time.localtime()),
-#             round(time.time() - start_time, 5),
-#         )
-#     )
+    return dfL.iloc[[line_arg[6]]], dfR.iloc[[line_arg[6]]]
