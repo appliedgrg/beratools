@@ -222,9 +222,40 @@ def generate_line_args_DFP_NoClip(
     line_argsR = []
     line_argsC = []
     line_id = 0
+    total = len(work_in_bufferC)+len(work_in_bufferL)+len(work_in_bufferR)
+    for record in range(0, len(work_in_bufferC)):
+        line_bufferC = work_in_bufferC.loc[record, "geometry"]
+        nodata = bt_const.BT_NODATA
+        line_argsC.append(
+            [
+                in_chm,
+                float(work_in_bufferC.loc[record, "DynCanTh"]),
+                float(tree_radius),
+                float(max_line_dist),
+                float(canopy_avoidance),
+                float(exponent),
+                in_chm_obj.res,
+                nodata,
+                line_seg.iloc[[record]],
+                in_chm_obj.meta.copy(),
+                line_id,
+                10,
+                "Center",
+                canopy_thresh_percentage,
+                line_bufferC,
+                exp_shk_cell
+            ]
+        )
+
+        step = line_id + 1
+        print(f' "PROGRESS_LABEL Preparing... {step} of {total}" ', flush=True)
+        print(f" {(step / total) * 100}% ", flush=True)
+        line_id += 1
+
+    line_id = 0
+
     for record in range(0, len(work_in_bufferL)):
         line_bufferL = work_in_bufferL.loc[record, "geometry"]
-        line_bufferC = work_in_bufferC.loc[record, "geometry"]
         LCut = work_in_bufferL.loc[record, "LDist_Cut"]
 
         nodata = bt_const.BT_NODATA
@@ -249,34 +280,15 @@ def generate_line_args_DFP_NoClip(
             ]
         )
 
-        line_argsC.append(
-            [
-                in_chm,
-                float(work_in_bufferC.loc[record, "DynCanTh"]),
-                float(tree_radius),
-                float(max_line_dist),
-                float(canopy_avoidance),
-                float(exponent),
-                in_chm_obj.res,
-                nodata,
-                line_seg.iloc[[record]],
-                in_chm_obj.meta.copy(),
-                line_id,
-                10,
-                "Center",
-                canopy_thresh_percentage,
-                line_bufferC,
-                exp_shk_cell
-            ]
-        )
-
+        step = line_id + 1+ len(work_in_bufferC)
+        print(f' "PROGRESS_LABEL Preparing... {step} of {total}" ', flush=True)
+        print(f" {(step / total) * 100}% ", flush=True)
         line_id += 1
 
     line_id = 0
     for record in range(0, len(work_in_bufferR)):
         line_bufferR = work_in_bufferR.loc[record, "geometry"]
         RCut = work_in_bufferR.loc[record, "RDist_Cut"]
-        line_bufferC = work_in_bufferC.loc[record, "geometry"]
 
         nodata = bt_const.BT_NODATA
         # TODO deal with inherited nodata and BT_NODATA_COST
@@ -302,10 +314,9 @@ def generate_line_args_DFP_NoClip(
             ]
         )
 
-        step = line_id + 1 + len(work_in_bufferL)
-        total = len(work_in_bufferL) + len(work_in_bufferR)
+        step = line_id + 1 + len(work_in_bufferC)+len(work_in_bufferL)
         print(f' "PROGRESS_LABEL Preparing... {step} of {total}" ', flush=True)
-        print(f" {step / total * 100}% ", flush=True)
+        print(f" {(step / total) * 100}% ", flush=True)
 
         line_id += 1
 
