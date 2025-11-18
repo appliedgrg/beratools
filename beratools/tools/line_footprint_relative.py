@@ -43,33 +43,16 @@ from beratools.core.canopy_threshold_relative import *
 
 if __name__ == "__main__":
     start_time = time.time()
-    print("Dynamic CC and Footprint processing started")
-    print("Current time: {}".format(time.strftime("%d %b %Y %H:%M:%S", time.localtime())))
-    debug_mode=False
+    print("[info]: Dynamic CC and Footprint processing started")
+    print("[info]: Current time: {}".format(time.strftime("%d %b %Y %H:%M:%S", time.localtime())))
+    debug_mode=BT_DEBUGGING
     parser = argparse.ArgumentParser()
     parser.add_argument("-i", "--input", type=json.loads)
     parser.add_argument("-p", "--processes")
     parser.add_argument("-v", "--verbose")
 
+    #Prepare argument for main_canopy_threshold_relative
     args = parser.parse_args()
-    if debug_mode: ## debug for line_foot
-        args.input={
-        "in_line": "D:/Maverick/py_project/beratools/tests/data/centerline.gpkg",
-        "in_chm": "D:/Maverick/py_project/beratools/tests/data/chm.tif",
-        "max_ln_width": 32.0,
-        "exp_shk_cell": 2,
-        "out_footprint": "D:/Maverick/py_project/beratools/tests/data/rel_footprint.gpkg",
-        "out_centerline": "D:/Maverick/py_project/beratools/tests/data/smoothed_centerline.gpkg",
-        "off_ln_dist": 15.0,
-        "canopy_percentile": 90,
-        "canopy_thresh_percentage": 50.0,
-        "tree_radius": 1.5,
-        "max_line_dist": 1.5,
-        "canopy_avoidance": 1.0,
-        "exponent": 1
-    }
-        args.processes=20
-        args.verbose='True'
     args.input["full_step"] = True
     del args.input["out_footprint"]
     del args.input["out_centerline"]
@@ -81,34 +64,16 @@ if __name__ == "__main__":
     del args.input["canopy_avoidance"]
     del args.input["exponent"]
 
-
     verbose = True if args.verbose == "True" else False
     dy_cl_line = main_canopy_threshold_relative(
     **args.input, processes=int(args.processes), verbose=verbose
     )
+    # Reload and Prepare argument for main_line_footprint_relative
     parser = argparse.ArgumentParser()
     parser.add_argument("-i", "--input", type=json.loads)
     parser.add_argument("-p", "--processes")
     parser.add_argument("-v", "--verbose")
     args = parser.parse_args()
-    if debug_mode:
-        args.input = {
-        "in_line": "D:/Maverick/py_project/beratools/tests/data/centerline.gpkg",
-        "in_chm": "D:/Maverick/py_project/beratools/tests/data/chm.tif",
-        "max_ln_width": 32.0,
-        "exp_shk_cell": 2,
-        "out_footprint": "D:/Maverick/py_project/beratools/tests/data/rel_footprint.gpkg",
-        "out_centerline": "D:/Maverick/py_project/beratools/tests/data/smoothed_centerline.gpkg",
-        "off_ln_dist": 15.0,
-        "canopy_percentile": 90,
-        "canopy_thresh_percentage": 50.0,
-        "tree_radius": 1.5,
-        "max_line_dist": 1.5,
-        "canopy_avoidance": 1.0,
-        "exponent": 1
-        }
-        args.processes = 20
-        args.verbose = 'True'
     args.input["full_step"] = True
     args.input["in_line"] = dy_cl_line.replace("\\","/")
     del args.input["off_ln_dist"]
@@ -119,6 +84,6 @@ if __name__ == "__main__":
     main_line_footprint_relative( **args.input, processes=int(args.processes),verbose=verbose,debug_mode=debug_mode)
 
     print("{}%".format(100))
-    print("Dynamic CC and Footprint processes finished")
-    print("Current time: {}".format(time.strftime("%d %b %Y %H:%M:%S", time.localtime())))
-    print("Total processing time (seconds): {}".format(round(time.time() - start_time, 3)))
+    print("[info]: Dynamic CC and Footprint processes finished")
+    print("[info]: Current time: {}".format(time.strftime("%d %b %Y %H:%M:%S", time.localtime())))
+    print("[info]: Total processing time (seconds): {}".format(round(time.time() - start_time, 3)))
