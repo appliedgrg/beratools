@@ -651,7 +651,7 @@ def main_line_footprint_relative(
     canopy_thresh_percentage:int,
     processes:int,
     verbose:bool,
-    debug_mode:bool,
+    debug_mode:bool=False,
 )-> None:
     """
     This function take the centerlines with forest canopy height and distance to edge to generate
@@ -672,7 +672,8 @@ def main_line_footprint_relative(
     Returns:
         New saved footprints and/or with smoothed centerlines dataset(s).
     """
-    line_seg = GeoDataFrame.from_file(Path(in_line))
+    in_file, layer = decode_file_layer(in_line)
+    line_seg = GeoDataFrame.from_file(in_file, layer=layer)
 
     # If Dynamic canopy threshold column not found, create one
     if "DynCanTh" not in line_seg.columns.array:
@@ -702,7 +703,7 @@ def main_line_footprint_relative(
     with rasterio.open(in_chm) as raster:
         line_args = []
 
-        if compare_crs(vector_crs(in_line), raster_crs(in_chm)):
+        if compare_crs(vector_crs(in_file), raster_crs(in_chm)):
             proc_segments = False
             if proc_segments:
                 print("[Info]: Splitting lines into segments...")
@@ -844,7 +845,8 @@ def main_line_footprint_relative(
     dissolved_results = resultsAll.dissolve(by="OLnFID", as_index=False)
     dissolved_results["geometry"] = dissolved_results["geometry"].buffer(-0.005)
     print("[info]: Saving output ...")
-    dissolved_results.to_file(out_footprint)
+    out_ft_file, layer = decode_file_layer(out_footprint)
+    dissolved_results.to_file(out_ft_file, layer=layer)
     print("[info]: Footprint file saved")
 
     # dissolved polygon group by column 'OLnFID'
@@ -861,7 +863,8 @@ def main_line_footprint_relative(
     resultsCLR["geometry"] = resultsCLR["geometry"].buffer(-0.005)
 
     # save lines to file
-    if out_centerline: #smoothed centerlines
+    if out_centerline:
+        out_cl_file, layer = decode_file_layer(out_centerline)
         poly_centerline_gpd = find_centerlines(resultsCLR, line_seg, processes)
         poly_gpd = poly_centerline_gpd.copy()
         centerline_gpd = poly_centerline_gpd.copy()
@@ -878,5 +881,8 @@ def main_line_footprint_relative(
             path = path.with_stem(path.stem + "_poly")
             poly_gpd = poly_gpd.drop(columns=["centerline"])
             poly_gpd.to_file(path)
+
+        centerline_gpd.to_file(out_cl_file, layer=layer)
+        print("Centerline file saved")
 
     print("{}%".format(100))

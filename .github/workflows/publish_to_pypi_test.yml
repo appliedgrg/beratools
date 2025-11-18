@@ -2,12 +2,16 @@ name: Publish to PyPI Test
 
 on:
   pull_request:
-    branches: [main]
+    branches: 
+      - main
+    paths:
+      - 'beratools/**'
 
 jobs:
   testpypi:
     runs-on: ubuntu-latest
     permissions:
+      contents: read
       id-token: write
     steps:
       - name: Checkout Code

@@ -45,10 +45,13 @@ def main_canopy_threshold_relative(
     """
     file_path, in_file_name = os.path.split(Path(in_line))
     out_file = os.path.join(Path(file_path), "DynCanTh_" + in_file_name)
-    line_seg = gpd.GeoDataFrame.from_file(Path(in_line))
+    in_file, layer = decode_file_layer(in_line)
+    out_cl_file, out_layer = decode_file_layer(out_file)
+    line_seg = gpd.GeoDataFrame.from_file(in_file, layer=layer)
 
     # check coordinate systems between line and raster features
-    if compare_crs(vector_crs(in_line), raster_crs(in_chm)):
+    # with rasterio.open(in_chm) as in_raster:
+    if compare_crs(vector_crs(in_file), raster_crs(in_chm)):
         pass
     else:
         print("Line and raster spatial references are not same, please check.")
@@ -198,11 +201,11 @@ def main_canopy_threshold_relative(
     print("Calculating forest population done.")
 
     print("Saving percentile information to input line ...")
-    gpd.GeoDataFrame.to_file(result, out_file)
+    gpd.GeoDataFrame.to_file(result, out_cl_file, layer=out_layer)
     print("Saving percentile information to input line ...done.")
 
     if full_step:
-        return out_file #return output filepath
+        return out_file  # TODO: make sure this is correct
 
     print("{}%".format(100))
 

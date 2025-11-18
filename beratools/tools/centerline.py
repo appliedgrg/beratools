@@ -14,17 +14,16 @@ Description:
 """
 
 import logging
-import time
 from pathlib import Path
 
 import pandas as pd
 
 import beratools.core.algo_centerline as algo_centerline
 import beratools.core.algo_common as algo_common
-import beratools.core.constants as bt_const
 import beratools.utility.spatial_common as sp_common
 from beratools.core.logger import Logger
 from beratools.core.tool_base import execute_multiprocessing
+from beratools.utility.tool_args import CallMode
 
 log = Logger("centerline", file_level=logging.INFO)
 logger = log.get_logger()
@@ -52,18 +51,20 @@ def centerline(
     line_radius,
     proc_segments,
     out_line,
-    processes,
-    verbose,
-    in_layer=None,
-    out_layer=None,
-    parallel_mode=bt_const.ParallelMode.MULTIPROCESSING,
+    use_angle_grouping=True,
+    processes=0,
+    call_mode=CallMode.CLI,
+    log_level="INFO",
 ):
-    if not sp_common.compare_crs(sp_common.vector_crs(in_line), sp_common.raster_crs(in_raster)):
+    in_file, in_layer = sp_common.decode_file_layer(in_line)
+    out_file, out_layer = sp_common.decode_file_layer(out_line)
+
+    if not sp_common.compare_crs(sp_common.vector_crs(in_file), sp_common.raster_crs(in_raster)):
         print("Line and CHM have different spatial references, please check.")
         return
 
     line_class_list = generate_line_class_list(
-        in_line,
+        in_file,
         in_raster,
         line_radius=float(line_radius),
         layer=in_layer,
@@ -80,12 +81,11 @@ def centerline(
         line_class_list,
         "Centerline",
         processes,
-        verbose=verbose,
-        mode=parallel_mode,
+        call_mode,
     )
     if not result:
         print("No centerlines found.")
-        return
+        return 1
 
     for item in result:
         lc_path_list.append(item.lc_path)
@@ -102,27 +102,28 @@ def centerline(
     corridor_polys = pd.concat(corridor_poly_list, ignore_index=True)
 
     # Save the concatenated GeoDataFrames to the shapefile/gpkg
-    centerline_list.to_file(out_line, layer=out_layer)
-    print(f"Saved centerlines to: {out_line}")
+    centerline_list.to_file(out_file, layer=out_layer)
+    print(f"Saved centerlines to: {out_file}")
 
     # Check if the output file is a shapefile
-    out_line_path = Path(out_line)
+    out_line_path = Path(out_file)
 
-    if out_line_path.suffix == ".shp":
-        # Generate the new file name for the GeoPackage with '_aux' appended
-        aux_file = out_line_path.with_name(out_line_path.stem + "_aux.gpkg")
-        print(f"Saved auxiliary data to: {aux_file}")
-    else:
-        aux_file = out_line  # continue using out_line (gpkg)
+    # Generate the new file name for the GeoPackage with '_aux' appended
+    aux_file = out_line_path.with_name(out_line_path.stem + "_aux.gpkg")
+    print(f"Saved auxiliary data to: {aux_file}")
 
     # Save lc_path_list and corridor_polys to the new GeoPackage with '_aux' suffix
     lc_path_list.to_file(aux_file, layer="least_cost_path")
     corridor_polys.to_file(aux_file, layer="corridor_polygon")
 
+    return 0
 
-# TODO: fix geometries when job done
+
 if __name__ == "__main__":
-    in_args, in_verbose = sp_common.check_arguments()
+    import time
+
+    from beratools.utility.tool_args import compose_tool_kwargs
     start_time = time.time()
-    centerline(**in_args.input, processes=int(in_args.processes), verbose=in_verbose)
+    kwargs = compose_tool_kwargs("centerline")
+    centerline(**kwargs)
     print("Elapsed time: {}".format(time.time() - start_time))

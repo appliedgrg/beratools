@@ -23,6 +23,7 @@ from scipy import ndimage
 
 import beratools.core.constants as bt_const
 
+PARALLEL_MODE = bt_const.ParallelMode.MULTIPROCESSING
 
 def remove_nan_from_array(matrix):
     with np.nditer(matrix, op_flags=["readwrite"]) as it:

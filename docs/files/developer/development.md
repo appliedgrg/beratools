@@ -1,121 +1,169 @@
-# Development
+# Local Development
 
-## Project Layout
+This document provides guidelines and instructions for setting up a local development environment for BERA Tools.
 
-There are a number of files for build, test, and continuous integration in the root of the project, but in general, the
-project is broken up like so.
+## Local Development Setup
 
-```
-├── beratools
-│   ├── core
-│   ├── gui
-│   └── tools
-├── docs
-│   └── files
-├── notebooks
-├── tests
-```
+### Using Conda
 
-Directory            | Description
--------------------- | -----------
-`beratools/core`     | Core algorithms and logic.
-`beratools/gui`      | GUI components and assets.
-`beratools/tools`    | Tool implementations.
-`docs/files/developer`   | Developer documentation.
-`notebooks`          | Example notebooks and configs.
-`tests`              | Unit and integration tests.
+A manual conda environment setup for local development (without using environment.yml) can be done as follows:
 
-## Coding Standards
+1. Create a new environment:
 
-When writing code, the code should roughly conform to PEP8 and PEP257 suggestions.  The PyMdown Extensions project
-utilizes the Flake8 linter (with some additional plugins) to ensure code conforms (give or take some of the rules).
-When in doubt follow the formatting hints of existing code when adding or modifying files. existing files.  Listed below
-are the modules used:
+   ```bash
+   conda create -n bera python=3.11 -y
+   conda activate bera
+   ```
 
--   @PyCQA/flake8
--   @PyCQA/flake8-docstrings
--   @PyCQA/pep8-naming
--   @ebeweber/flake8-mutable
--   @gforcada/flake8-builtins
+1. Install dependencies individually:
 
-Flake8 can be run directly via the command line from the root of the project.
+   ```bash
+   conda install -c appliedgrg bera_centerlines
+   conda install -c conda-forge dask gdal=3.9.3 geopandas pyogrio>=0.9.0 pyqt rasterio scikit-image>=0.24.0 tqdm xarray-spatial
+   ```
 
-```
-flake8
-```
+This approach avoids installing the released beratools package and uses only the dependencies listed in [`environment.yml`](https://github.com/appliedgrg/beratools/blob/main/environment.yml).
 
-## Building and Editing Documents
+### Using Pixi
 
-Documents are in Markdown (with some additional syntax) and converted to HTML via Python Markdown and this
-extension bundle. If you would like to build and preview the documentation, you must have these packages installed:
+Pixi is the easiest way to set up a consistent development environment for BERA Tools. The configuration is defined in [`pixi.toml`](https://github.com/appliedgrg/beratools/blob/main/pixi.toml).
 
--   @Python-Markdown/markdown: the Markdown parser.
--   @mkdocs/mkdocs: the document site generator.
--   @squidfunk/mkdocs-material: a material theme for MkDocs.
--   @timvink/mkdocs-git-revision-date-localized-plugin: inserts date a page was last updated.
--   @facelessuser/pymdown-extensions: this Python Markdown extension bundle.
+1. **Install pixi**
 
-These can be installed via:
+    Follow the official instructions at [pixi.sh](https://pixi.sh/docs/install/) to install pixi.
 
-```
-pip install -r requirements/docs.txt
-```
+1. **Create the environment**
 
-In order to build and preview the documents, just run the command below from the root of the project and you should be
-able to view the documents at `localhost:8000` in your browser. After that, you should be able to update the documents
-and have your browser preview update live.
+    In the project root, run the command to setup all dependencies as specified in `pixi.toml`.
 
-```
-mkdocs serve
-```
+    ```bash
+    git clone https://github.com/appliedgrg/beratools.git
+    pixi install  # Run this command inside the beratools project root
+    ```
 
-## Tests
+1. **Activate the environment**
 
-In order to preserve good code health, a test suite has been put together with pytest (@pytest-dev/pytest). There are
-currently two kinds of tests: syntax and targeted.  To run these tests, you can use the following command:
+    ```bash
+    pixi shell
+    ```
 
-You can also run the tests by first installing the requirements:
+1. **Update the environment**
 
-```
-pip install -e .[dev]
-```
+    To update dependencies, re-run the `pixi install` again. Pixi will detect changes in pixi.toml and install or update packages accordingly.
 
-And then run the tests with:
+    For more details, review the dependencies and tasks in [`pixi.toml`](https://github.com/appliedgrg/beratools/blob/main/pixi.toml).
 
-```
-python tests/test_workflow.py
-```
+### Install local code in editable mode
 
-### Targeted
+Activate your conda or pixi environment, then run:
 
-Targeted tests are unit tests that target specific areas in the code and exercises them to ensure proper functionality.
-These tests are found in `test_targeted.py`.
+   ```bash
+    $ git clone https://github.com/appliedgrg/beratools.git
+    $ cd beratools
+    $ pip install -e .
+    $ beratools  # This should start main GUI
+   ```
 
-You can run **only** these tests from the root of the project with:
+The editable mode (`-e`) allows you to make changes to the source code and have them reflected immediately without needing to reinstall the package.
 
-```
-python run_tests.py --test-target targeted
+## GitHub Flow
+
+We use a [GitHub Flow](https://docs.github.com/en/get-started/quickstart/github-flow) for development. All changes are made through feature branches and pull requests.
+
+```mermaid
+flowchart TB
+    main[main branch]
+    feature["feature/my-new-feature <br/> (feature branch)"]
+    pr[Pull Request]
+    review[Review & CI]
+    merged[Merge into main]
+    deleted[Delete feature branch]
+
+    main -->|create branch| feature
+    feature -->|push changes & open PR| pr
+    pr --> review
+    review -->|approved| merged
+    merged --> main
+    merged --> deleted
 ```
 
-You could also run them directly with:
+1. Create a new branch for your feature or bugfix:
 
-```
-py.test tests/test_targeted.py
-```
+   ```bash
+   git checkout -b feature/my-new-feature
+   ```
 
+1. Make your changes and commit them with descriptive messages:
 
-## Code Coverage
+   ```bash
+   git add .
+   git commit -m "Add new feature X"
+   ```
 
-When running the validation tests through Tox, it is setup to track code coverage via the Coverage
-(@bitbucket:ned/coveragepy) module.  Coverage is run on each `pyxx` environment.  If you've made changes to
-the code, you can clear the old coverage data:
+1. Push your branch to the remote repository:
 
-```
-coverage erase
-```
+   ```bash
+   git push origin feature/my-new-feature
+   ```
 
-Then run each unit test environment to and coverage will be calculated. All the data from each run is merged together.
-HTML is output for each file in `.tox/pyXX-unittests/tmp`.  You can use these to see areas that are not
-covered/exercised yet with testing.
+1. Open a pull request on GitHub and request reviews from team members.
+1. Once approved, merge your changes into the main branch.
+1. Delete your feature branch after merging.
+1. Keep your local main branch up to date:
 
-You can checkout `tox.ini` to see how this is accomplished.
+   ```bash
+   git checkout main
+   git pull origin main
+   ```
+
+## Branch Naming Conventions
+
+- Use descriptive names for branches, prefixed by the type of work being done:
+    - `feature/` for new features
+    - `bugfix/` for bug fixes
+    - `doc/` for documentation changes
+    - `refactor/` for code refactoring
+- Use hyphens to separate words (e.g., `feature/add-user-authentication`).
+- Keep branch names concise yet descriptive.
+- Avoid using special characters or spaces in branch names.
+- Example branch names:
+    - `feature/improve-performance`
+    - `bugfix/fix-login-issue`
+    - `doc/update-readme`
+    - `refactor/optimize-database-queries`
+
+## Short-lived Branches vs Long-lived Branches
+
+- **Short-lived branches** are typically used for specific features or bug fixes. They are created from the main branch, worked on, and then merged back into the main branch as quickly as possible (usually within a few days or weeks). This approach helps to keep the main branch clean and reduces the risk of merge conflicts.
+
+- **Long-lived branches**, on the other hand, are used for larger features or ongoing work that may take longer to complete. These branches may exist for weeks or months and are regularly synced with the main branch to keep them up to date. While they allow for more extensive changes, they also carry a higher risk of merge conflicts and may require more effort to integrate back into the main branch.
+    - When using long-lived branches, it's important to regularly pull changes from the main branch to minimize conflicts.
+    - Consider breaking down large features into smaller, manageable tasks that can be completed in short-lived branches and then merged into the long-lived branch.
+    - Communicate with your team about the status of long-lived branches to ensure everyone is aware of ongoing work and potential integration challenges.
+
+### Dealing with Merge Conflicts
+
+- Regularly sync your branch with the main branch to minimize conflicts.
+- Use descriptive commit messages to make it easier to understand changes.
+- If a merge conflict occurs, carefully review the conflicting code and resolve it by choosing the appropriate changes.
+- Test your code thoroughly after resolving conflicts to ensure everything works as expected.
+
+Recommend IDEs like VSCode or PyCharm that have built-in support for Git and can help visualize and resolve merge conflicts.
+
+## pyproject.toml
+
+[pyproject.toml](https://github.com/appliedgrg/beratools/blob/main/pyproject.toml) is the core configuration file used to define the build system, dependencies, and other settings for BERA Tools. Other settings include Ruff, mypy, pytest, markdownlint.
+
+### pyproject.toml Functional Groups
+
+| Group                      | Purpose/Functionality                                                                 |
+|---------------------------|---------------------------------------------------------------------------------------|
+| Build System              | **[build-system]**: build backend and build-time dependencies (e.g., build-backend, requires). |
+| Metadata & Core           | **[project]**: project identity and core settings — name, version, description, authors, license, requires-python, dependencies, classifiers, keywords. |
+| Optional Dependencies     | **[project.optional-dependencies]**: extras grouped for development, documentation, testing, etc. |
+| Entry Points / Scripts    | **[project.scripts]**: CLI entry points mapping console commands to callables.            |
+| Project URLs              | **[project.urls]**: homepage, repository, issue tracker, documentation, changelog links. |
+| Versioning & Build        | **[tool.hatch.version]**, **[tool.hatch.version.raw-options]**, **[tool.hatch.build.targets.sdist]**: version strategy and build-target customization. |
+| Linting & Formatting Tools| **[tool.ruff]**, **[tool.markdownlint]**: code and markdown linting/formatting configurations. |
+| Type Checking             | **[tool.mypy]**: static type-checker configuration and strictness options.               |
+| Testing & Coverage        | **[tool.coverage.run]**, **[tool.coverage.report]**, **[tool.pytest.ini_options]**: test runner and coverage reporting settings. |

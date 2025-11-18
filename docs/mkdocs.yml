@@ -70,21 +70,25 @@ nav:
     - index.md
     - overview.md
   - User Guide: 
-    - user/installation.md
     - user_guide.md
+    - user/installation.md
     - Tools:
       - user/check_seed_line.md
       - user/vertex_optimization.md
       - user/centerline.md
       - user/canopy_footprint_abs.md
-      - user/line_footprint_rel.md
+      - user/canopy_footprint_rel.md
       - user/ground_footprint.md
   - Developer Guide:
     - developer_guide.md
     - developer/contributing.md
     - developer/development.md
-    - developer/github.md
+    - developer/dev_standards.md
     - developer/tool_template.md
+    - developer/testing.md
+    - developer/documentation.md
+    - developer/maintainer.md
+    - developer/publishing.md
   - API Reference: api.md
 
 plugins:
