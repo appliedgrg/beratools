@@ -12,6 +12,9 @@ MD007:
 # Disable line length limits for documentation
 MD013: false
 
+# MD014: Dollar signs used before commands without showing output
+MD014: false
+
 # MD033: Inline HTML
 # Allow HTML in markdown (useful for complex layouts)
 MD033: false

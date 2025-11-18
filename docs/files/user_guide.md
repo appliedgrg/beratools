@@ -3,8 +3,8 @@
 Make sure [beratools is installed](user/installation.md). Run the command in MiniConda/Anaconda Prompt to start BERA Tools main gui.
 
 ``` bash
-> conda activate bera
-> beratools 
+$ conda activate bera
+$ beratools 
 ```
 
 ## Example Data

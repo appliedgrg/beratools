@@ -25,29 +25,29 @@ Installation Steps:
 - Run the following command to create a new environment named **bera**. **BERA Tools** will be installed in the new environment at the same time.
 
    ```bash
-   > conda env create -n bera -f environment.yml
+   $ conda env create -n bera -f environment.yml
    ```
 
    Wait until the installation is done.
 - Activate the **bera** environment and launch BERA Tools:
 
   ```bash
-  > conda activate bera
-  > beratools
+  $ conda activate bera
+  $ beratools
   ```
 
 - [Download latest example data](https://github.com/appliedgrg/beratools/releases/latest/download/test_data.zip) to try with BERA Tools.
 - To update BERA Tools when new release is issued, run the following commands:
 
     ```bash
-    > conda activate bera
-    > conda update beratools
+    $ conda activate bera
+    $ conda update beratools
     ```
 
 - To completely remove BERA Tools and its environment, run the following command:
 
     ```bash
-    > conda remove -n bera
+    $ conda remove -n bera
     ```
 
 ## BERA Tools Guide
