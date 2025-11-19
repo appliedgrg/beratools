@@ -649,7 +649,7 @@ def main_line_footprint_relative(
     canopy_thresh_percentage:int,
     processes:int,
     verbose:bool,
-    debug_mode:bool=False,
+    debug_mode:bool=BT_DEBUGGING,
 )-> None:
     """
     This function take the centerlines with forest canopy height and distance to edge to generate
@@ -871,17 +871,16 @@ def main_line_footprint_relative(
         centerline_gpd = centerline_gpd.set_geometry("centerline")
         centerline_gpd = centerline_gpd.drop(columns=["geometry"])
         centerline_gpd.crs = poly_centerline_gpd.crs
-        centerline_gpd.to_file(out_centerline)
-        print("[info]: Centerline file saved")
 
         # save polygons from smooth centerline for debug
         if debug_mode:
-            path = Path(out_centerline)
+            path = Path(out_cl_file)
             path = path.with_stem(path.stem + "_poly")
             poly_gpd = poly_gpd.drop(columns=["centerline"])
-            poly_gpd.to_file(path)
+            poly_gpd.to_file(path,layer='smoothedCL_poly')
+            print("[info]: Polygon from smoothed centerline file saved")
 
         centerline_gpd.to_file(out_cl_file, layer=layer)
-        print("Centerline file saved")
+        print("[info]: Smoothed centerline file saved")
 
     print("{}%".format(100))
