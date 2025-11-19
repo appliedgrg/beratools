@@ -55,21 +55,16 @@ def test_full_workflow(tool_arguments_workflow):
     # 5. Test the line_footprint_rel tool
     # if check_file_exists(args_centerline["out_line"]):
     arg_main_canopy_threshold_relative = tool_arguments_workflow["arg_main_canopy_threshold_relative"]
-    arg_main_canopy_threshold_relative['in_line'] = args_centerline["out_line"]
-
     main_canopy_threshold_relative(**arg_main_canopy_threshold_relative)
+    out_file, layer = sp_common.decode_file_layer(arg_main_canopy_threshold_relative["out_DynCenterline"])
+    assert check_file_exists(out_file, layer=layer), (
+        "Dynamic Centerline output file was not created!")
 
-    assert check_file_exists(arg_main_canopy_threshold_relative["out_DynCenterline"]), (
-        "Dynamic Centerline output file was not created!"
-    )
-
-    # if check_file_exists(arg_main_canopy_threshold_relative["out_DynCenterline"]):
     arg_main_line_footprint_relative = tool_arguments_workflow["arg_main_line_footprint_relative"]
-    arg_main_line_footprint_relative['in_line'] = arg_main_canopy_threshold_relative["out_DynCenterline"]
 
     main_line_footprint_relative(**arg_main_line_footprint_relative)
-
-    assert check_file_exists(arg_main_canopy_threshold_relative["out_DynCenterline"]), (
+    out_file, layer = sp_common.decode_file_layer(arg_main_line_footprint_relative["out_footprint"])
+    assert check_file_exists(out_file, layer=layer), (
         "Dynamic FP output file was not created!"
     )
     
