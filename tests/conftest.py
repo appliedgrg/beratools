@@ -9,6 +9,8 @@ from pathlib import Path
 
 import pytest
 
+from beratools.core.constants import BT_DEBUGGING
+
 sys.path.insert(0, Path(__file__).parents[1].as_posix())
 
 
@@ -113,7 +115,7 @@ def tool_arguments_integration(testdata_dir, available_cpu_cores):
             'canopy_thresh_percentage': 50,
             'processes': available_cpu_cores,
             'verbose': False,
-            'debug_mode':False,
+            'debug_mode':BT_DEBUGGING,
         },
     }
 
