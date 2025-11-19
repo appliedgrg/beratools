@@ -15,6 +15,7 @@ import shapely
 from beratools.core.constants import *
 from beratools.tools.common import *
 from beratools.utility.spatial_common import *
+from beratools.core.tool_base import parallel_mode
 
 
 class OperationCancelledException(Exception):
@@ -48,7 +49,7 @@ def main_canopy_threshold_relative(
     in_file, layer = decode_file_layer(in_line)
     out_cl_file, out_layer = decode_file_layer(out_file)
     line_seg = gpd.GeoDataFrame.from_file(in_file, layer=layer)
-
+    _,processes=parallel_mode(processes)
     # check coordinate systems between line and raster features
     # with rasterio.open(in_chm) as in_raster:
     if compare_crs(vector_crs(in_file), raster_crs(in_chm)):

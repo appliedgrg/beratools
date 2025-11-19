@@ -45,56 +45,64 @@ from matplotlib.pylab import f
 
 from beratools.core.line_footprint_functions import *
 from beratools.core.canopy_threshold_relative import *
-from beratools.utility.tool_args import CallMode
+from beratools.utility.tool_args import CallMode,compose_tool_kwargs
+
 
 if __name__ == "__main__":
     start_time = time.time()
     print("[info]: Dynamic CC and Footprint processing started")
     print("[info]: Current time: {}".format(time.strftime("%d %b %Y %H:%M:%S", time.localtime())))
     debug_mode=BT_DEBUGGING
-    parser = argparse.ArgumentParser()
-    parser.add_argument("-i", "--input", type=json.loads)
-    # parser.add_argument("-p", "--processes")
-    # parser.add_argument("-v", "--verbose")
 
-    parser.add_argument("-c", "--call_mode", default=CallMode.CLI.value)
-    parser.add_argument("-p", "--processes", type=int, default=1)
-    parser.add_argument("-l", "--log_level", default="INFO")
+    args=compose_tool_kwargs("line_footprint_relative")
+    # parser = argparse.ArgumentParser()
+    # parser.add_argument("-i", "--input", type=json.loads)
+    # # parser.add_argument("-p", "--processes")
+    # # parser.add_argument("-v", "--verbose")
+    #
+    # parser.add_argument("-c", "--call_mode", default=CallMode.CLI.value)
+    # parser.add_argument("-p", "--processes", type=int, default=1)
+    # parser.add_argument("-l", "--log_level", default="INFO")
 
-    args = parser.parse_args()
-    args.input["full_step"] = True
-    del args.input["out_footprint"]
-    del args.input["out_centerline"]
-    del args.input["exp_shk_cell"]
-    del args.input["max_ln_width"]
-    del args.input["off_ln_dist"]
-    del args.input["tree_radius"]
-    del args.input["max_line_dist"]
-    del args.input["canopy_avoidance"]
-    del args.input["exponent"]
-
-    verbose = True if args.call_mode == CallMode.GUI.value else False
+    # args = parser.parse_args()
+    args["full_step"] = True
+    del args["out_footprint"]
+    del args["out_centerline"]
+    del args["exp_shk_cell"]
+    del args["max_ln_width"]
+    del args["off_ln_dist"]
+    del args["tree_radius"]
+    del args["max_line_dist"]
+    del args["canopy_avoidance"]
+    del args["exponent"]
+    verbose = True if args['call_mode'] == CallMode.GUI.value else False
+    args['verbose']=verbose
+    del args["call_mode"]
+    del args["log_level"]
     dy_cl_line = main_canopy_threshold_relative(
-    **args.input, processes=int(args.processes), verbose=verbose
-    )
+    **args)
     # Reload and Prepare argument for main_line_footprint_relative
-    parser = argparse.ArgumentParser()
-    parser.add_argument("-i", "--input", type=json.loads)
-    # parser.add_argument("-p", "--processes")
-    # parser.add_argument("-v", "--verbose")
-    parser.add_argument("-c", "--call_mode", default=CallMode.CLI.value)
-    parser.add_argument("-p", "--processes", type=int, default=1)
-    parser.add_argument("-l", "--log_level", default="INFO")
-    
-    args = parser.parse_args()
-    args.input["full_step"] = True
-    args.input["in_line"] = dy_cl_line.replace("\\","/")
-    del args.input["off_ln_dist"]
-    del args.input["canopy_percentile"]
-    verbose = True if args.call_mode == CallMode.GUI.value else False
-    print(args.input, flush=True)
+    # parser = argparse.ArgumentParser()
+    # parser.add_argument("-i", "--input", type=json.loads)
+    # # parser.add_argument("-p", "--processes")
+    # # parser.add_argument("-v", "--verbose")
+    # parser.add_argument("-c", "--call_mode", default=CallMode.CLI.value)
+    # parser.add_argument("-p", "--processes", type=int, default=1)
+    # parser.add_argument("-l", "--log_level", default="INFO")
+    #
+    # args = parser.parse_args()
+    args = compose_tool_kwargs("line_footprint_relative")
+    args["full_step"] = True
+    args["in_line"] = dy_cl_line
+    del args["off_ln_dist"]
+    del args["canopy_percentile"]
+    args['verbose']=verbose
+    del args["call_mode"]
+    del args["log_level"]
 
-    main_line_footprint_relative(**args.input, processes=int(args.processes), verbose=verbose)
+    print(args, flush=True)
+
+    main_line_footprint_relative(**args)
 
     print("{}%".format(100))
     print("[info]: Dynamic CC and Footprint processes finished")

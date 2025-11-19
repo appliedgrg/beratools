@@ -28,8 +28,6 @@
 #
 # ---------------------------------------------------------------------------
 
-import time
-
 from geopandas import GeoDataFrame
 from rasterio import features
 from rasterio.mask import mask
@@ -674,6 +672,7 @@ def main_line_footprint_relative(
     """
     in_file, layer = decode_file_layer(in_line)
     line_seg = GeoDataFrame.from_file(in_file, layer=layer)
+    _, processes = parallel_mode(processes)
 
     # If Dynamic canopy threshold column not found, create one
     if "DynCanTh" not in line_seg.columns.array:
