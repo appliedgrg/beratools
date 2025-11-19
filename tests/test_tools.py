@@ -57,11 +57,12 @@ def test_canopy_footprint_abs_tool(tool_arguments_integration):
 
 def test_rel_footprint_tool(tool_arguments_integration):
     """Test for the main_canopy_threshold_relative tool."""
+    test_centerline_tool(tool_arguments_integration)
     arg_main_canopy_threshold_relative = tool_arguments_integration["arg_main_canopy_threshold_relative"]
     pprint(arg_main_canopy_threshold_relative)
 
-    main_canopy_threshold_relative(**arg_main_canopy_threshold_relative)
-    out_file, layer = sp_common.decode_file_layer(arg_main_canopy_threshold_relative["out_DynCenterline"])
+    out_dyncl_file=main_canopy_threshold_relative(**arg_main_canopy_threshold_relative)
+    out_file, layer = sp_common.decode_file_layer(out_dyncl_file)
     assert check_file_exists(out_file, layer=layer), (
     "Dynamic Centerline output file was not created!" )
 
