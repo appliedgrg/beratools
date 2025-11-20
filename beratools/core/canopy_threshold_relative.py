@@ -88,13 +88,13 @@ def main_canopy_threshold_relative(
         pass
 
     # copy original line input to another GeoDataframe and simplify the line geometry for buffering
-    workln_dfC = gpd.GeoDataFrame.copy((line_seg),deep=True)
-    workln_dfC.geometry = workln_dfC.geometry.simplify(tolerance=0.5, preserve_topology=True)
+    workln_df_c = gpd.GeoDataFrame.copy(line_seg, deep=True)
+    workln_df_c.geometry = workln_df_c.geometry.simplify(tolerance=0.5, preserve_topology=True)
 
     print("{}%".format(5))
     # copy simplified line input for ring buffer for two sides buffering
-    worklnbuffer_dfLRing = gpd.GeoDataFrame.copy((workln_dfC),deep=True)
-    worklnbuffer_dfRRing = gpd.GeoDataFrame.copy((workln_dfC),deep=True)
+    worklnbuffer_df_l_ring = gpd.GeoDataFrame.copy((workln_df_c),deep=True)
+    worklnbuffer_df_r_ring = gpd.GeoDataFrame.copy((workln_df_c),deep=True)
 
     print("Create ring buffer for input line to find the forest edge....")
 
@@ -133,39 +133,40 @@ def main_canopy_threshold_relative(
         return rings  # return the list
 
     # Create a column with the rings as a list
-    print("Create ring buffer to the left forest edge....")
-    worklnbuffer_dfLRing["mgeometry"] = worklnbuffer_dfLRing.apply(
+    print("Create rings buffer to forest edge on one side....")
+    worklnbuffer_df_l_ring["mgeometry"] = worklnbuffer_df_l_ring.apply(
         lambda x: multiringbuffer(df=x, nrings=1, ringdist=15), axis=1
     )
 
-    worklnbuffer_dfLRing = worklnbuffer_dfLRing.explode("mgeometry")  # Explode to create a row for each ring
-    worklnbuffer_dfLRing = worklnbuffer_dfLRing.set_geometry("mgeometry")
-    worklnbuffer_dfLRing = (
-        worklnbuffer_dfLRing.drop(columns=["geometry"]).rename_geometry("geometry").set_crs(workln_dfC.crs)
+    # Explode to create a row for each ring
+    worklnbuffer_df_l_ring = worklnbuffer_df_l_ring.explode("mgeometry")
+    worklnbuffer_df_l_ring = worklnbuffer_df_l_ring.set_geometry("mgeometry")
+    worklnbuffer_df_l_ring = (
+        worklnbuffer_df_l_ring.drop(columns=["geometry"]).rename_geometry("geometry").set_crs(workln_df_c.crs)
     )
-    worklnbuffer_dfLRing["iRing"] = worklnbuffer_dfLRing.groupby(["OLnFID", "OLnSEG"]).cumcount()
-    worklnbuffer_dfLRing = worklnbuffer_dfLRing.sort_values(by=["OLnFID", "OLnSEG", "iRing"])
-    worklnbuffer_dfLRing = worklnbuffer_dfLRing.reset_index(drop=True)
+    worklnbuffer_df_l_ring["iRing"] = worklnbuffer_df_l_ring.groupby(["OLnFID", "OLnSEG"]).cumcount()
+    worklnbuffer_df_l_ring = worklnbuffer_df_l_ring.sort_values(by=["OLnFID", "OLnSEG", "iRing"])
+    worklnbuffer_df_l_ring = worklnbuffer_df_l_ring.reset_index(drop=True)
 
-    print("Create ring buffer to the right forest edge....")
-    worklnbuffer_dfRRing["mgeometry"] = worklnbuffer_dfRRing.apply(
+    print("Create rings buffer to forest edge on the other side....")
+    worklnbuffer_df_r_ring["mgeometry"] = worklnbuffer_df_r_ring.apply(
         lambda x: multiringbuffer(df=x, nrings=-1, ringdist=-15), axis=1
     )
 
-    worklnbuffer_dfRRing = worklnbuffer_dfRRing.explode("mgeometry")  # Explode to create a row for each ring
-    worklnbuffer_dfRRing = worklnbuffer_dfRRing.set_geometry("mgeometry")
-    worklnbuffer_dfRRing = (
-        worklnbuffer_dfRRing.drop(columns=["geometry"]).rename_geometry("geometry").set_crs(workln_dfC.crs)
+    worklnbuffer_df_r_ring = worklnbuffer_df_r_ring.explode("mgeometry")  # Explode to create a row for each ring
+    worklnbuffer_df_r_ring = worklnbuffer_df_r_ring.set_geometry("mgeometry")
+    worklnbuffer_df_r_ring = (
+        worklnbuffer_df_r_ring.drop(columns=["geometry"]).rename_geometry("geometry").set_crs(workln_df_c.crs)
     )
-    worklnbuffer_dfRRing["iRing"] = worklnbuffer_dfRRing.groupby(["OLnFID", "OLnSEG"]).cumcount()
-    worklnbuffer_dfRRing = worklnbuffer_dfRRing.sort_values(by=["OLnFID", "OLnSEG", "iRing"])
-    worklnbuffer_dfRRing = worklnbuffer_dfRRing.reset_index(drop=True)
+    worklnbuffer_df_r_ring["iRing"] = worklnbuffer_df_r_ring.groupby(["OLnFID", "OLnSEG"]).cumcount()
+    worklnbuffer_df_r_ring = worklnbuffer_df_r_ring.sort_values(by=["OLnFID", "OLnSEG", "iRing"])
+    worklnbuffer_df_r_ring = worklnbuffer_df_r_ring.reset_index(drop=True)
 
-    print("Create ring buffers.... done.")
+    print("Create rings buffer.... done.")
     print("{}%".format(20))
 
-    worklnbuffer_dfRRing["Percentile_RRing"] = np.nan
-    worklnbuffer_dfLRing["Percentile_LRing"] = np.nan
+    worklnbuffer_df_r_ring["Percentile_RRing"] = np.nan
+    worklnbuffer_df_l_ring["Percentile_LRing"] = np.nan
     line_seg["CL_CutHt"] = np.nan
     line_seg["CR_CutHt"] = np.nan
     line_seg["RDist_Cut"] = np.nan
@@ -173,20 +174,20 @@ def main_canopy_threshold_relative(
     print("{}%".format(30))
 
     # calculate the Height percentile for each parallel area using CHM
-    worklnbuffer_dfLRing = multiprocessing_Percentile(
-        worklnbuffer_dfLRing,
+    worklnbuffer_df_l_ring = multiprocessing_Percentile(
+        worklnbuffer_df_l_ring,
         int(canopy_percentile),
-        float(canopy_thresh_percentage),
+        int(canopy_thresh_percentage),
         in_chm,
         processes,
         side="LRing",
     )
 
-    worklnbuffer_dfLRing = worklnbuffer_dfLRing.sort_values(by=["OLnFID", "OLnSEG", "iRing"])
-    worklnbuffer_dfLRing = worklnbuffer_dfLRing.reset_index(drop=True)
+    worklnbuffer_df_l_ring = worklnbuffer_df_l_ring.sort_values(by=["OLnFID", "OLnSEG", "iRing"])
+    worklnbuffer_df_l_ring = worklnbuffer_df_l_ring.reset_index(drop=True)
     print("{}%".format(60))
-    worklnbuffer_dfRRing = multiprocessing_Percentile(
-        worklnbuffer_dfRRing,
+    worklnbuffer_df_r_ring = multiprocessing_Percentile(
+        worklnbuffer_df_r_ring,
         int(canopy_percentile),
         float(canopy_thresh_percentage),
         in_chm,
@@ -194,10 +195,10 @@ def main_canopy_threshold_relative(
         side="RRing",
     )
 
-    worklnbuffer_dfRRing = worklnbuffer_dfRRing.sort_values(by=["OLnFID", "OLnSEG", "iRing"])
-    worklnbuffer_dfRRing = worklnbuffer_dfRRing.reset_index(drop=True)
+    worklnbuffer_df_r_ring = worklnbuffer_df_r_ring.sort_values(by=["OLnFID", "OLnSEG", "iRing"])
+    worklnbuffer_df_r_ring = worklnbuffer_df_r_ring.reset_index(drop=True)
 
-    result = multiprocessing_RofC(line_seg, worklnbuffer_dfLRing, worklnbuffer_dfRRing, processes)
+    result = multiprocessing_RofC(line_seg, worklnbuffer_df_l_ring, worklnbuffer_df_r_ring, processes)
     print("{}%".format(80))
     print("Calculating forest population done.")
 
@@ -515,7 +516,7 @@ def multiprocessing_Percentile(df:gpd.GeoDataFrame,
                                CanThrPercentage:int,
                                in_CHM: str,
                                processes:int,
-                               side:int)->gpd.GeoDataFrame:
+                               side:int)->gpd.GeoDataFrame | None:
     try:
         line_arg = []
         total_steps = len(df)
@@ -588,6 +589,7 @@ def multiprocessing_Percentile(df:gpd.GeoDataFrame,
 
     except OperationCancelledException:
         print("Operation cancelled")
+        return None
 
 
 def cal_percentileLR(line_arg):

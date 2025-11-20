@@ -135,7 +135,19 @@ def cut_line_by_length(line, length, merge_threshold=0.5):
 
     return lines
 
-def chk_df_multipart(df, chk_shp_in_string):
+def chk_df_multipart(df:gpd.GeoDataFrame,
+                     chk_shp_in_string:str)-> tuple[gpd.GeoDataFrame , bool]:
+    """
+    This function is check the input geopandas.GeoDataFrame object contains multipart geometry.
+    If multipart geometry is found, function will try to explode and return single geometry and
+    a boolean of multipart is found or not.
+    Args:
+        df: Any geopandas.GeoDataFrame like
+        chk_shp_in_string: String that the input GeoDataFrame geometry type, i.e. 'Point', 'Polygon', 'LineString'
+
+    Returns:
+
+    """
     try:
         found = False
         if str.upper(chk_shp_in_string) in [x.upper() for x in df.geom_type.values]:
