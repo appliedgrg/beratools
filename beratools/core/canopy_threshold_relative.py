@@ -15,6 +15,7 @@ import shapely
 from beratools.core.constants import *
 from beratools.tools.common import *
 from beratools.utility.spatial_common import *
+from beratools.core.tool_base import parallel_mode
 
 
 class OperationCancelledException(Exception):
@@ -22,26 +23,33 @@ class OperationCancelledException(Exception):
 
 
 def main_canopy_threshold_relative(
-    callback,
-    in_line,
-    in_chm,
-    off_ln_dist,
-    canopy_percentile,
-    canopy_thresh_percentage,
-    tree_radius,
-    max_line_dist,
-    canopy_avoidance,
-    exponent,
-    full_step,
-    processes,
-    verbose,
-):
+    in_line: str,
+    in_chm: str,
+    canopy_percentile: int,
+    canopy_thresh_percentage: int,
+    full_step: bool,
+    processes:int,
+    verbose: bool,
+    out_DynCenterline: str=None, #for Test tool only
+)-> str | None:
+    """
+    This is a function finding approximate surrounding forest canopy height
+    and surrounding forest edge distance from input CHM
+    Args:
+        in_line: Path like string
+        in_chm: Path like string
+        canopy_percentile: Percentile as integer range 1-100
+        canopy_thresh_percentage: Percentage as integer range 1-100
+
+    Returns:
+        Path like string of the saved centerlines with extra attributes
+    """
     file_path, in_file_name = os.path.split(Path(in_line))
     out_file = os.path.join(Path(file_path), "DynCanTh_" + in_file_name)
     in_file, layer = decode_file_layer(in_line)
     out_cl_file, out_layer = decode_file_layer(out_file)
     line_seg = gpd.GeoDataFrame.from_file(in_file, layer=layer)
-
+    _,processes=parallel_mode(processes)
     # check coordinate systems between line and raster features
     # with rasterio.open(in_chm) as in_raster:
     if compare_crs(vector_crs(in_file), raster_crs(in_chm)):
@@ -56,47 +64,43 @@ def main_canopy_threshold_relative(
 
     # Check the Dynamic Canopy threshold column in data. If it is not, new column will be created
     if "DynCanTh" not in line_seg.columns.array:
-        if BT_DEBUGGING:
-            print("{} column not found in input line".format("DynCanTh"))
         print("New column created: {}".format("DynCanTh"))
         line_seg["DynCanTh"] = np.nan
 
     # Check the OLnFID column in data. If it is not, column will be created
     if "OLnFID" not in line_seg.columns.array:
-        if BT_DEBUGGING:
-            print("{} column not found in input line".format("OLnFID"))
-
         print("New column created: {}".format("OLnFID"))
         line_seg["OLnFID"] = line_seg.index
 
     # Check the OLnSEG column in data. If it is not, column will be created
     if "OLnSEG" not in line_seg.columns.array:
-        if BT_DEBUGGING:
-            print("{} column not found in input line".format("OLnSEG"))
-
         print("New column created: {}".format("OLnSEG"))
         line_seg["OLnSEG"] = 0
 
+    # Check input line for multipart
     line_seg = chk_df_multipart(line_seg, "LineString")[0]
 
+    #Not splitting lines
     proc_segments = False
     if proc_segments:
         line_seg = split_into_segments(line_seg)
     else:
         pass
 
-    # copy original line input to another GeoDataframe
-    workln_dfC = gpd.GeoDataFrame.copy((line_seg),deep=True)
-    workln_dfC.geometry = workln_dfC.geometry.simplify(tolerance=0.5, preserve_topology=True)
+    # copy original line input to another GeoDataframe and simplify the line geometry for buffering
+    workln_df_c = gpd.GeoDataFrame.copy(line_seg, deep=True)
+    workln_df_c.geometry = workln_df_c.geometry.simplify(tolerance=0.5, preserve_topology=True)
 
-    print("%{}".format(5))
-
-    worklnbuffer_dfLRing = gpd.GeoDataFrame.copy((workln_dfC),deep=True)
-    worklnbuffer_dfRRing = gpd.GeoDataFrame.copy((workln_dfC),deep=True)
+    print("{}%".format(5))
+    # copy simplified line input for ring buffer for two sides buffering
+    worklnbuffer_df_l_ring = gpd.GeoDataFrame.copy((workln_df_c),deep=True)
+    worklnbuffer_df_r_ring = gpd.GeoDataFrame.copy((workln_df_c),deep=True)
 
     print("Create ring buffer for input line to find the forest edge....")
 
-    def multiringbuffer(df, nrings, ringdist):
+    def multiringbuffer(df: gpd.GeoDataFrame,
+                        nrings:int,
+                        ringdist:int)->list:
         """
         Buffers an input dataframes geometry nring (number of rings) times, with a distance between
         rings of ringdist and returns a list of non overlapping buffers
@@ -124,64 +128,66 @@ def main_canopy_threshold_relative(
                         for i in range(0, len(the_ring.geoms)):
                             if not isinstance(the_ring.geoms[i], shapely.LineString):
                                 rings.append(the_ring.geoms[i])
-            print(" %{} ".format((ring / ringdist) * 100))
+            print(" {}% ".format((ring / ringdist) * 100))
 
         return rings  # return the list
 
     # Create a column with the rings as a list
-
-    worklnbuffer_dfLRing["mgeometry"] = worklnbuffer_dfLRing.apply(
+    print("Create rings buffer to forest edge on one side....")
+    worklnbuffer_df_l_ring["mgeometry"] = worklnbuffer_df_l_ring.apply(
         lambda x: multiringbuffer(df=x, nrings=1, ringdist=15), axis=1
     )
 
-    worklnbuffer_dfLRing = worklnbuffer_dfLRing.explode("mgeometry")  # Explode to create a row for each ring
-    worklnbuffer_dfLRing = worklnbuffer_dfLRing.set_geometry("mgeometry")
-    worklnbuffer_dfLRing = (
-        worklnbuffer_dfLRing.drop(columns=["geometry"]).rename_geometry("geometry").set_crs(workln_dfC.crs)
+    # Explode to create a row for each ring
+    worklnbuffer_df_l_ring = worklnbuffer_df_l_ring.explode("mgeometry")
+    worklnbuffer_df_l_ring = worklnbuffer_df_l_ring.set_geometry("mgeometry")
+    worklnbuffer_df_l_ring = (
+        worklnbuffer_df_l_ring.drop(columns=["geometry"]).rename_geometry("geometry").set_crs(workln_df_c.crs)
     )
-    worklnbuffer_dfLRing["iRing"] = worklnbuffer_dfLRing.groupby(["OLnFID", "OLnSEG"]).cumcount()
-    worklnbuffer_dfLRing = worklnbuffer_dfLRing.sort_values(by=["OLnFID", "OLnSEG", "iRing"])
-    worklnbuffer_dfLRing = worklnbuffer_dfLRing.reset_index(drop=True)
+    worklnbuffer_df_l_ring["iRing"] = worklnbuffer_df_l_ring.groupby(["OLnFID", "OLnSEG"]).cumcount()
+    worklnbuffer_df_l_ring = worklnbuffer_df_l_ring.sort_values(by=["OLnFID", "OLnSEG", "iRing"])
+    worklnbuffer_df_l_ring = worklnbuffer_df_l_ring.reset_index(drop=True)
 
-    worklnbuffer_dfRRing["mgeometry"] = worklnbuffer_dfRRing.apply(
+    print("Create rings buffer to forest edge on the other side....")
+    worklnbuffer_df_r_ring["mgeometry"] = worklnbuffer_df_r_ring.apply(
         lambda x: multiringbuffer(df=x, nrings=-1, ringdist=-15), axis=1
     )
 
-    worklnbuffer_dfRRing = worklnbuffer_dfRRing.explode("mgeometry")  # Explode to create a row for each ring
-    worklnbuffer_dfRRing = worklnbuffer_dfRRing.set_geometry("mgeometry")
-    worklnbuffer_dfRRing = (
-        worklnbuffer_dfRRing.drop(columns=["geometry"]).rename_geometry("geometry").set_crs(workln_dfC.crs)
+    worklnbuffer_df_r_ring = worklnbuffer_df_r_ring.explode("mgeometry")  # Explode to create a row for each ring
+    worklnbuffer_df_r_ring = worklnbuffer_df_r_ring.set_geometry("mgeometry")
+    worklnbuffer_df_r_ring = (
+        worklnbuffer_df_r_ring.drop(columns=["geometry"]).rename_geometry("geometry").set_crs(workln_df_c.crs)
     )
-    worklnbuffer_dfRRing["iRing"] = worklnbuffer_dfRRing.groupby(["OLnFID", "OLnSEG"]).cumcount()
-    worklnbuffer_dfRRing = worklnbuffer_dfRRing.sort_values(by=["OLnFID", "OLnSEG", "iRing"])
-    worklnbuffer_dfRRing = worklnbuffer_dfRRing.reset_index(drop=True)
+    worklnbuffer_df_r_ring["iRing"] = worklnbuffer_df_r_ring.groupby(["OLnFID", "OLnSEG"]).cumcount()
+    worklnbuffer_df_r_ring = worklnbuffer_df_r_ring.sort_values(by=["OLnFID", "OLnSEG", "iRing"])
+    worklnbuffer_df_r_ring = worklnbuffer_df_r_ring.reset_index(drop=True)
 
-    print("Task done.")
-    print("%{}".format(20))
+    print("Create rings buffer.... done.")
+    print("{}%".format(20))
 
-    worklnbuffer_dfRRing["Percentile_RRing"] = np.nan
-    worklnbuffer_dfLRing["Percentile_LRing"] = np.nan
+    worklnbuffer_df_r_ring["Percentile_RRing"] = np.nan
+    worklnbuffer_df_l_ring["Percentile_LRing"] = np.nan
     line_seg["CL_CutHt"] = np.nan
     line_seg["CR_CutHt"] = np.nan
     line_seg["RDist_Cut"] = np.nan
     line_seg["LDist_Cut"] = np.nan
-    print("%{}".format(80))
+    print("{}%".format(30))
 
     # calculate the Height percentile for each parallel area using CHM
-    worklnbuffer_dfLRing = multiprocessing_Percentile(
-        worklnbuffer_dfLRing,
+    worklnbuffer_df_l_ring = multiprocessing_Percentile(
+        worklnbuffer_df_l_ring,
         int(canopy_percentile),
-        float(canopy_thresh_percentage),
+        int(canopy_thresh_percentage),
         in_chm,
         processes,
         side="LRing",
     )
 
-    worklnbuffer_dfLRing = worklnbuffer_dfLRing.sort_values(by=["OLnFID", "OLnSEG", "iRing"])
-    worklnbuffer_dfLRing = worklnbuffer_dfLRing.reset_index(drop=True)
-
-    worklnbuffer_dfRRing = multiprocessing_Percentile(
-        worklnbuffer_dfRRing,
+    worklnbuffer_df_l_ring = worklnbuffer_df_l_ring.sort_values(by=["OLnFID", "OLnSEG", "iRing"])
+    worklnbuffer_df_l_ring = worklnbuffer_df_l_ring.reset_index(drop=True)
+    print("{}%".format(60))
+    worklnbuffer_df_r_ring = multiprocessing_Percentile(
+        worklnbuffer_df_r_ring,
         int(canopy_percentile),
         float(canopy_thresh_percentage),
         in_chm,
@@ -189,12 +195,12 @@ def main_canopy_threshold_relative(
         side="RRing",
     )
 
-    worklnbuffer_dfRRing = worklnbuffer_dfRRing.sort_values(by=["OLnFID", "OLnSEG", "iRing"])
-    worklnbuffer_dfRRing = worklnbuffer_dfRRing.reset_index(drop=True)
+    worklnbuffer_df_r_ring = worklnbuffer_df_r_ring.sort_values(by=["OLnFID", "OLnSEG", "iRing"])
+    worklnbuffer_df_r_ring = worklnbuffer_df_r_ring.reset_index(drop=True)
 
-    result = multiprocessing_RofC(line_seg, worklnbuffer_dfLRing, worklnbuffer_dfRRing, processes)
-    print("%{}".format(40))
-    print("Task done.")
+    result = multiprocessing_RofC(line_seg, worklnbuffer_df_l_ring, worklnbuffer_df_r_ring, processes)
+    print("{}%".format(80))
+    print("Calculating forest population done.")
 
     print("Saving percentile information to input line ...")
     gpd.GeoDataFrame.to_file(result, out_cl_file, layer=out_layer)
@@ -203,7 +209,7 @@ def main_canopy_threshold_relative(
     if full_step:
         return out_file  # TODO: make sure this is correct
 
-    print("%{}".format(100))
+    print("{}%".format(100))
 
 
 def rate_of_change(in_arg):  # ,max_chmht):
@@ -347,7 +353,7 @@ def multiprocessing_RofC(line_seg, worklnbuffer_dfLRing, worklnbuffer_dfRRing, p
         in_argsL.append([PLRing, Olnfid, Olnseg, "Left", line_seg.loc[index], index])
         in_argsR.append([PRRing, Olnfid, Olnseg, "Right", line_seg.loc[index], index])
         print(' "PROGRESS_LABEL Preparing grouped buffer areas...." ', flush=True)
-        print(" %{} ".format((index + 1 / len(line_seg)) * 100))
+        print(" {}% ".format(((index + 1) / len(line_seg)) * 100))
 
     total_steps = len(in_argsL) + len(in_argsR)
     featuresL = []
@@ -369,7 +375,7 @@ def multiprocessing_RofC(line_seg, worklnbuffer_dfLRing, worklnbuffer_dfRRing, p
                         ),
                         flush=True,
                     )
-                    print("%{}".format(step / total_steps * 100), flush=True)
+                    print("{}%".format(step / total_steps * 100), flush=True)
             except Exception:
                 print(Exception)
                 raise
@@ -389,7 +395,7 @@ def multiprocessing_RofC(line_seg, worklnbuffer_dfLRing, worklnbuffer_dfRRing, p
                         flush=True,
                     )
                     print(
-                        "%{}".format((step + len(in_argsL)) / total_steps * 100),
+                        "{}%".format((step + len(in_argsL)) / total_steps * 100),
                         flush=True,
                     )
             except Exception:
@@ -428,7 +434,7 @@ def multiprocessing_RofC(line_seg, worklnbuffer_dfLRing, worklnbuffer_dfRRing, p
             ' "PROGRESS_LABEL Recording ... {} of {}" '.format(index + 1, len(line_seg)),
             flush=True,
         )
-        print(" %{} ".format(index + 1 / len(line_seg) * 100), flush=True)
+        print(" {}% ".format(index + 1 / len(line_seg) * 100), flush=True)
 
     return line_seg
 
@@ -481,7 +487,7 @@ def multiprocessing_copyparallel_lineLRC(dfL, dfR, dfc, processes, left_dis, rig
                         featuresL.append(result[0])  # resultL
                         featuresR.append(result[1])  # resultR
                     step += 1
-                    print(f" %{step / total_steps * 100} ")
+                    print(f" {step / total_steps * 100}% ")
 
                 return gpd.GeoDataFrame(pd.concat(featuresL)), gpd.GeoDataFrame(
                     pd.concat(featuresR)
@@ -495,7 +501,7 @@ def multiprocessing_copyparallel_lineLRC(dfL, dfR, dfc, processes, left_dis, rig
                     featuresL.append(result[0])  # resultL
                     featuresR.append(result[1])  # resultR
                 step += 1
-                print(f" %{step / total_steps * 100} ")
+                print(f" {step / total_steps * 100}% ")
 
             return gpd.GeoDataFrame(pd.concat(featuresL)), gpd.GeoDataFrame(
                 pd.concat(featuresR)
@@ -505,28 +511,23 @@ def multiprocessing_copyparallel_lineLRC(dfL, dfR, dfc, processes, left_dis, rig
         print("Operation cancelled")
 
 
-def multiprocessing_Percentile(df, CanPercentile, CanThrPercentage, in_CHM, processes, side):
+def multiprocessing_Percentile(df:gpd.GeoDataFrame,
+                               CanPercentile:int,
+                               CanThrPercentage:int,
+                               in_CHM: str,
+                               processes:int,
+                               side:int)->gpd.GeoDataFrame | None:
     try:
         line_arg = []
         total_steps = len(df)
-        cal_percentile = cal_percentileLR
+        cal_percentile = cal_percentileRing
         which_side = side
-        if side == "left":
-            PerCol = "Percentile_L"
-            which_side = "left"
-            cal_percentile = cal_percentileLR
-        elif side == "right":
-            PerCol = "Percentile_R"
-            which_side = "right"
-            cal_percentile = cal_percentileLR
-        elif side == "LRing":
+        if side == "LRing":
             PerCol = "Percentile_LRing"
-            cal_percentile = cal_percentileRing
             which_side = "left"
         elif side == "RRing":
             PerCol = "Percentile_RRing"
             which_side = "right"
-            cal_percentile = cal_percentileRing
 
         print("Calculating surrounding ({}) forest population for buffer area ...".format(which_side))
 
@@ -541,14 +542,13 @@ def multiprocessing_Percentile(df, CanPercentile, CanThrPercentage, in_CHM, proc
             ]
             line_arg.append(item_list)
             print(
-                ' "PROGRESS_LABEL Preparing... {} of {}" '.format(item + 1, len(df)),
+                ' "PROGRESS_LABEL Preparing lines... {} of {}" '.format(item + 1, len(df)),
                 flush=True,
             )
-            print(" %{} ".format(item / len(df) * 100), flush=True)
+            print(" {}% ".format(item / len(df) * 100), flush=True)
 
         features = []
-        # chunksize = math.ceil(total_steps / processes)
-        # PARALLEL_MODE=False
+
         if PARALLEL_MODE == ParallelMode.MULTIPROCESSING:
             with Pool(processes=int(processes)) as pool:
                 step = 0
@@ -565,7 +565,7 @@ def multiprocessing_Percentile(df, CanPercentile, CanThrPercentage, in_CHM, proc
                             ),
                             flush=True,
                         )
-                        print("%{}".format(step / total_steps * 100), flush=True)
+                        print("{}%".format(step / total_steps * 100), flush=True)
                 except Exception:
                     print(Exception)
                     raise
@@ -584,11 +584,12 @@ def multiprocessing_Percentile(df, CanPercentile, CanThrPercentage, in_CHM, proc
                         ' "PROGRESS_LABEL Calculate Percentile on line {} of {}" '.format(step, total_steps),
                         flush=True,
                     )
-                    print(" %{} ".format(step / total_steps * 100), flush=True)
+                    print(" {}% ".format(step / total_steps * 100), flush=True)
             return gpd.GeoDataFrame(pd.concat(features))
 
     except OperationCancelledException:
         print("Operation cancelled")
+        return None
 
 
 def cal_percentileLR(line_arg):
@@ -676,12 +677,16 @@ def cal_percentileRing(line_arg):
         exit()
 
     # TODO: temporary workaround for exception causing not percentile defined
-    percentile = 0.5
+    if isinstance(CanPercentile,int):
+        if 100>CanPercentile>0:
+            pass
+        else:
+            CanPercentile = 50
+    else:
+        CanPercentile =50
     Dyn_Canopy_Threshold = 0.05
     try:
-        # with rasterio.open(in_CHM) as raster:
-        # clipped_raster, out_transform = rasterio.mask.mask(raster, [line_buffer], crop=True,
-        #                                                    nodata=BT_NODATA, filled=True)
+
         clipped_raster, out_meta = clip_raster(in_CHM, line_buffer, 0)
         clipped_raster = np.squeeze(clipped_raster, axis=0)
 
@@ -689,21 +694,18 @@ def cal_percentileRing(line_arg):
         masked_raster = np.ma.masked_where(clipped_raster == BT_NODATA, clipped_raster)
         filled_raster = np.ma.filled(masked_raster, np.nan)
 
-        # Calculate the percentile
-        # masked_mean = np.ma.mean(masked_raster)
-        percentile = np.nanpercentile(filled_raster, 50)  # CanPercentile)#,method='hazen')
+        percentile = np.nanpercentile(filled_raster, CanPercentile)
 
-        if percentile > 1:  # (percentile+median)>0.0:
-            Dyn_Canopy_Threshold = percentile * (0.3)
+        if percentile > 1:
+            Dyn_Canopy_Threshold = percentile * (CanThrPercentage/100)
         else:
             Dyn_Canopy_Threshold = 1
 
         del clipped_raster, out_meta
-        # del raster
+
     # return the generated value
     except Exception as e:
         print(e)
-        # print('Something wrong in ID:{}'.format(row_index))
         print("Default values are used.")
 
     finally:
@@ -745,31 +747,4 @@ def copyparallel_lineLRC(line_arg):
     if not parallel_lineR.is_empty:
         dfR.loc[line_arg[6], "geometry"] = parallel_lineR
 
-    return dfL.iloc[[line_arg[6]]], dfR.iloc[[line_arg[6]]]  # ,dfC.iloc[[line_arg[6]]]
-
-
-if __name__ == "__main__":
-    start_time = time.time()
-    print(
-        "Starting Dynamic Canopy Threshold calculation processing\n @ {}".format(
-            time.strftime("%d %b %Y %H:%M:%S", time.localtime())
-        )
-    )
-
-    parser = argparse.ArgumentParser()
-    parser.add_argument("-i", "--input", type=json.loads)
-    parser.add_argument("-p", "--processes")
-    parser.add_argument("-v", "--verbose")
-    args = parser.parse_args()
-    args.input["full_step"] = False
-
-    verbose = True if args.verbose == "True" else False
-    main_canopy_threshold_relative(print, **args.input, processes=int(args.processes), verbose=verbose)
-
-    print("%{}".format(100))
-    print(
-        "Finishing Dynamic Canopy Threshold calculation @ {}\n(or in {} second)".format(
-            time.strftime("%d %b %Y %H:%M:%S", time.localtime()),
-            round(time.time() - start_time, 5),
-        )
-    )
+    return dfL.iloc[[line_arg[6]]], dfR.iloc[[line_arg[6]]]

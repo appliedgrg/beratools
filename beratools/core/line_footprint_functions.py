@@ -28,17 +28,17 @@
 #
 # ---------------------------------------------------------------------------
 
-import time
-
 from geopandas import GeoDataFrame
 from rasterio import features
 from rasterio.mask import mask
 from shapely import LineString, MultiPolygon, Point, buffer
 from shapely.geometry import shape
 from skimage.graph import MCP_Flexible
+from pathlib import Path
 from xrspatial import convolution
 
 from beratools.core.algo_centerline import *
+from beratools.core.canopy_threshold_relative import OperationCancelledException
 from beratools.core.constants import *
 from beratools.core.tool_base import *
 from beratools.tools.common import *
@@ -46,7 +46,6 @@ from beratools.utility.spatial_common import *
 
 
 def dyn_canopy_cost_raster(args):
-    # raster_obj = args[0]
     in_chm_raster = args[0]
     DynCanTh = args[1]
     tree_radius = args[2]
@@ -62,6 +61,7 @@ def dyn_canopy_cost_raster(args):
     Side = args[12]
     canopy_thresh_percentage = float(args[13]) / 100
     line_buffer = args[14]
+    exp_shk_cell=args[15]
 
     if Side == "Left":
         canopy_ht_threshold = line_df.CL_CutHt * canopy_thresh_percentage
@@ -83,32 +83,28 @@ def dyn_canopy_cost_raster(args):
     try:
         clipped_rasterC, out_meta = clip_raster(in_chm_raster, line_buffer, 0)
 
-        # clipped_rasterC, out_transformC = mask(raster_obj, [line_buffer], crop=True,
-        #                                                     filled=False)
-
         in_chm = np.squeeze(clipped_rasterC, axis=0)
-
-        # # make rasterio meta for saving raster later
-        # out_meta = raster_obj.meta.copy()
-        # out_meta.update({"driver": "GTiff",
-        #                  "height": in_chm.shape[0],
-        #                  "width": in_chm.shape[1],
-        #                  "nodata": BT_NODATA,
-        #                  "transform": out_transformC})
-
-        # print('Loading CHM ...')
+        if BT_DEBUGGING:
+            print('[Debug]: Loading CHM ...')
         cell_x, cell_y = out_meta["transform"][0], -out_meta["transform"][4]
 
-        # print('Preparing Kernel window ...')
+        if BT_DEBUGGING:
+            print('[Debug]: Preparing Kernel window ...')
         kernel = convolution.circle_kernel(cell_x, cell_y, int(tree_radius))
 
         # Generate Canopy Raster and return the Canopy array
+        if BT_DEBUGGING:
+            print('[Debug]: Generate Canopy Raster ...')
         dyn_canopy_ndarray = dyn_np_cc_map(in_chm, canopy_ht_threshold, BT_NODATA)
 
         # Calculating focal statistic from canopy raster
+        if BT_DEBUGGING:
+            print('[Debug]: Calculating focal statistic from Canopy Raster ...')
         cc_std, cc_mean = dyn_fs_raster_stdmean(dyn_canopy_ndarray, kernel, BT_NODATA)
 
         # Smoothing raster
+        if BT_DEBUGGING:
+            print('[Debug]: Generating smoothed cost raster ...')
         cc_smooth = dyn_smooth_cost(dyn_canopy_ndarray, max_line_dist, [cell_x, cell_y])
         avoidance = max(min(float(canopy_avoid), 1), 0)
         cost_clip = dyn_np_cost_raster(
@@ -132,10 +128,11 @@ def dyn_canopy_cost_raster(args):
             line_id,
             Cut_Dist,
             line_buffer,
+            exp_shk_cell
         )
 
     except Exception as e:
-        print("Error in createing (dynamic) cost raster @ {}: {}".format(line_id, e))
+        print("[Error]: Error in creating (dynamic) cost raster @ {}: {}".format(line_id, e))
         return None
 
 
@@ -284,6 +281,13 @@ def generate_line_args(
             ]
         )
 
+        print(' "PROGRESS_LABEL Preparing line arguments... {} of {}" '.format(
+              line_id ,len(work_in_bufferL) + len(work_in_bufferR)),
+            flush=True )
+        print(" {}% ".format(
+                (line_id / (len(work_in_bufferL) + len(work_in_bufferR))) * 100)
+            ,flush=True )
+
         line_id += 1
 
     line_id = 0
@@ -347,14 +351,14 @@ def generate_line_args(
         )
 
         print(
-            ' "PROGRESS_LABEL Preparing... {} of {}" '.format(
+            ' "PROGRESS_LABEL Preparing line arguments... {} of {}" '.format(
                 line_id + 1 + len(work_in_bufferL),
                 len(work_in_bufferL) + len(work_in_bufferR),
             ),
             flush=True,
         )
         print(
-            " %{} ".format(
+            " {}% ".format(
                 (line_id + 1 + len(work_in_bufferL)) / (len(work_in_bufferL) + len(work_in_bufferR)) * 100
             ),
             flush=True,
@@ -431,13 +435,9 @@ def find_corridor_threshold(raster):
 
 
 def process_single_line_relative(segment):
-    # in_chm = rasterio.open(segment[0])
-
-    # segment[0] = in_chm
-    # DynCanTh = segment[1]
-
-    # Segment args from mulitprocessing:
-    # [clipped_chm, float(work_in_bufferR.loc[record, 'DynCanTh']), float(tree_radius),
+    # this function takes single line to generate the line footprint
+    # Input segment arguments:
+    # [in_chm, float(work_in_bufferR.loc[record, 'DynCanTh']), float(tree_radius),
     # float(max_line_dist), float(canopy_avoidance), float(exponent), raster.res, nodata,
     # line_seg.iloc[[record]], out_meta, line_id,RCut,Side,canopy_thresh_percentage,line_buffer]
 
@@ -445,32 +445,36 @@ def process_single_line_relative(segment):
     segment = dyn_canopy_cost_raster(segment)
     if segment is None:
         return None
-    # Segement after Clipped Canopy and Cost Raster
-    # line_df, dyn_canopy_ndarray, negative_cost_clip, out_meta, max_line_dist, nodata, line_id,Cut_Dist,line_buffer
+    # segment:
+    """
+    0:line_df,
+    1:dyn_canopy_ndarray,
+    2:negative_cost_clip,
+    3:out_meta,
+    4:max_line_dist,
+    5:nodata,
+    6:line_id,
+    7:Cut_Dist,
+    8: line_buffer,
+    9: exp_shk_cell
+    """
 
-    # this function takes single line to work the line footprint
     # (regardless it process the whole line or individual segment)
     df = segment[0]
     in_canopy_r = segment[1]
     in_cost_r = segment[2]
-    out_meta = segment[3]
+    in_meta = segment[3]
+    no_data = segment[5]
+    Cut_Dist = segment[7]
+    exp_shk_cell=segment[9]
+    shapefile_proj = df.crs
+    in_transform = in_meta["transform"]
 
-    # in_transform = segment[3]
     if np.isnan(in_canopy_r).all():
         print("Canopy raster empty")
 
     if np.isnan(in_cost_r).all():
         print("Cost raster empty")
-
-    in_meta = segment[3]
-    exp_shk_cell = segment[4]
-    no_data = segment[5]
-    line_id = segment[6]
-    Cut_Dist = segment[7]
-    line_bufferR = segment[8]
-
-    shapefile_proj = df.crs
-    in_transform = in_meta["transform"]
 
     FID = df["OLnSEG"]  # segment line feature ID
     OID = df["OLnFID"]  # original line ID for segment line
@@ -517,7 +521,6 @@ def process_single_line_relative(segment):
         flex_cost_alongLn, flex_back_alongLn = mcp_flexible1.find_costs(starts=points_Alongln)
 
         # Generate corridor
-        # corridor = source_cost_acc + dest_cost_acc
         corridor = flex_cost_alongLn  # +flex_cost_dest #cum_cost_tosource+cum_cost_todestination
         corridor = np.ma.masked_invalid(corridor)
 
@@ -611,7 +614,6 @@ def multiprocessing_footprint_relative(line_args, processes):
         total_steps = len(line_args)
 
         feats = []
-        # chunksize = math.ceil(total_steps / processes)
         with Pool(processes=processes) as pool:
             step = 0
             # execute tasks in order, process results out of order
@@ -625,7 +627,7 @@ def multiprocessing_footprint_relative(line_args, processes):
                     ' "PROGRESS_LABEL Dynamic Segment Line Footprint {} of {}" '.format(step, total_steps),
                     flush=True,
                 )
-                print(" %{} ".format(step / total_steps * 100), flush=True)
+                print(" {}% ".format(step / total_steps * 100), flush=True)
         return feats
     except OperationCancelledException:
         print("Operation cancelled")
@@ -633,30 +635,50 @@ def multiprocessing_footprint_relative(line_args, processes):
 
 
 def main_line_footprint_relative(
-    callback,
-    in_line,
-    in_chm,
-    max_ln_width,
-    exp_shk_cell,
-    out_footprint,
-    out_centerline,
-    tree_radius,
-    max_line_dist,
-    canopy_avoidance,
-    exponent,
-    full_step,
-    canopy_thresh_percentage,
-    processes,
-    verbose,
-):
-    # use_corridor_th_col = True
+    in_line:str,
+    in_chm: str,
+    max_ln_width: float,
+    out_footprint:str,
+    out_centerline:str,
+    exp_shk_cell:int,
+    tree_radius:float,
+    max_line_dist:float,
+    canopy_avoidance:float,
+    exponent:float,
+    full_step:bool,
+    canopy_thresh_percentage:int,
+    processes:int,
+    verbose:bool,
+    debug_mode:bool=BT_DEBUGGING,
+)-> None:
+    """
+    This function take the centerlines with forest canopy height and distance to edge to generate
+    dynamic footprint from input CHM.  An option smooth centerlines will be generated.
+    Args:
+        in_line: Path like string for input centerlines
+        in_chm: Path like string input CHM
+        max_ln_width:  Maximum processing width for input lines
+        out_footprint: Path like string output footprint
+        out_centerline:  (Option) Path like string output centerline
+        exp_shk_cell:  Range as integer used for cell erosion
+        tree_radius:  Radius of trees influence in the cost raster
+        max_line_dist: Maximum Euclidean distance from canopy
+        canopy_avoidance: 0 < Ratio < 1 of importance between canopy search radius and Euclidean distance
+        exponent:  Affects the cost of vegetated areas in an exponential fashion
+        canopy_thresh_percentage: Percentage as integer range 1-100
+
+    Returns:
+        New saved footprints and/or with smoothed centerlines dataset(s).
+    """
     in_file, layer = decode_file_layer(in_line)
     line_seg = GeoDataFrame.from_file(in_file, layer=layer)
+    _, processes = parallel_mode(processes)
 
     # If Dynamic canopy threshold column not found, create one
     if "DynCanTh" not in line_seg.columns.array:
-        print("Please create field {} first".format("DynCanTh"))
-        exit()
+        print("[Warning]: Field {} is not found and will be populated default values.".format("DynCanTh"))
+        line_seg['DynCanTh']=3.0
+
     if not float(canopy_thresh_percentage):
         canopy_thresh_percentage = 50
     else:
@@ -668,13 +690,13 @@ def main_line_footprint_relative(
         exponent = 1.0
     # If OLnFID column is not found, column will be created
     if "OLnFID" not in line_seg.columns.array:
-        print("Created {} column in input line data.".format("OLnFID"))
+        print("[info]: Created {} column in input line data.".format("OLnFID"))
         line_seg["OLnFID"] = line_seg.index
 
     if "OLnSEG" not in line_seg.columns.array:
         line_seg["OLnSEG"] = 0
 
-    print("%{}".format(10))
+    print("{}%".format(10))
 
     # check coordinate systems between line and raster features
     with rasterio.open(in_chm) as raster:
@@ -683,18 +705,18 @@ def main_line_footprint_relative(
         if compare_crs(vector_crs(in_file), raster_crs(in_chm)):
             proc_segments = False
             if proc_segments:
-                print("Splitting lines into segments...")
+                print("[Info]: Splitting lines into segments...")
                 line_seg_split = split_into_segments(line_seg)
-                print("Splitting lines into segments...Done")
+                print("[info]: Splitting lines into segments...Done")
             else:
                 if full_step:
-                    print("Tool runs on input lines......")
+                    print("[info]: Tool runs on input lines......")
                     line_seg_split = line_seg
                 else:
-                    print("Tool runs on input segment lines......")
+                    print("[info]: Tool runs on input segment lines......")
                     line_seg_split = split_into_equal_Nth_segments(line_seg, 250)
 
-            print("%{}".format(20))
+            print("{}%".format(20))
 
             work_in_bufferL1 = GeoDataFrame.copy(line_seg_split)
             work_in_bufferL2 = GeoDataFrame.copy(line_seg_split)
@@ -737,12 +759,8 @@ def main_line_footprint_relative(
                 cap_style=3,
                 single_sided=False,
             )
-            print("Prepare arguments for Dynamic FP ...")
-            # line_argsL, line_argsR,line_argsC= generate_line_args(line_seg_split, work_in_bufferL,work_in_bufferC,
-            #                                                       raster, tree_radius, max_line_dist,
-            #                                                       canopy_avoidance, exponent, work_in_bufferR,
-            #                                                       canopy_thresh_percentage)
-
+            print("[info]: Prepare arguments for Dynamic FP ...")
+            # Just prepare arguments for multiprocessing
             line_argsL, line_argsR, line_argsC = generate_line_args_DFP_NoClip(
                 line_seg_split,
                 work_in_bufferL,
@@ -755,57 +773,52 @@ def main_line_footprint_relative(
                 exponent,
                 work_in_bufferR,
                 canopy_thresh_percentage,
+                exp_shk_cell,
             )
 
         else:
-            print("Line and canopy raster spatial references are not same, please check.")
+            print("[info]: Line and canopy raster spatial references are not same, please check.")
             exit()
         # pass center lines for footprint
-        print("Generating Dynamic footprint ...")
+        print("[info]: Generating Dynamic footprint ...")
 
         feat_listL = []
         feat_listR = []
-        feat_listC = []
         poly_listL = []
         poly_listR = []
         footprint_listL = []
         footprint_listR = []
-        footprint_listC = []
-        # PARALLEL_MODE = ParallelMode.SEQUENTIAL
         if PARALLEL_MODE == ParallelMode.MULTIPROCESSING:
-            # feat_listC = multiprocessing_footprint_relative(line_argsC, processes)
             feat_listL = multiprocessing_footprint_relative(line_argsL, processes)
-            # feat_listL = execute_multiprocessing(process_single_line_relative,'Footprint',line_argsL, processes)
             feat_listR = multiprocessing_footprint_relative(line_argsR, processes)
-            # feat_listR = execute_multiprocessing(process_single_line_relative, 'Footprint', line_argsR, processes)
 
         elif PARALLEL_MODE == ParallelMode.SEQUENTIAL:
             step = 1
             total_steps = len(line_argsL)
-            print("There are {} result to process.".format(total_steps))
+            print("[info]: There are {} result to process.".format(total_steps))
             for row in line_argsL:
                 feat_listL.append(process_single_line_relative(row))
-                print("Footprint (left side) for line {} is done".format(step))
+                print("[info]: Footprint (left side) for line {} is done".format(step))
                 print(
                     ' "PROGRESS_LABEL Dynamic Line Footprint {} of {}" '.format(step, total_steps),
                     flush=True,
                 )
-                print(" %{} ".format((step / total_steps) * 100))
+                print(" {}% ".format((step / total_steps) * 100))
                 step += 1
             step = 1
             total_steps = len(line_argsR)
             for row in line_argsR:
                 feat_listR.append(process_single_line_relative(row))
-                print("Footprint for (right side) line {} is done".format(step))
+                print("[info]: Footprint for (right side) line {} is done".format(step))
                 print(
                     ' "PROGRESS_LABEL Dynamic Line Footprint {} of {}" '.format(step, total_steps),
                     flush=True,
                 )
-                print(" %{} ".format((step / total_steps) * 100))
+                print(" {}% ".format((step / total_steps) * 100))
                 step += 1
 
-    print("%{}".format(80))
-    print("Task done.")
+    print("{}%".format(80))
+
 
     for feat in feat_listL:
         if feat:
@@ -817,10 +830,9 @@ def main_line_footprint_relative(
             footprint_listR.append(feat[0])
             poly_listR.append(feat[1])
 
-    print("Writing shapefile ...")
-    resultsL = GeoDataFrame(pd.concat(footprint_listL))
+    resultsL = GeoDataFrame(pd.concat(footprint_listL,ignore_index=True))
     resultsL["geometry"] = resultsL["geometry"].buffer(0.005)
-    resultsR = GeoDataFrame(pd.concat(footprint_listR))
+    resultsR = GeoDataFrame(pd.concat(footprint_listR,ignore_index=True))
     resultsR["geometry"] = resultsR["geometry"].buffer(0.005)
     resultsL = resultsL.sort_values(by=["OLnFID", "OLnSEG"])
     resultsR = resultsR.sort_values(by=["OLnFID", "OLnSEG"])
@@ -828,16 +840,16 @@ def main_line_footprint_relative(
     resultsR = resultsR.reset_index(drop=True)
     #
 
-    resultsAll = GeoDataFrame(pd.concat([resultsL, resultsR]))
+    resultsAll = GeoDataFrame(pd.concat([resultsL, resultsR],ignore_index=True))
     dissolved_results = resultsAll.dissolve(by="OLnFID", as_index=False)
     dissolved_results["geometry"] = dissolved_results["geometry"].buffer(-0.005)
-    print("Saving output ...")
+    print("[info]: Saving output ...")
     out_ft_file, layer = decode_file_layer(out_footprint)
     dissolved_results.to_file(out_ft_file, layer=layer)
-    print("Footprint file saved")
+    print("[info]: Footprint file saved")
 
     # dissolved polygon group by column 'OLnFID'
-    print("Generating centerlines from corridor polygons ...")
+    print("[info]: Generating centerlines from corridor polygons ...")
     resultsCL = GeoDataFrame(pd.concat(poly_listL))
     resultsCL["geometry"] = resultsCL["geometry"].buffer(0.005)
     resultsCR = GeoDataFrame(pd.concat(poly_listR))
@@ -849,7 +861,6 @@ def main_line_footprint_relative(
     resultsCLR = resultsCLR.reset_index(drop=True)
     resultsCLR["geometry"] = resultsCLR["geometry"].buffer(-0.005)
 
-    # out_centerline=False
     # save lines to file
     if out_centerline:
         out_cl_file, layer = decode_file_layer(out_centerline)
@@ -860,27 +871,16 @@ def main_line_footprint_relative(
         centerline_gpd = centerline_gpd.set_geometry("centerline")
         centerline_gpd = centerline_gpd.drop(columns=["geometry"])
         centerline_gpd.crs = poly_centerline_gpd.crs
+
+        # save polygons from smooth centerline for debug
+        if debug_mode:
+            path = Path(out_cl_file)
+            path = path.with_stem(path.stem + "_poly")
+            poly_gpd = poly_gpd.drop(columns=["centerline"])
+            poly_gpd.to_file(path,layer='smoothedCL_poly')
+            print("[info]: Polygon from smoothed centerline file saved")
+
         centerline_gpd.to_file(out_cl_file, layer=layer)
-        print("Centerline file saved")
+        print("[info]: Smoothed centerline file saved")
 
-        # save polygons
-        path = Path(out_cl_file)
-        path = path.with_stem(path.stem + "_poly")
-        poly_gpd = poly_gpd.drop(columns=["centerline"])
-        poly_gpd.to_file(path)
-
-    print("%{}".format(100))
-
-
-if __name__ == "__main__":
-    start_time = time.time()
-    print("Dynamic Footprint processing started")
-    print("Current time: {}".format(time.strftime("%d %b %Y %H:%M:%S", time.localtime())))
-
-    in_args, in_verbose = check_arguments()
-    main_line_footprint_relative(print, **in_args.input, processes=int(in_args.processes), verbose=in_verbose)
-
-    print("%{}".format(100))
-    print("Dynamic Footprint processing finished")
-    print("Current time: {}".format(time.strftime("%d %b %Y %H:%M:%S", time.localtime())))
-    print("Total processing time (seconds): {}".format(round(time.time() - start_time, 3)))
+    print("{}%".format(100))

@@ -612,5 +612,3 @@ class LineInfo:
         except Exception as e:
             print("Exception: {}".format(e))
             return None
-
-

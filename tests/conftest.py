@@ -9,6 +9,7 @@ from pathlib import Path
 
 import pytest
 
+
 sys.path.insert(0, Path(__file__).parents[1].as_posix())
 
 
@@ -88,6 +89,33 @@ def tool_arguments_integration(testdata_dir, available_cpu_cores):
             "max_width": True,
             "out_footprint": f"{testdata_dir.joinpath('integration_inter.gpkg').as_posix()}|footprint_ground",
         },
+        "arg_main_canopy_threshold_relative": {
+            'in_line':f"{testdata_dir.joinpath('integration_inter.gpkg').as_posix()}|centerline",
+            'in_chm': testdata_dir.joinpath('chm.tif').as_posix(),
+            'canopy_percentile': 90,
+            'canopy_thresh_percentage': 50,
+            'full_step': 'True',
+            'processes': available_cpu_cores,
+            'verbose': False,
+            'out_DynCenterline': f"{testdata_dir.joinpath('DynCanTh_integration_inter.gpkg').as_posix()}|centerline",
+        },
+        "arg_main_line_footprint_relative": {
+            'in_line': f"{testdata_dir.joinpath('DynCanTh_integration_inter.gpkg').as_posix()}|centerline",
+            'in_chm': f"{testdata_dir.joinpath('chm.tif').as_posix()}",
+            'max_ln_width': 32,
+            'out_footprint': f"{testdata_dir.joinpath('footprint_rel.gpkg').as_posix()}|footprint_rel",
+            'out_centerline': f"{testdata_dir.joinpath('smooth_centerline.gpkg').as_posix()}|smooth_centerline",
+            'exp_shk_cell':5,
+            'tree_radius': 1.5,
+            'max_line_dist': 1.5,
+            'canopy_avoidance': 1.0,
+            'exponent': 1,
+            'full_step': 'True',
+            'canopy_thresh_percentage': 50,
+            'processes': available_cpu_cores,
+            'verbose': False,
+            'debug_mode':False,
+        },
     }
 
 
@@ -140,6 +168,33 @@ def tool_arguments_workflow(testdata_dir, available_cpu_cores):
             "max_width": True,
             "out_footprint": f"{testdata_dir.joinpath('workflow.gpkg').as_posix()}|footprint_ground",
         },
+        "arg_main_canopy_threshold_relative": {
+            'in_line':f"{testdata_dir.joinpath('workflow.gpkg').as_posix()}|centerline",
+            'in_chm': testdata_dir.joinpath('chm.tif').as_posix(),
+            'canopy_percentile': 90,
+            'canopy_thresh_percentage': 50,
+            'full_step': 'True',
+            'processes': available_cpu_cores,
+            'verbose': False,
+            'out_DynCenterline': f"{testdata_dir.joinpath('DynCanTh_workflow.gpkg').as_posix()}|centerline",
+        },
+        "arg_main_line_footprint_relative": {
+            'in_line': f"{testdata_dir.joinpath('DynCanTh_workflow.gpkg').as_posix()}|centerline",
+            'in_chm': f"{testdata_dir.joinpath('chm.tif').as_posix()}",
+            'max_ln_width': 32,
+            'out_footprint': f"{testdata_dir.joinpath('footprint_rel.gpkg').as_posix()}|footprint_rel",
+            'out_centerline': f"{testdata_dir.joinpath('smooth_centerline.gpkg').as_posix()}|smooth_centerline",
+            'exp_shk_cell':5,
+            'tree_radius': 1.5,
+            'max_line_dist': 1.5,
+            'canopy_avoidance': 1.0,
+            'exponent': 1,
+            'full_step': 'True',
+            'canopy_thresh_percentage': 50,
+            'processes': available_cpu_cores,
+            'verbose': False,
+            'debug_mode':False,
+        }
     }
 
 
@@ -147,6 +202,18 @@ def tool_arguments_workflow(testdata_dir, available_cpu_cores):
 @pytest.fixture
 def test_output_files(testdata_dir):
     return [
+        testdata_dir.joinpath('centerline.gpkg'),
+        testdata_dir.joinpath('footprint_abs.gpkg'),
+        testdata_dir.joinpath('footprint_rel.gpkg'),
+        testdata_dir.joinpath('footprint_final.gpkg'),
+        testdata_dir.joinpath('footprint_final_aux.gpkg'),
+        testdata_dir.joinpath('line_percentile_rel.gpkg'),
+        testdata_dir.joinpath('DynCanTh_centerline.gpkg'),
+        testdata_dir.joinpath('DynCanTh_workflow.gpkg'),
+        testdata_dir.joinpath('DynCanTh_integration_inter.gpkg'),
+        testdata_dir.joinpath('DynCanTh_integration.gpkg'),
+        testdata_dir.joinpath('smooth_centerline.gpkg'),
+        testdata_dir.joinpath('smooth_centerline_poly.gpkg'),
         testdata_dir.joinpath("workflow.gpkg"),
         testdata_dir.joinpath("integration_inter.gpkg"),
         testdata_dir.joinpath("workflow_aux.gpkg"),
