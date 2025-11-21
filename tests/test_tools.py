@@ -6,13 +6,13 @@ from utils import check_file_exists
 
 from beratools.core.canopy_threshold_relative import main_canopy_threshold_relative
 from beratools.core.line_footprint_functions import main_line_footprint_relative
-import beratools.utility.spatial_common as sp_common
 from beratools.tools.canopy_footprint_absolute import canopy_footprint_abs
 from beratools.tools.canopy_footprint_exp import line_footprint_exp
 from beratools.tools.centerline import centerline
 from beratools.tools.check_seed_line import check_seed_line
 from beratools.tools.ground_footprint import ground_footprint
 from beratools.tools.vertex_optimization import vertex_optimization
+from beratools.utility.spatial_common import decode_file_layer
 
 
 # Integration TESTS
@@ -21,7 +21,7 @@ def test_check_seed_line_tool(tool_arguments_integration):
     args_check_seed_line = tool_arguments_integration["args_check_seed_line"]
     pprint(args_check_seed_line)
     check_seed_line(**args_check_seed_line)
-    out_file, layer = sp_common.decode_file_layer(args_check_seed_line["out_line"])
+    out_file, layer = decode_file_layer(args_check_seed_line["out_line"])
     assert check_file_exists(out_file, layer), "Check Seed Line no output!"
 
 def test_vertex_optimization_tool(tool_arguments_integration):
@@ -29,7 +29,7 @@ def test_vertex_optimization_tool(tool_arguments_integration):
     args_vertex_optimization = tool_arguments_integration["args_vertex_optimization"]
     pprint(args_vertex_optimization)
     vertex_optimization(**args_vertex_optimization)
-    out_file, layer = sp_common.decode_file_layer(args_vertex_optimization["out_line"])
+    out_file, layer = decode_file_layer(args_vertex_optimization["out_line"])
     assert check_file_exists(out_file, layer), "Vertex Optimization no output!"
 
 
@@ -42,7 +42,7 @@ def test_centerline_tool(tool_arguments_integration):
     centerline(**args_centerline)
 
     # Check if the output file is created
-    in_file, layer = sp_common.decode_file_layer(args_centerline["in_line"])
+    in_file, layer = decode_file_layer(args_centerline["in_line"])
     assert check_file_exists(in_file, layer), "Centerline no output!"
 
 
@@ -52,17 +52,16 @@ def test_canopy_footprint_abs_tool(tool_arguments_integration):
     pprint(args_footprint_abs)
     canopy_footprint_abs(**args_footprint_abs)
 
-    out_file, layer = sp_common.decode_file_layer(args_footprint_abs["out_footprint"])
+    out_file, layer = decode_file_layer(args_footprint_abs["out_footprint"])
     assert check_file_exists(out_file, layer), "Footprint Abs no output!"
 
 def test_rel_footprint_tool(tool_arguments_integration):
     """Test for the main_canopy_threshold_relative tool."""
-    test_centerline_tool(tool_arguments_integration)
     arg_main_canopy_threshold_relative = tool_arguments_integration["arg_main_canopy_threshold_relative"]
     pprint(arg_main_canopy_threshold_relative)
 
     out_dyncl_file=main_canopy_threshold_relative(**arg_main_canopy_threshold_relative)
-    out_file, layer = sp_common.decode_file_layer(out_dyncl_file)
+    out_file, layer = decode_file_layer(out_dyncl_file)
     assert check_file_exists(out_file, layer=layer), (
     "Dynamic Centerline output file was not created!" )
 
@@ -70,7 +69,7 @@ def test_rel_footprint_tool(tool_arguments_integration):
     pprint(arg_main_line_footprint_relative)
 
     main_line_footprint_relative(**arg_main_line_footprint_relative)
-    out_file, layer = sp_common.decode_file_layer(arg_main_line_footprint_relative["out_footprint"])
+    out_file, layer = decode_file_layer(arg_main_line_footprint_relative["out_footprint"])
     assert check_file_exists(out_file, layer=layer), (
     "Dynamic FP output file was not created!"
     )
@@ -82,7 +81,7 @@ def test_footprint_exp_tool(tool_arguments_integration):
 
     line_footprint_exp(**args_footprint_exp)
 
-    out_file, layer = sp_common.decode_file_layer(args_footprint_exp["out_footprint"])
+    out_file, layer = decode_file_layer(args_footprint_exp["out_footprint"])
     assert check_file_exists(out_file, layer), "Footprint Rel no output!"
 
 
@@ -92,7 +91,7 @@ def test_ground_footprint_tool(tool_arguments_integration):
     ground_footprint(**args_ground_footprint)
     pprint(args_ground_footprint)
 
-    out_file, layer = sp_common.decode_file_layer(args_ground_footprint["out_footprint"])
+    out_file, layer = decode_file_layer(args_ground_footprint["out_footprint"])
     assert check_file_exists(out_file, layer), "Ground footprint no output!"
 
 
