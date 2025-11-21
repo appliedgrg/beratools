@@ -20,6 +20,7 @@ from collections import OrderedDict
 from pathlib import Path
 
 import beratools.core.constants as bt_const
+from beratools.utility.spatial_common import decode_file_layer
 from beratools.utility.tool_args import CallMode, determine_cpu_core_limit
 
 BT_SHOW_ADVANCED_OPTIONS = False
@@ -517,16 +518,240 @@ class BTData(object):
         subtypes = param["subtype"]
         single_param["parameter_type"] = {"NewFile": subtypes}
 
+    def _find_tool_params(self, tool_name):
+        """
+        Find raw tool parameters by name.
+
+        Eliminates duplication across multiple methods.
+        
+        Returns:
+            List of parameter definitions from beratools.json, or empty list if not found.
+        """
+        if self.bera_tools and "toolbox" in self.bera_tools:
+            for toolbox in self.bera_tools["toolbox"]:
+                for single_tool in toolbox["tools"]:
+                    if tool_name == single_tool["name"]:
+                        return single_tool.get("parameters", [])
+        return []
+
+    def validate_tool_parameter(self, value, param_def):
+        """
+        Validate and convert parameter to correct type based on beratools.json definition.
+        
+        Orchestrates validation by dispatching to type-specific validators.
+
+        Args:
+            value: The value from GUI input
+            param_def: The original parameter definition from beratools.json
+
+        Returns:
+            Converted and validated value
+
+        Raises:
+            ValueError: If validation fails
+        """
+        # GUARD CLAUSE 1: Handle None/empty for optional parameters
+        if value is None or value == "":
+            if param_def.get("optional", False):
+                return param_def.get("default", None)
+        
+        # GUARD CLAUSE 2: Skip validation for output parameters (they don't exist yet)
+        if param_def.get("output", False):
+            return value
+        
+        # DISPATCH to type-specific validator
+        param_type = param_def.get("type")
+        if param_type == "number":
+            return self._validate_number(value, param_def)
+        elif param_type == "file":
+            return self._validate_file(value, param_def)
+        elif param_type == "directory":
+            return self._validate_directory(value, param_def)
+        elif param_type == "text":
+            return self._validate_text(value, param_def)
+        elif param_type == "list":
+            return self._validate_list(value, param_def)
+        
+        return value
+
+    def _validate_number(self, value, param_def):
+        """Validate and convert numeric types (int, float)."""
+        subtype = param_def.get("subtype", "")
+        variable = param_def.get("variable", "unknown")
+        
+        if subtype == "int":
+            if not isinstance(value, int) or isinstance(value, bool):
+                try:
+                    value = int(value)
+                except (ValueError, TypeError):
+                    raise ValueError(f"Parameter '{variable}' must be an integer, got {type(value).__name__}")
+        
+        elif subtype == "float":
+            if not isinstance(value, (int, float)) or isinstance(value, bool):
+                try:
+                    value = float(value)
+                except (ValueError, TypeError):
+                    raise ValueError(f"Parameter '{variable}' must be a number, got {type(value).__name__}")
+        
+        return value
+
+    def _validate_file(self, value, param_def):
+        """Validate file exists and is accessible."""
+        variable = param_def.get("variable", "unknown")
+        
+        if not isinstance(value, str):
+            raise ValueError(f"Parameter '{variable}' must be a file path string")
+        
+        # Extract file path and layer name (supports both | and :: separators)
+        actual_file_path, layer_name = decode_file_layer(value)
+        file_path = Path(actual_file_path)
+        
+        if not file_path.exists():
+            raise ValueError(f"File not found: {actual_file_path}")
+        if not file_path.is_file():
+            raise ValueError(f"Path is not a file: {actual_file_path}")
+        
+        return value
+
+    def _validate_directory(self, value, param_def):
+        """Validate directory exists and is accessible."""
+        variable = param_def.get("variable", "unknown")
+        
+        if not isinstance(value, str):
+            raise ValueError(f"Parameter '{variable}' must be a directory path string")
+        
+        dir_path = Path(value)
+        
+        if not dir_path.exists():
+            raise ValueError(f"Directory not found: {value}")
+        if not dir_path.is_dir():
+            raise ValueError(f"Path is not a directory: {value}")
+        
+        return value
+
+    def _validate_text(self, value, param_def):
+        """Validate and convert to text/string type."""
+        variable = param_def.get("variable", "unknown")
+        
+        if not isinstance(value, str):
+            try:
+                value = str(value)
+            except Exception:
+                raise ValueError(f"Parameter '{variable}' must be text/string")
+        
+        return value
+
+    def _validate_list(self, value, param_def):
+        """Validate list parameter with allowed values and type conversion."""
+        subtype = param_def.get("subtype", "")
+        variable = param_def.get("variable", "unknown")
+        allowed_values = param_def.get("data", [])
+        
+        # Convert to correct type based on subtype
+        if subtype == "bool":
+            value = self._convert_bool(value, variable)
+        elif subtype == "int":
+            value = self._convert_int(value, variable)
+        elif subtype == "float":
+            value = self._convert_float(value, variable)
+        
+        # Validate against allowed values
+        if value not in allowed_values:
+            raise ValueError(
+                f"Parameter '{variable}' value '{value}' not in allowed options: {allowed_values}"
+            )
+        
+        return value
+
+    def _convert_bool(self, value, variable):
+        """Convert value to boolean."""
+        if isinstance(value, str):
+            if value.lower() in ["true", "1", "yes"]:
+                return True
+            elif value.lower() in ["false", "0", "no"]:
+                return False
+            else:
+                raise ValueError(f"Parameter '{variable}' must be boolean, got '{value}'")
+        elif not isinstance(value, bool):
+            try:
+                return bool(value)
+            except Exception:
+                raise ValueError(f"Parameter '{variable}' must be boolean")
+        return value
+
+    def _convert_int(self, value, variable):
+        """Convert value to integer."""
+        if not isinstance(value, int) or isinstance(value, bool):
+            try:
+                return int(value)
+            except (ValueError, TypeError):
+                raise ValueError(f"Parameter '{variable}' must be integer")
+        return value
+
+    def _convert_float(self, value, variable):
+        """Convert value to float."""
+        if not isinstance(value, (int, float)) or isinstance(value, bool):
+            try:
+                return float(value)
+            except (ValueError, TypeError):
+                raise ValueError(f"Parameter '{variable}' must be float")
+        return value
+
+    def validate_tool_params(self, tool_name, kwargs):
+        """
+        Validate and convert all tool parameters against beratools.json definitions.
+
+        Args:
+            tool_name: Tool name to lookup in beratools.json
+            kwargs: Dict of parameter values from GUI input
+
+        Returns:
+            Dict of validated/converted values
+
+        Raises:
+            ValueError: If any parameter validation fails
+        """
+        raw_params = self._find_tool_params(tool_name)
+
+        # Build a mapping of variable -> beratools.json param definition
+        params_by_variable = {}
+        for param in raw_params:
+            if "variable" in param:
+                params_by_variable[param["variable"]] = param
+
+        validated_kwargs = {}
+        for key, value in kwargs.items():
+            # Skip framework parameters (handled separately)
+            if key in ["processes", "call_mode", "log_level"]:
+                validated_kwargs[key] = value
+                continue
+
+            # Validate tool parameters against beratools.json definitions
+            if key in params_by_variable:
+                param_def = params_by_variable[key]
+                try:
+                    validated_value = self.validate_tool_parameter(value, param_def)
+                    validated_kwargs[key] = validated_value
+                except ValueError as e:
+                    raise ValueError(f"Invalid argument '{key}': {str(e)}")
+            else:
+                # Unknown parameter - pass through (may be framework param or typo)
+                validated_kwargs[key] = value
+
+        return validated_kwargs
 
     def get_bera_tool_params(self, tool_name):
         new_param_whole = {"parameters": []}
         tool = {}
+        
+        # Find tool in beratools.json
         if self.bera_tools and "toolbox" in self.bera_tools:
             for toolbox in self.bera_tools["toolbox"]:
                 for single_tool in toolbox["tools"]:
                     if tool_name == single_tool["name"]:
                         tool = single_tool
 
+        # Copy non-parameter fields to result
         for key, value in tool.items():
             if key != "parameters":
                 new_param_whole[key] = value
@@ -535,10 +760,8 @@ class BTData(object):
         if "parameters" not in tool.keys():
             print("issue")
 
-        if "parameters" in tool and tool["parameters"] is not None:
-            parameters = tool["parameters"]
-            if parameters is None:
-                return new_param_whole
+        parameters = self._find_tool_params(tool_name)
+        if parameters:
             for param in parameters:
                 # Parse subtype string to list once, here
                 if isinstance(param.get("subtype", ""), str):
