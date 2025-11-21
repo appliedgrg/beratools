@@ -4,6 +4,7 @@ import argparse
 import json
 import os
 import platform
+import sys
 from enum import Enum
 
 
@@ -49,8 +50,12 @@ def compose_tool_kwargs(tool_api):
     mode_args, remaining = mode_parser.parse_known_args()
 
     if mode_args.input is not None:
-        # GUI MODE: unpack tool params from JSON
-        kwargs = mode_args.input.copy()
+        # GUI MODE: unpack tool params from JSON with TYPE VALIDATION
+        try:
+            kwargs = bt_data.validate_tool_params(tool_name, mode_args.input)
+        except ValueError as e:
+            print(f"ERROR: {str(e)}", file=sys.stderr)
+            sys.exit(1)
 
     else:
         # CLI MODE: parse tool params from CLI args with validation
