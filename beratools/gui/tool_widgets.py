@@ -21,6 +21,7 @@ from pathlib import Path
 import pyogrio
 from numpy import ndarray
 from PyQt5 import QtCore, QtWidgets
+from param import MultiFileSelector
 
 BT_LABEL_MIN_WIDTH = 130
 
@@ -117,6 +118,8 @@ class ToolWidgets(QtWidgets.QWidget):
             if "saved_value" in p.keys():
                 param_value = p["saved_value"]
             if param_value is None:
+                param_value = p["default_value"]
+            if param_value is '':
                 param_value = p["default_value"]
             if param_value is not None:
                 if type(widget) is OptionsInput:
@@ -319,23 +322,23 @@ class FileSelector(QtWidgets.QWidget):
             if is_output:
                 self.layer_combo.setEditable(True)
                 if self.layer_combo.count() == 0:
-                    self.layer_combo.addItem("layer_name")
+                    self.layer_combo.addItem("Result_layer")
                     self.load_gpkg_layers(path)
-                elif self.layer_combo.itemText(0) != "layer_name":
-                    self.layer_combo.insertItem(0, "layer_name")
+                elif self.layer_combo.itemText(0) != "Result_layer":
+                    self.layer_combo.insertItem(0, "Result_layer")
                     self.load_gpkg_layers(path)
             else:
                 self.layer_combo.setEditable(False)
-                if self.layer_combo.count() == 0 or self.layer_combo.itemText(0) == "layer_name":
+                if self.layer_combo.count() == 0 or self.layer_combo.itemText(0) == "Result_layer":
                     self.layer_combo.clear()
                     self.load_gpkg_layers(path)
         else:
             self.layer_combo.clear()
             if is_output:
                 self.layer_combo.setEditable(True)
-                self.layer_combo.addItem("layer_name")
+                self.layer_combo.addItem("Result_layer")
             else:
-                self.layer_combo.addItem("layer_name")
+                self.layer_combo.addItem("Result_layer")
         # Set selected layer
         if selected_layer:
             if is_output and self.layer_combo.isEditable():
@@ -450,7 +453,7 @@ class FileSelector(QtWidgets.QWidget):
         if result.lower().endswith(".gpkg"):
             if not Path(result).exists():
                 self.layer_combo.clear()
-                self.layer_combo.addItem("layer_name")
+                self.layer_combo.addItem("Result_layer")
             else:
                 self.load_gpkg_layers(result)
                 if self.output:
@@ -530,7 +533,7 @@ class FileSelector(QtWidgets.QWidget):
                 self.update_combo_visibility()
             else:
                 self.layer_combo.clear()
-                self.layer_combo.addItem("layer_name")
+                self.layer_combo.addItem("Result_layer")
                 if self.output:
                     self.layer_combo.setEditable(True)
                 self.layer_combo.setVisible(True)
@@ -556,17 +559,24 @@ class FileSelector(QtWidgets.QWidget):
             self.in_file.setText(self.value["path"])
             self.in_file.setToolTip(self.value["path"])
         else:
-            base_name = str(Path(value).with_suffix(""))
-            ext = Path(value).suffix
-            if not ext:
-                if not value.endswith("."):
-                    if not value.endswith(".gpkg") and not value.endswith(".shp"):
-                        value = f"{base_name}.txt"
-            elif value.endswith("."):
-                value = base_name
-            self.value = value
-            self.in_file.setText(self.value)
-            self.in_file.setToolTip(self.value)
+            try: # load saved or default filepath like values
+                base_name = str(Path(value).with_suffix(""))
+                ext = Path(value).suffix
+                if not ext:
+                    if not value.endswith("."):
+                        if not value.endswith(".gpkg") and not value.endswith(".shp"):
+                            value = f"{base_name}.txt"
+                elif value.endswith("."):
+                    value = base_name
+                self.value = value
+                self.in_file.setText(self.value)
+                self.in_file.setToolTip(self.value)
+            except Exception as e:
+                # do nothing if first time initialize the tool with no previous values
+                self.value = ''
+                self.in_file.setText(self.value)
+                self.in_file.setToolTip(self.value)
+
         self.update_combo_visibility()
 
     def set_layer(self, layer):
