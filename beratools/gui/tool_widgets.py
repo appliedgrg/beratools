@@ -21,7 +21,6 @@ from pathlib import Path
 import pyogrio
 from numpy import ndarray
 from PyQt5 import QtCore, QtWidgets
-from param import MultiFileSelector
 
 BT_LABEL_MIN_WIDTH = 130
 
