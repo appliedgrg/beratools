@@ -204,9 +204,13 @@ def test_output_files(testdata_dir):
         testdata_dir.joinpath("integration_inter.gpkg"),
         testdata_dir.joinpath("integration_inter_aux.gpkg"),
         testdata_dir.joinpath('DynCanTh_integration.gpkg'),
+        testdata_dir.joinpath('DynCanTh_integration_inter.gpkg'),
         testdata_dir.joinpath("workflow.gpkg"),
         testdata_dir.joinpath("workflow_aux.gpkg"),
         testdata_dir.joinpath('DynCanTh_workflow.gpkg'),
+        testdata_dir.joinpath('smooth_centerline.gpkg'),
+        testdata_dir.joinpath('footprint_rel.gpkg'),
+
     ]
 
 
