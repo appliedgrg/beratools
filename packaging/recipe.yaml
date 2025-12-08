@@ -33,11 +33,13 @@ requirements:
     - dask
     - gdal
     - geopandas
+    - networkit
     - pyarrow
     - pyogrio
     - pyqt
     - rasterio
     - scikit-image
+    - tabulate
     - tqdm
     - xarray-spatial
 
