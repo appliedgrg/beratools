@@ -31,10 +31,12 @@ dependencies = [
     "bera_centerlines",
     "gdal; platform_system != 'Windows'",
     "geopandas",
+    "networkit",
     "pyogrio>=0.9.0",
     "PyQt5",
     "rasterio",
     "scikit-image>=0.24.0",
+    "tabulate",
     "tqdm",
     "xarray-spatial",
 ]
