@@ -5,6 +5,8 @@ $ErrorActionPreference = "Stop"
 
 Write-Host "=== Beratools Windows Installer Build ===" -ForegroundColor Cyan
 
+$scriptDir = Split-Path -Parent $MyInvocation.MyCommand.Definition
+
 # Get version from git tag
 $version = (git describe --tags --abbrev=0 2>$null)
 if (-not $version) {
@@ -18,11 +20,12 @@ $env:APP_VERSION = $version
 
 # Step 1: Create directories
 Write-Host "`n[1/8] Creating build directories..." -ForegroundColor Yellow
-New-Item -Path "build" -ItemType Directory -Force | Out-Null
+$buildDir = Join-Path $scriptDir "build"
+New-Item -Path $buildDir -ItemType Directory -Force | Out-Null
 
 # Step 2: Download Python Embedded
 Write-Host "`n[2/8] Downloading Python 3.11 Embedded Distribution..." -ForegroundColor Yellow
-if (-not (Test-Path "build\python\python.exe")) {
+if (-not (Test-Path (Join-Path $buildDir "python\python.exe"))) {
     # Find latest Python 3.11.x version with embeddable distribution
     Write-Host "Finding latest Python 3.11.x version..."
     $ftpListing = Invoke-WebRequest -Uri "https://www.python.org/ftp/python/" -UseBasicParsing
@@ -57,7 +60,7 @@ if (-not (Test-Path "build\python\python.exe")) {
     }
     
     Write-Host "Extracting to build\python..."
-    Expand-Archive -Path $pythonZip -DestinationPath "build\python" -Force
+    Expand-Archive -Path $pythonZip -DestinationPath (Join-Path $buildDir "python") -Force
     
     Remove-Item $pythonZip
     Write-Host "Python $foundVersion installed successfully" -ForegroundColor Green
@@ -67,7 +70,7 @@ if (-not (Test-Path "build\python\python.exe")) {
 
 # Step 3: Enable pip in embedded Python and add beratools to path
 Write-Host "`n[3/8] Configuring embedded Python path..." -ForegroundColor Yellow
-$pthFile = Get-ChildItem "build\python\python*._pth" | Select-Object -First 1
+$pthFile = Get-ChildItem (Join-Path $buildDir "python\python*._pth") | Select-Object -First 1
 if ($pthFile) {
     $zipName = [System.IO.Path]::GetFileNameWithoutExtension($pthFile.Name) + ".zip"
     @"
@@ -81,9 +84,9 @@ import site
 
 # Step 4: Install pip
 Write-Host "`n[4/8] Installing pip..." -ForegroundColor Yellow
-if (-not (Test-Path "build\python\Scripts\pip.exe")) {
+if (-not (Test-Path (Join-Path $buildDir "python\Scripts\pip.exe"))) {
     Invoke-WebRequest -Uri "https://bootstrap.pypa.io/get-pip.py" -OutFile "get-pip.py" -Verbose
-    & "build\python\python.exe" get-pip.py --quiet
+    & (Join-Path $buildDir "python\python.exe") get-pip.py --quiet
     Remove-Item "get-pip.py"
     Write-Host "Pip installed" -ForegroundColor Green
 } else {
@@ -93,7 +96,10 @@ if (-not (Test-Path "build\python\Scripts\pip.exe")) {
 # Step 5: Install dependencies from pyproject.toml
 Write-Host "`n[5/8] Installing Python dependencies..." -ForegroundColor Yellow
 
-$pyproject = Get-Content "beratools\pyproject.toml" -Raw
+$scriptDir = Split-Path -Parent $MyInvocation.MyCommand.Definition
+$pyprojectPath = Join-Path $scriptDir "..\pyproject.toml"
+$pyprojectPath = [System.IO.Path]::GetFullPath($pyprojectPath)
+$pyproject = Get-Content $pyprojectPath -Raw
 
 # Extract GDAL URL from pyproject.toml (windows extra)
 if ($pyproject -match 'gdal\s*@\s*(https://[^\s;]+\.whl)') {
@@ -135,24 +141,27 @@ if (-not (Get-Command go -ErrorAction SilentlyContinue)) {
     exit 1
 }
 
-go build -ldflags "-H=windowsgui -s -w" -o build\beratools.exe main.go
+go build -ldflags "-H=windowsgui -s -w" -o (Join-Path $buildDir "beratools.exe") main.go
 if ($LASTEXITCODE -ne 0) {
     Write-Host "Failed to build Go launcher" -ForegroundColor Red
     exit 1
 }
-Write-Host "Go launcher built: build\beratools.exe" -ForegroundColor Green
+Write-Host ("Go launcher built: " + (Join-Path $buildDir "beratools.exe")) -ForegroundColor Green
 
 # Step 7: Copy application files
 Write-Host "`n[7/8] Copying application files..." -ForegroundColor Yellow
 
 # Copy entire beratools package
-Copy-Item -Path "beratools\beratools" -Destination "build\beratools" -Recurse -Force
-if (-not (Test-Path "build\beratools\__init__.py")) {
+$srcBeratools = Join-Path $scriptDir "..\beratools"
+$srcBeratools = [System.IO.Path]::GetFullPath($srcBeratools)
+$dstBeratools = Join-Path $buildDir "beratools"
+Copy-Item -Path $srcBeratools -Destination $dstBeratools -Recurse -Force
+if (-not (Test-Path (Join-Path $dstBeratools "__init__.py"))) {
     Write-Host "Failed to copy beratools package" -ForegroundColor Red
     exit 1
 }
 
-Write-Host "Application files copied to build\beratools\" -ForegroundColor Green
+Write-Host ("Application files copied to " + $dstBeratools) -ForegroundColor Green
 
 # Step 8: Build installer with Inno Setup
 Write-Host "`n[8/8] Building installer with Inno Setup..." -ForegroundColor Yellow
