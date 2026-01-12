@@ -2,8 +2,10 @@ name: Build Windows Installer
 
 on:
   push:
+    branches:
+      - '**'
     tags:
-        - '*.*.*'
+      - '*.*.*'
   workflow_dispatch:
 
 jobs:
