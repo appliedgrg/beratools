@@ -115,10 +115,11 @@ jobs:
           zip -j test_data.zip examples/data/CHM.tif examples/data/seed_lines.gpkg
 
       - name: Create or update GitHub Release and upload test data
-        uses: softprops/action-gh-release@v1
+        uses: softprops/action-gh-release@v2
         with:
           tag_name: ${{ github.ref_name }}
           name: Release ${{ github.ref_name }}
+          generate_release_notes: true 
           files: test_data.zip
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
