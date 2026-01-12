@@ -6,12 +6,12 @@
 [Setup]
 AppName=BERA Tools
 AppVersion={#MyAppVersion}
-DefaultDirName={pf}\BERA Tools
+DefaultDirName={commonpf}\BERA Tools
 DefaultGroupName=BERA Tools
 OutputDir=dist
 OutputBaseFilename=beratools-installer-{#MyAppVersion}
 AllowNoIcons=yes
-SetupIconFile=beratools\gui\assets\BERALogo.ico
+SetupIconFile=..\beratools\gui\assets\BERALogo.ico
 
 [Files]
 Source: "build\beratools.exe"; DestDir: "{app}"; Flags: ignoreversion
