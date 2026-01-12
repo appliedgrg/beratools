@@ -20,11 +20,11 @@ import sys
 import webbrowser
 from pathlib import Path
 
-from PyQt5 import QtCore, QtGui, QtWidgets
-
 import beratools.core.constants as bt_const
 from beratools.gui import bt_data
 from beratools.gui.tool_widgets import ToolWidgets
+
+from PyQt5 import QtCore, QtGui, QtWidgets
 
 bt = bt_data.BTData()
 
