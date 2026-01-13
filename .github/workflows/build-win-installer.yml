@@ -18,14 +18,6 @@ jobs:
         with:
           fetch-depth: 0
 
-      - name: Print working directory
-        run: pwd
-        shell: pwsh
-
-      - name: Fetch all tags
-        run: git fetch --tags
-        shell: pwsh
-
       - name: Setup Go
         uses: actions/setup-go@v5
         with:
@@ -49,10 +41,6 @@ jobs:
           powershell -ExecutionPolicy Bypass -File packaging/build.ps1
         shell: pwsh
         working-directory: ${{ github.workspace }}
-
-      - name: List dist directory contents
-        run: ls packaging/dist
-        shell: pwsh
 
       - name: Upload installer artifact
         uses: actions/upload-artifact@v4
