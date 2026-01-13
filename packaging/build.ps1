@@ -105,7 +105,7 @@ $pyproject = Get-Content $pyprojectPath -Raw
 if ($pyproject -match 'gdal\s*@\s*(https://[^\s;]+\.whl)') {
     $gdalUrl = $Matches[1]
     Write-Host "Installing GDAL wheel..."
-    & "build\python\python.exe" -m pip install $gdalUrl --quiet
+    & (Join-Path $buildDir "python\python.exe") -m pip install $gdalUrl --quiet
     if ($LASTEXITCODE -ne 0) {
         Write-Host "Failed to install GDAL" -ForegroundColor Red
         exit 1
@@ -123,7 +123,7 @@ if ($pyproject -match '(?s)dependencies\s*=\s*\[(.*?)\]') {
         Where-Object { $_ -notmatch 'gdal' }  # Skip gdal, already installed
     
     Write-Host "Installing dependencies: $($deps -join ', ')"
-    & "build\python\python.exe" -m pip install @deps --quiet
+    & (Join-Path $buildDir "python\python.exe") -m pip install @deps --quiet
     if ($LASTEXITCODE -ne 0) {
         Write-Host "Failed to install dependencies" -ForegroundColor Red
         exit 1
