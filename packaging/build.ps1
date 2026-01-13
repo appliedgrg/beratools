@@ -177,7 +177,7 @@ if (-not (Test-Path $innoSetup)) {
 $distDir = Join-Path $scriptDir "dist"
 New-Item -Path $distDir -ItemType Directory -Force | Out-Null
 $env:APP_VERSION = $version
-& $innoSetup "/Q" "beratools.iss"
+Start-Process -FilePath $innoSetup -ArgumentList "/Q", "beratools.iss" -Wait -NoNewWindow -Environment @{"APP_VERSION" = "$version"}
 
 if ($LASTEXITCODE -eq 0) {
     Write-Host "`n=== BUILD SUCCESSFUL ===" -ForegroundColor Green

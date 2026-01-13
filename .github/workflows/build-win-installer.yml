@@ -63,9 +63,15 @@ jobs:
           path: packaging/dist/beratools-installer-*.exe
           if-no-files-found: error
 
+      - name: Get latest tag
+        id: get_tag
+        run: echo "tag=$(git describe --tags --abbrev=0)" >> $env:GITHUB_ENV
+        shell: pwsh
+
       - name: Upload to release
         uses: softprops/action-gh-release@v2
         with:
           files: packaging/dist/beratools-installer-*.exe
+          tag_name: ${{ env.tag }}
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
