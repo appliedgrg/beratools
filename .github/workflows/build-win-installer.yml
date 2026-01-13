@@ -47,12 +47,12 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: beratools-installer
-          path: dist/beratools-installer.exe
+          path: dist/beratools-installer-*.exe
           if-no-files-found: error
 
       - name: Upload to release
         uses: softprops/action-gh-release@v2
         with:
-          files: dist/beratools-installer.exe
+          files: dist/beratools-installer-*.exe
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
