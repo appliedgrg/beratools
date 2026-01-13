@@ -72,6 +72,9 @@ BERATools = "beratools.gui.main:gui_main"
 [project.urls]
 Homepage = "https://github.com/appliedgrg/beratools"
 
+[tool.hatch.metadata]
+allow-direct-references = true
+
 [tool.hatch.version]
 source = "vcs"
 
