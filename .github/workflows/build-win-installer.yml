@@ -61,10 +61,24 @@ jobs:
           path: packaging/dist/beratools-installer-*.exe
           if-no-files-found: error
 
+      - name: Get latest tag
+        id: get_tag
+        run: |
+          $tag = git describe --tags --abbrev=0 2>$null
+          if (-not $tag) {
+            Write-Host "No tags found, skipping release"
+            echo "tag=" >> $env:GITHUB_OUTPUT
+          } else {
+            Write-Host "Latest tag: $tag"
+            echo "tag=$tag" >> $env:GITHUB_OUTPUT
+          }
+        shell: pwsh
+
       - name: Upload to release
+        if: steps.get_tag.outputs.tag != ''
         uses: softprops/action-gh-release@v2
         with:
+          tag_name: ${{ steps.get_tag.outputs.tag }}
           files: packaging/dist/beratools-installer-*.exe
-          tag_name: ${{ env.tag }}
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
