@@ -50,6 +50,7 @@ jobs:
         run: |
           powershell -ExecutionPolicy Bypass -File packaging/build.ps1
         shell: pwsh
+        working-directory: ${{ github.workspace }}
 
       - name: List all files recursively
         run: ls -Recurse
