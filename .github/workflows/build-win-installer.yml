@@ -18,6 +18,10 @@ jobs:
         with:
           fetch-depth: 0
 
+      - name: Fetch all tags
+        run: git fetch --tags
+        shell: pwsh
+
       - name: Setup Go
         uses: actions/setup-go@v5
         with:
@@ -41,6 +45,10 @@ jobs:
       - name: Build installer
         run: |
           powershell -ExecutionPolicy Bypass -File packaging/build.ps1
+        shell: pwsh
+
+      - name: List dist directory contents
+        run: ls dist
         shell: pwsh
 
       - name: Upload installer artifact
