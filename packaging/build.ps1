@@ -141,6 +141,7 @@ if (-not (Get-Command go -ErrorAction SilentlyContinue)) {
     exit 1
 }
 
+Set-Location $scriptDir
 go build -ldflags "-H=windowsgui -s -w" -o (Join-Path $buildDir "beratools.exe") main.go
 if ($LASTEXITCODE -ne 0) {
     Write-Host "Failed to build Go launcher" -ForegroundColor Red
