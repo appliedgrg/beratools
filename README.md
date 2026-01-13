@@ -17,7 +17,9 @@ BERA Tools is successor of [Forest Line Mapper](https://github.com/appliedgrg/fl
 
 BERA Tools is built upon open-source Python libraries. Anaconda is used to manage runtime environments.
 
-Installation Steps:
+### Install with Anaconda
+
+Install with Anaconda works on Windows, macOS, and Linux.
 
 - Install Miniconda. Download Miniconda from [Miniconda](https://docs.anaconda.com/miniconda/) and install on your machine.
 - Download the file [environment.yml](https://raw.githubusercontent.com/appliedgrg/beratools/main/environment.yml
@@ -49,6 +51,10 @@ Installation Steps:
     ```bash
     $ conda remove -n bera
     ```
+
+### Install on Windows
+
+Windows installer is available with all releases.
 
 ## BERA Tools Guide
 

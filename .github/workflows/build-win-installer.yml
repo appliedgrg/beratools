@@ -1,0 +1,59 @@
+name: Build Windows Installer
+
+on:
+  push:
+    tags:
+      - '*.*.*'
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: windows-latest
+    permissions:
+      contents: write
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Setup Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: "1.21"
+
+      - name: Cache Go modules
+        uses: actions/cache@v4
+        with:
+          path: ~\go\pkg\mod
+          key: ${{ runner.os }}-go-${{ hashFiles('packaging/go.sum') }}
+          restore-keys: |
+            ${{ runner.os }}-go-
+
+      - name: Install Inno Setup
+        run: |
+          choco install innosetup -y
+        shell: pwsh
+
+      - name: Build installer
+        run: |
+          powershell -ExecutionPolicy Bypass -File packaging/build.ps1
+        shell: pwsh
+        working-directory: ${{ github.workspace }}
+
+      - name: Upload installer artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: beratools-installer
+          path: packaging/dist/beratools-installer-*.exe
+          if-no-files-found: error
+
+      - name: Upload to release
+        if: ${{ startsWith(github.ref, 'refs/tags/') }}
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ github.ref_name }}
+          files: packaging/dist/beratools-installer-*.exe
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

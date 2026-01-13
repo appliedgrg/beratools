@@ -42,6 +42,9 @@ dependencies = [
 ]
 
 [project.optional-dependencies]
+windows = [
+    "gdal @ https://github.com/cgohlke/geospatial-wheels/releases/download/v2025.10.25/gdal-3.11.4-cp311-cp311-win_amd64.whl ; platform_system == 'Windows'",
+]
 dev = [
     "pytest",
     "pytest-cov",
@@ -68,6 +71,9 @@ BERATools = "beratools.gui.main:gui_main"
 
 [project.urls]
 Homepage = "https://github.com/appliedgrg/beratools"
+
+[tool.hatch.metadata]
+allow-direct-references = true
 
 [tool.hatch.version]
 source = "vcs"
