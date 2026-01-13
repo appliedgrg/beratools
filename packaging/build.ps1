@@ -175,7 +175,8 @@ if (-not (Test-Path $innoSetup)) {
 }
 
 New-Item -Path "dist" -ItemType Directory -Force | Out-Null
-& $innoSetup "beratools.iss"
+$env:APP_VERSION = $version
+& $innoSetup "/Q" "beratools.iss"
 
 if ($LASTEXITCODE -eq 0) {
     Write-Host "`n=== BUILD SUCCESSFUL ===" -ForegroundColor Green
