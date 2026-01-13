@@ -12,6 +12,7 @@ OutputDir=dist
 OutputBaseFilename=beratools-installer-{#MyAppVersion}
 AllowNoIcons=yes
 SetupIconFile=..\beratools\gui\assets\BERALogo.ico
+UninstallDisplayIcon={app}\beratools.exe
 
 [Files]
 Source: "build\beratools.exe"; DestDir: "{app}"; Flags: ignoreversion

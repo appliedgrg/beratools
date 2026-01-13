@@ -133,7 +133,7 @@ if ($pyproject -match '(?s)dependencies\s*=\s*\[(.*?)\]') {
 }
 Write-Host "Dependencies installed" -ForegroundColor Green
 
-# Step 6: Build Go launcher
+# Step 6: Build Go launcher with embedded icon
 Write-Host "`n[6/8] Building Go launcher..." -ForegroundColor Yellow
 if (-not (Get-Command go -ErrorAction SilentlyContinue)) {
     Write-Host "Go not found in PATH. Please install Go 1.21+" -ForegroundColor Red
@@ -141,6 +141,56 @@ if (-not (Get-Command go -ErrorAction SilentlyContinue)) {
 }
 
 Set-Location $scriptDir
+
+# Install go-winres for embedding icon
+Write-Host "Installing go-winres..."
+go install github.com/tc-hib/go-winres@latest
+if ($LASTEXITCODE -ne 0) {
+    Write-Host "Failed to install go-winres" -ForegroundColor Red
+    exit 1
+}
+
+# Create winres directory and generate resource files
+$winresDir = Join-Path $scriptDir "winres"
+New-Item -Path $winresDir -ItemType Directory -Force | Out-Null
+
+# Copy icon to winres directory (go-winres expects icon.ico in winres folder)
+$iconSrc = Join-Path $scriptDir "..\beratools\gui\assets\BERALogo.ico"
+$iconSrc = [System.IO.Path]::GetFullPath($iconSrc)
+Copy-Item -Path $iconSrc -Destination (Join-Path $winresDir "icon.ico") -Force
+
+# Create winres.json manifest
+@"
+{
+    "RT_GROUP_ICON": {
+        "APP": {
+            "0000": "icon.ico"
+        }
+    },
+    "RT_MANIFEST": {
+        "#1": {
+            "0409": {
+                "identity": {
+                    "name": "BERA Tools",
+                    "version": "$version.0"
+                },
+                "description": "BERA Tools Application",
+                "minimum-os": "win7",
+                "dpi-awareness": "system"
+            }
+        }
+    }
+}
+"@ | Set-Content -Path (Join-Path $winresDir "winres.json")
+
+# Generate resource .syso file
+Write-Host "Generating Windows resource file..."
+go-winres make --in (Join-Path $winresDir "winres.json") --out "rsrc_windows_amd64.syso"
+if ($LASTEXITCODE -ne 0) {
+    Write-Host "Failed to generate resource file" -ForegroundColor Red
+    exit 1
+}
+
 go build -ldflags "-H=windowsgui -s -w" -o (Join-Path $buildDir "beratools.exe") main.go
 if ($LASTEXITCODE -ne 0) {
     Write-Host "Failed to build Go launcher" -ForegroundColor Red

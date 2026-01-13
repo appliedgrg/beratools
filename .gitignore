@@ -9,6 +9,8 @@ dist
 output
 agents
 packaging/build
+packaging/winres
+packaging/*.syso
 
 *.slurm
 *.out
