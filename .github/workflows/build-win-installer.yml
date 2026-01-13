@@ -51,6 +51,10 @@ jobs:
           powershell -ExecutionPolicy Bypass -File packaging/build.ps1
         shell: pwsh
 
+      - name: List all files recursively
+        run: ls -Recurse
+        shell: pwsh
+
       - name: List dist directory contents
         run: ls dist
         shell: pwsh
