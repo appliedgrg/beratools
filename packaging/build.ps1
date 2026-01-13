@@ -41,16 +41,16 @@ if (-not (Test-Path (Join-Path $buildDir "python\python.exe"))) {
     $pythonZip = "python.zip"
     $foundVersion = $null
     
-    foreach ($version in $versions) {
-        $pythonUrl = "https://www.python.org/ftp/python/$version/python-$version-embed-amd64.zip"
+    foreach ($pyVersion in $versions) {
+        $pythonUrl = "https://www.python.org/ftp/python/$pyVersion/python-$pyVersion-embed-amd64.zip"
         try {
             Invoke-WebRequest -Uri $pythonUrl -Method Head -UseBasicParsing -ErrorAction Stop | Out-Null
-            Write-Host "Downloading Python $version from $pythonUrl..."
+            Write-Host "Downloading Python $pyVersion from $pythonUrl..."
             Invoke-WebRequest -Uri $pythonUrl -OutFile $pythonZip -Verbose
-            $foundVersion = $version
+            $foundVersion = $pyVersion
             break
         } catch {
-            Write-Host "Python $version embed not available, trying older version..." -ForegroundColor Yellow
+            Write-Host "Python $pyVersion embed not available, trying older version..." -ForegroundColor Yellow
         }
     }
     
