@@ -174,14 +174,15 @@ if (-not (Test-Path $innoSetup)) {
     exit 1
 }
 
-New-Item -Path "dist" -ItemType Directory -Force | Out-Null
+$distDir = Join-Path $scriptDir "dist"
+New-Item -Path $distDir -ItemType Directory -Force | Out-Null
 $env:APP_VERSION = $version
 & $innoSetup "/Q" "beratools.iss"
 
 if ($LASTEXITCODE -eq 0) {
     Write-Host "`n=== BUILD SUCCESSFUL ===" -ForegroundColor Green
-    Write-Host "Installer: dist\beratools-installer.exe" -ForegroundColor Green
-    Write-Host "`nTo test: dist\beratools-installer.exe" -ForegroundColor Cyan
+    Write-Host "Installer: $distDir\beratools-installer.exe" -ForegroundColor Green
+    Write-Host "`nTo test: $distDir\beratools-installer.exe" -ForegroundColor Cyan
 } else {
     Write-Host "`n=== BUILD FAILED ===" -ForegroundColor Red
     exit 1

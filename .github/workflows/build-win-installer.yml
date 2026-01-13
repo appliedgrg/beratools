@@ -52,24 +52,20 @@ jobs:
         shell: pwsh
         working-directory: ${{ github.workspace }}
 
-      - name: List all files recursively
-        run: ls -Recurse
-        shell: pwsh
-
       - name: List dist directory contents
-        run: ls dist
+        run: ls packaging/dist
         shell: pwsh
 
       - name: Upload installer artifact
         uses: actions/upload-artifact@v4
         with:
           name: beratools-installer
-          path: dist/beratools-installer-*.exe
+          path: packaging/dist/beratools-installer-*.exe
           if-no-files-found: error
 
       - name: Upload to release
         uses: softprops/action-gh-release@v2
         with:
-          files: dist/beratools-installer-*.exe
+          files: packaging/dist/beratools-installer-*.exe
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
