@@ -30,7 +30,7 @@ jobs:
 
       - name: Build installer
         run: |
-          powershell -ExecutionPolicy Bypass -File build.ps1
+          powershell -ExecutionPolicy Bypass -File packaging/build.ps1
         shell: pwsh
 
       - name: Upload installer artifact
