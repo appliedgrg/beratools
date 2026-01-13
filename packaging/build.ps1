@@ -177,6 +177,7 @@ if (-not (Test-Path $innoSetup)) {
 $distDir = Join-Path $scriptDir "dist"
 New-Item -Path $distDir -ItemType Directory -Force | Out-Null
 $env:APP_VERSION = $version
+Write-Host "APP_VERSION for installer: $env:APP_VERSION" -ForegroundColor Cyan
 & $innoSetup "/Q" "beratools.iss"
 
 if ($LASTEXITCODE -eq 0) {
