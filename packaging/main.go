@@ -40,5 +40,5 @@ func main() {
 	cmd := exec.Command(pythonExe, mainPy)
 	cmd.Dir = exeDir
 	cmd.Env = filteredEnv
-	cmd.Run()
+	_ = cmd.Run()
 }

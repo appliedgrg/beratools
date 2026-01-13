@@ -96,7 +96,6 @@ if (-not (Test-Path (Join-Path $buildDir "python\Scripts\pip.exe"))) {
 # Step 5: Install dependencies from pyproject.toml
 Write-Host "`n[5/8] Installing Python dependencies..." -ForegroundColor Yellow
 
-$scriptDir = Split-Path -Parent $MyInvocation.MyCommand.Definition
 $pyprojectPath = Join-Path $scriptDir "..\pyproject.toml"
 $pyprojectPath = [System.IO.Path]::GetFullPath($pyprojectPath)
 $pyproject = Get-Content $pyprojectPath -Raw
@@ -176,7 +175,6 @@ if (-not (Test-Path $innoSetup)) {
 
 $distDir = Join-Path $scriptDir "dist"
 New-Item -Path $distDir -ItemType Directory -Force | Out-Null
-$env:APP_VERSION = $version
 Write-Host "APP_VERSION for installer: $env:APP_VERSION" -ForegroundColor Cyan
 & $innoSetup "/Q" "beratools.iss"
 
