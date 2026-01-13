@@ -12,16 +12,17 @@ OutputDir=dist
 OutputBaseFilename=beratools-installer-{#MyAppVersion}
 AllowNoIcons=yes
 SetupIconFile=..\beratools\gui\assets\BERALogo.ico
-UninstallDisplayIcon={app}\beratools.exe
+UninstallDisplayIcon={app}\BERALogo.ico
 
 [Files]
+Source: "..\beratools\gui\assets\BERALogo.ico"; DestDir: "{app}"; Flags: ignoreversion
 Source: "build\beratools.exe"; DestDir: "{app}"; Flags: ignoreversion
 Source: "build\python\*"; DestDir: "{app}\python"; Flags: recursesubdirs ignoreversion
 Source: "build\beratools\*"; DestDir: "{app}\beratools"; Flags: recursesubdirs ignoreversion
 
 [Icons]
-Name: "{commondesktop}\BERA Tools"; Filename: "{app}\beratools.exe"; WorkingDir: "{app}"
-Name: "{group}\BERA Tools"; Filename: "{app}\beratools.exe"; WorkingDir: "{app}"
+Name: "{commondesktop}\BERA Tools"; Filename: "{app}\beratools.exe"; WorkingDir: "{app}"; IconFilename: "{app}\BERALogo.ico"
+Name: "{group}\BERA Tools"; Filename: "{app}\beratools.exe"; WorkingDir: "{app}"; IconFilename: "{app}\BERALogo.ico"
 
 [Run]
 Filename: "{app}\beratools.exe"; Description: "Launch BERA Tools"; Flags: nowait postinstall skipifsilent
