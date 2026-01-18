@@ -133,7 +133,7 @@ if ($pyproject -match '(?s)dependencies\s*=\s*\[(.*?)\]') {
 }
 Write-Host "Dependencies installed" -ForegroundColor Green
 
-# Step 6: Build Go launcher with embedded icon
+# Step 6: Build Go launcher with version info + icon
 Write-Host "`n[6/8] Building Go launcher..." -ForegroundColor Yellow
 if (-not (Get-Command go -ErrorAction SilentlyContinue)) {
     Write-Host "Go not found in PATH. Please install Go 1.21+" -ForegroundColor Red
@@ -142,12 +142,72 @@ if (-not (Get-Command go -ErrorAction SilentlyContinue)) {
 
 Set-Location $scriptDir
 
-go build -ldflags "-H=windowsgui -s -w" -o (Join-Path $buildDir "beratools.exe") main.go
+$iconPath = Join-Path $scriptDir "..\beratools\gui\assets\BERALogo.ico"
+if (-not (Test-Path $iconPath)) {
+    Write-Host "Launcher icon not found at $iconPath" -ForegroundColor Red
+    exit 1
+}
+
+$versionParts = $version.Split('.')
+while ($versionParts.Count -lt 3) { $versionParts += "0" }
+$verMajor = [int]$versionParts[0]
+$verMinor = [int]$versionParts[1]
+$verPatch = [int]$versionParts[2]
+$verBuild = 0
+$fileVersion = "$verMajor.$verMinor.$verPatch.$verBuild"
+
+$versionInfoJson = @"
+{
+  "FixedFileInfo": {
+    "FileVersion": {
+      "Major": $verMajor,
+      "Minor": $verMinor,
+      "Patch": $verPatch,
+      "Build": $verBuild
+    },
+    "ProductVersion": {
+      "Major": $verMajor,
+      "Minor": $verMinor,
+      "Patch": $verPatch,
+      "Build": $verBuild
+    }
+  },
+  "StringFileInfo": {
+    "CompanyName": "BERA Tools",
+    "FileDescription": "BERA Tools Launcher",
+    "FileVersion": "$fileVersion",
+    "InternalName": "beratools",
+    "OriginalFilename": "beratools.exe",
+    "ProductName": "BERA Tools",
+    "ProductVersion": "$fileVersion"
+  }
+}
+"@
+
+$versionInfoPath = Join-Path $scriptDir "versioninfo.json"
+$versionInfoJson | Set-Content -Path $versionInfoPath -Encoding ASCII
+
+Write-Host "Generating Windows version resource..."
+& go run github.com/josephspurrier/goversioninfo/cmd/goversioninfo@v1.4.0 -icon $iconPath -o (Join-Path $scriptDir "resource.syso")
+if ($LASTEXITCODE -ne 0) {
+    Write-Host "Failed to generate version resource" -ForegroundColor Red
+    exit 1
+}
+
+go build -ldflags "-H=windowsgui" -o (Join-Path $buildDir "beratools.exe") main.go
 if ($LASTEXITCODE -ne 0) {
     Write-Host "Failed to build Go launcher" -ForegroundColor Red
     exit 1
 }
 Write-Host ("Go launcher built: " + (Join-Path $buildDir "beratools.exe")) -ForegroundColor Green
+
+if (Test-Path $versionInfoPath) {
+    Remove-Item $versionInfoPath -Force
+}
+$resourceSyso = Join-Path $scriptDir "resource.syso"
+if (Test-Path $resourceSyso) {
+    Remove-Item $resourceSyso -Force
+}
 
 # Step 7: Copy application files
 Write-Host "`n[7/8] Copying application files..." -ForegroundColor Yellow
