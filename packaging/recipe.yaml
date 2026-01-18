@@ -61,7 +61,7 @@ tests:
 
 about:
   summary: An advanced forest line feature analysis platform
-  license: MIT
+  license: GPL-3.0-or-later
   license_file:
     - LICENSE
   homepage: https://github.com/appliedgrg/beratools.git

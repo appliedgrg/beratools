@@ -8,7 +8,7 @@ dynamic = ["version"]
 description = "An advanced forest line feature analysis platform"
 requires-python = ">=3.10"
 readme = "README.md"
-license = { file = "LICENSE" }
+license = { text = "GPL-3.0-or-later" }
 authors = [
     { name = "AppliedGRG", email = "appliedgrg@gmail.com" },
     { name = "Richard Zeng", email = "richardqzeng@gmail.com" },
@@ -19,7 +19,7 @@ keywords = ["BERA", "Line"]
 classifiers = [
     "Development Status :: 2 - Pre-Alpha",
     "Intended Audience :: Developers",
-    "License :: OSI Approved :: MIT License",
+    "License :: OSI Approved :: GNU General Public License v3 (GPLv3)",
     "Natural Language :: English",
     "Programming Language :: Python :: 3.10",
     "Programming Language :: Python :: 3.11",

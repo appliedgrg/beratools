@@ -9,7 +9,7 @@ BERA Tools is successor of [Forest Line Mapper](https://github.com/appliedgrg/fl
 [![GitHub Pages](https://img.shields.io/github/deployments/appliedgrg/beratools/github-pages?label=docs)](https://appliedgrg.github.io/beratools/)
 [![Conda Version](https://img.shields.io/conda/v/AppliedGRG/beratools)](https://anaconda.org/AppliedGRG/beratools)
 [![Python Version](https://img.shields.io/badge/python-3.10%2B-blue)](https://www.python.org/downloads/release/python-3100/)
-[![License: MIT](https://img.shields.io/github/license/appliedgrg/beratools)](https://github.com/appliedgrg/beratools/blob/main/LICENSE)
+[![License: GPL-3.0](https://img.shields.io/badge/License-GPL%203.0-blue.svg)](https://www.gnu.org/licenses/gpl-3.0)
 
 </div>
 
