@@ -689,4 +689,15 @@ def runner():
     window = MainWindow()
     window.setMinimumSize(1024, 768)
     window.show()
-    app.exec()
+
+    def signal_ready():
+        ready_flag = os.getenv("BERA_SPLASH_READY")
+        if ready_flag:
+            try:
+                from pathlib import Path
+                Path(ready_flag).touch()
+            except Exception:
+                pass
+
+    QtCore.QTimer.singleShot(100, signal_ready)
+    app.exec_()
