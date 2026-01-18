@@ -17,6 +17,20 @@ BERA Tools is successor of [Forest Line Mapper](https://github.com/appliedgrg/fl
 
 BERA Tools is built upon open-source Python libraries. Anaconda is used to manage runtime environments.
 
+There are multiple ways to install BERA Tools:
+
+- Windows installer
+- QGIS Plugin (To be released)
+- Install with Anaconda.
+
+### Windows Installer
+
+Windows installer is provided with releases. Check the [latest release](https://github.com/appliedgrg/beratools/releases/latest) for the up-to-date installer.
+
+### QGIS Plugin
+
+BERA Tools is also available as a QGIS plugin (To be released).
+
 ### Install with Anaconda
 
 Install with Anaconda works on Windows, macOS, and Linux.
@@ -51,10 +65,6 @@ Install with Anaconda works on Windows, macOS, and Linux.
     ```bash
     $ conda remove -n bera
     ```
-
-### Install on Windows
-
-Windows installer is available with all releases.
 
 ## BERA Tools Guide
 
