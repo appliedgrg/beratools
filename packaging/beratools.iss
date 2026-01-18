@@ -5,6 +5,7 @@
 
 [Setup]
 AppName=BERA Tools
+WizardImageFile=..\beratools\gui\assets\BERA_WizardImage.png
 AppVersion={#MyAppVersion}
 DefaultDirName={commonpf}\BERA Tools
 DefaultGroupName=BERA Tools
