@@ -685,10 +685,23 @@ class MainWindow(QtWidgets.QMainWindow):
 
 def runner():
     app = QtWidgets.QApplication(sys.argv)
-    app.setWindowIcon(QtGui.QIcon("beratools/gui/assets/BERALogo.ico"))
+
+    # Use absolute path for icons (works with embedded Python on Windows)
+    assets_path = Path(__file__).parent / "assets"
+    app.setWindowIcon(QtGui.QIcon(str(assets_path / "BERALogo.ico")))
     window = MainWindow()
     window.setMinimumSize(1024, 768)
     window.show()
+
+    # Cross-platform tray icon (Windows: .ico, macOS: .png)
+    import platform
+    if platform.system() == "Darwin":
+        tray_icon_path = assets_path / "BERALogo.png"
+    else:
+        tray_icon_path = assets_path / "BERALogo.ico"
+    tray_icon = QtWidgets.QSystemTrayIcon(QtGui.QIcon(str(tray_icon_path)), app)
+    tray_icon.setToolTip("BERA Tools")
+    tray_icon.show()
 
     def signal_ready():
         ready_flag = os.getenv("BERA_SPLASH_READY")
