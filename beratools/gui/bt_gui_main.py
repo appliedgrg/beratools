@@ -412,16 +412,14 @@ class MainWindow(QtWidgets.QMainWindow):
         self.btn_advanced = QtWidgets.QPushButton("Show Advanced Options")
         self.btn_advanced.setFixedWidth(180)
         btn_help = QtWidgets.QPushButton("help")
-        btn_code = QtWidgets.QPushButton("Code")
-        btn_help.setFixedWidth(250)
-        btn_code.setFixedWidth(100)
+        btn_help.setFixedWidth(100)
 
         self.btn_layout_top = QtWidgets.QHBoxLayout()
         self.btn_layout_top.setAlignment(QtCore.Qt.AlignRight)
         self.btn_layout_top.addWidget(label)
         self.btn_layout_top.addStretch(1)
         self.btn_layout_top.addWidget(self.btn_advanced)
-        self.btn_layout_top.addWidget(btn_code)
+        self.btn_layout_top.addWidget(btn_help)
 
         # ToolWidgets
         tool_args = bt.get_bera_tool_args(self.tool_name)
@@ -479,7 +477,6 @@ class MainWindow(QtWidgets.QMainWindow):
         # signals and slots
         self.btn_advanced.clicked.connect(self.show_advanced)
         btn_help.clicked.connect(self.show_help)
-        btn_code.clicked.connect(self.view_code)
         btn_default_args.clicked.connect(self.load_default_args)
         self.btn_run.clicked.connect(self.start_process)
         btn_cancel.clicked.connect(self.stop_process)
@@ -524,7 +521,13 @@ class MainWindow(QtWidgets.QMainWindow):
 
     def show_help(self):
         # open the user manual section for the current tool
-        webbrowser.open_new_tab(self.get_current_tool_parameters()["tech_link"])
+        tech_link = self.get_current_tool_parameters()["tech_link"]
+        if isinstance(tech_link, list):
+            if tech_link:
+                tech_link = tech_link[0]
+            else:
+                tech_link = ""
+        webbrowser.open_new_tab(str(tech_link))
 
     def print_about(self):
         self.text_edit.clear()
@@ -558,8 +561,6 @@ class MainWindow(QtWidgets.QMainWindow):
 
         self.set_tool()
 
-    def view_code(self):
-        webbrowser.open_new_tab(self.get_current_tool_parameters()["tech_link"])
 
     def custom_callback(self, value):
         """Define custom callback that deals with tool output."""

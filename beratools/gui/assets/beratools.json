@@ -231,7 +231,7 @@
           "tool_type": "python",
           "tool_api": "line_footprint_relative",
           "icon": "line_footprint_relative.gif",
-          "tech_link": "https://appliedgrg.github.io/beratools/user/line_footprint_rel",
+          "tech_link": "https://appliedgrg.github.io/beratools/user/canopy_footprint_rel/",
           "parameters": [
             {
               "variable": "in_line",
