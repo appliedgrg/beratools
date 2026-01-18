@@ -25,3 +25,4 @@ config.ini
 _build
 .mypy_cache
 .pytest_cache
+.aider.*
