@@ -19,12 +19,14 @@ if (-not $version) {
 $env:APP_VERSION = $version
 
 # Step 1: Create directories
-Write-Host "`n[1/8] Creating build directories..." -ForegroundColor Yellow
+Write-Host "`n[1/9] Creating build directories..." -ForegroundColor Yellow
+
 $buildDir = Join-Path $scriptDir "build"
 New-Item -Path $buildDir -ItemType Directory -Force | Out-Null
 
 # Step 2: Download Python Embedded
-Write-Host "`n[2/8] Downloading Python 3.11 Embedded Distribution..." -ForegroundColor Yellow
+Write-Host "`n[2/9] Downloading Python 3.11 Embedded Distribution..." -ForegroundColor Yellow
+
 if (-not (Test-Path (Join-Path $buildDir "python\python.exe"))) {
     # Find latest Python 3.11.x version with embeddable distribution
     Write-Host "Finding latest Python 3.11.x version..."
@@ -69,7 +71,8 @@ if (-not (Test-Path (Join-Path $buildDir "python\python.exe"))) {
 }
 
 # Step 3: Enable pip in embedded Python and add beratools to path
-Write-Host "`n[3/8] Configuring embedded Python path..." -ForegroundColor Yellow
+Write-Host "`n[3/9] Configuring embedded Python path..." -ForegroundColor Yellow
+
 $pthFile = Get-ChildItem (Join-Path $buildDir "python\python*._pth") | Select-Object -First 1
 if ($pthFile) {
     $zipName = [System.IO.Path]::GetFileNameWithoutExtension($pthFile.Name) + ".zip"
@@ -83,7 +86,8 @@ import site
 }
 
 # Step 4: Install pip
-Write-Host "`n[4/8] Installing pip..." -ForegroundColor Yellow
+Write-Host "`n[4/9] Installing pip..." -ForegroundColor Yellow
+
 if (-not (Test-Path (Join-Path $buildDir "python\Scripts\pip.exe"))) {
     Invoke-WebRequest -Uri "https://bootstrap.pypa.io/get-pip.py" -OutFile "get-pip.py" -Verbose
     & (Join-Path $buildDir "python\python.exe") get-pip.py --quiet
@@ -94,7 +98,8 @@ if (-not (Test-Path (Join-Path $buildDir "python\Scripts\pip.exe"))) {
 }
 
 # Step 5: Install dependencies from pyproject.toml
-Write-Host "`n[5/8] Installing Python dependencies..." -ForegroundColor Yellow
+Write-Host "`n[5/9] Installing Python dependencies..." -ForegroundColor Yellow
+
 
 $pyprojectPath = Join-Path $scriptDir "..\pyproject.toml"
 $pyprojectPath = [System.IO.Path]::GetFullPath($pyprojectPath)
@@ -133,8 +138,24 @@ if ($pyproject -match '(?s)dependencies\s*=\s*\[(.*?)\]') {
 }
 Write-Host "Dependencies installed" -ForegroundColor Green
 
-# Step 6: Build Go launcher with version info + icon
-Write-Host "`n[6/8] Building Go launcher..." -ForegroundColor Yellow
+# Step 6: Ensure GDAL/PROJ data assets are present
+Write-Host "`n[6/9] Validating GDAL/PROJ data assets..." -ForegroundColor Yellow
+$sitePackages = Join-Path $buildDir "python\Lib\site-packages"
+$projDb = Join-Path $sitePackages "osgeo\data\proj\proj.db"
+if (-not (Test-Path $projDb)) {
+    Write-Host "proj.db not found at $projDb" -ForegroundColor Red
+    exit 1
+}
+$gdalData = Join-Path $sitePackages "osgeo\data\gdal"
+if (-not (Test-Path $gdalData)) {
+    Write-Host "GDAL data directory not found at $gdalData" -ForegroundColor Red
+    exit 1
+}
+Write-Host "GDAL/PROJ data assets found" -ForegroundColor Green
+
+# Step 7: Build Go launcher with version info + icon
+Write-Host "`n[7/9] Building Go launcher..." -ForegroundColor Yellow
+
 if (-not (Get-Command go -ErrorAction SilentlyContinue)) {
     Write-Host "Go not found in PATH. Please install Go 1.21+" -ForegroundColor Red
     exit 1
@@ -209,8 +230,9 @@ if (Test-Path $resourceSyso) {
     Remove-Item $resourceSyso -Force
 }
 
-# Step 7: Copy application files
-Write-Host "`n[7/8] Copying application files..." -ForegroundColor Yellow
+# Step 8: Copy application files
+Write-Host "`n[8/9] Copying application files..." -ForegroundColor Yellow
+
 
 # Copy entire beratools package
 $srcBeratools = Join-Path $scriptDir "..\beratools"
@@ -224,8 +246,9 @@ if (-not (Test-Path (Join-Path $dstBeratools "__init__.py"))) {
 
 Write-Host ("Application files copied to " + $dstBeratools) -ForegroundColor Green
 
-# Step 8: Build installer with Inno Setup
-Write-Host "`n[8/8] Building installer with Inno Setup..." -ForegroundColor Yellow
+# Step 9: Build installer with Inno Setup
+Write-Host "`n[9/9] Building installer with Inno Setup..." -ForegroundColor Yellow
+
 $innoSetup = "C:\Program Files (x86)\Inno Setup 6\ISCC.exe"
 
 if (-not (Test-Path $innoSetup)) {

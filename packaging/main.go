@@ -132,6 +132,10 @@ func main() {
 	// Set PYTHONPATH to include the install directory (for beratools package)
 	filteredEnv = append(filteredEnv, "PYTHONPATH="+exeDir)
 	filteredEnv = append(filteredEnv, "PYTHONHOME="+pythonDir)
+	projDataDir := filepath.Join(pythonDir, "Lib", "site-packages", "osgeo", "data", "proj")
+	filteredEnv = append(filteredEnv, "PROJ_LIB="+projDataDir)
+	gdalDataDir := filepath.Join(pythonDir, "Lib", "site-packages", "osgeo", "data", "gdal")
+	filteredEnv = append(filteredEnv, "GDAL_DATA="+gdalDataDir)
 	filteredEnv = append(filteredEnv, "BERA_SPLASH_READY="+readyFile)
 
 	// Launch Python GUI
