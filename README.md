@@ -37,7 +37,8 @@ Install with Anaconda works on Windows, macOS, and Linux.
 
 - Install Miniconda. Download Miniconda from [Miniconda](https://docs.anaconda.com/miniconda/) and install on your machine.
 - Download the file [environment.yml](https://raw.githubusercontent.com/appliedgrg/beratools/main/environment.yml
-) and save to local storage. Launch **Anaconda Prompt** and change directory to where environment.yml is saved.
+) and save to local storage. Launch **Anaconda Prompt** or **Miniconda Prompt**.
+- **Change directory** to where environment.yml is saved in the command prompt.
 - Run the following command to create a new environment named **bera**. **BERA Tools** will be installed in the new environment at the same time.
 
    ```bash
