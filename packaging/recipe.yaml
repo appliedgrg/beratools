@@ -19,6 +19,7 @@ build:
   python:
     entry_points:
       - BERATools = beratools.gui.main:gui_main
+      - beratools = beratools.gui.main:gui_main
 
 requirements:
   host:

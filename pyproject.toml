@@ -68,6 +68,7 @@ doc = [
 
 [project.scripts]
 BERATools = "beratools.gui.main:gui_main"
+beratools = "beratools.gui.main:gui_main"
 
 [project.urls]
 Homepage = "https://github.com/appliedgrg/beratools"
