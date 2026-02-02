@@ -430,10 +430,12 @@ class MainWindow(QtWidgets.QMainWindow):
         btn_default_args = QtWidgets.QPushButton("Load Default Arguments")
         self.btn_run = QtWidgets.QPushButton("Run")
         btn_cancel = QtWidgets.QPushButton("Cancel")
+        btn_exit = QtWidgets.QPushButton("Exit")
         btn_default_args.setFixedWidth(150)
         slider.setFixedWidth(250)
         self.btn_run.setFixedWidth(120)
         btn_cancel.setFixedWidth(120)
+        btn_exit.setFixedWidth(120)
 
         btn_layout_bottom = QtWidgets.QHBoxLayout()
         btn_layout_bottom.setAlignment(QtCore.Qt.AlignRight)
@@ -442,6 +444,7 @@ class MainWindow(QtWidgets.QMainWindow):
         btn_layout_bottom.addWidget(slider)
         btn_layout_bottom.addWidget(self.btn_run)
         btn_layout_bottom.addWidget(btn_cancel)
+        btn_layout_bottom.addWidget(btn_exit)
 
         self.top_right_layout = QtWidgets.QVBoxLayout()
         self.top_right_layout.addLayout(self.btn_layout_top)
@@ -480,10 +483,29 @@ class MainWindow(QtWidgets.QMainWindow):
         btn_default_args.clicked.connect(self.load_default_args)
         self.btn_run.clicked.connect(self.start_process)
         btn_cancel.clicked.connect(self.stop_process)
+        btn_exit.clicked.connect(self.close)
 
         widget = QtWidgets.QWidget(self)
         widget.setLayout(page_layout)
         self.setCentralWidget(widget)
+
+    def closeEvent(self, event):
+        self.cancel_op = True
+        if self.process is None:
+            window_msg="Are you sure you want to quit?"
+        else:
+            window_msg="Work in progress. Are you sure you want to quit?"
+
+        reply= QtWidgets.QMessageBox.question(self,'Confirmation:',window_msg,
+                                     QtWidgets.QMessageBox.StandardButton.Yes | QtWidgets.QMessageBox.StandardButton.No,
+                                     QtWidgets.QMessageBox.StandardButton.No)
+
+        if reply == QtWidgets.QMessageBox.StandardButton.Yes:
+            if self.process is not None:
+                self.process.kill()
+            event.accept()
+        else:
+            event.ignore()
 
     def set_tool(self, tool=None):
         if tool:

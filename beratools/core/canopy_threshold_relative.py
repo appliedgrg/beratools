@@ -382,6 +382,7 @@ def multiprocessing_RofC(line_seg, worklnbuffer_dfLRing, worklnbuffer_dfRRing, p
 
             gpdL = gpd.GeoDataFrame(pd.concat(featuresL, axis=1).T)
         with Pool(processes=int(processes)) as pool:
+            step=0
             try:
                 for resultR in pool.imap_unordered(rate_of_change, in_argsR):
                     if BT_DEBUGGING:
@@ -412,29 +413,33 @@ def multiprocessing_RofC(line_seg, worklnbuffer_dfLRing, worklnbuffer_dfRRing, p
         gpdL = gpd.GeoDataFrame(pd.concat(featuresL, axis=1).T)
         gpdR = gpd.GeoDataFrame(pd.concat(featuresR, axis=1).T)
 
-    for index in line_seg.index:
-        lnfid = line_seg.OLnFID.iloc[index]
-        Olnseg = line_seg.OLnSEG.iloc[index]
-        line_seg.loc[index, "RDist_Cut"] = float(
-            gpdR.loc[(gpdR.OLnFID == lnfid) & (gpdR.OLnSEG == Olnseg)]["RDist_Cut"]
-        )
-        line_seg.loc[index, "LDist_Cut"] = float(
-            gpdL.loc[(gpdL.OLnFID == lnfid) & (gpdL.OLnSEG == Olnseg)]["LDist_Cut"]
-        )
-        line_seg.loc[index, "CL_CutHt"] = float(
-            gpdL.loc[(gpdL.OLnFID == lnfid) & (gpdL.OLnSEG == Olnseg)]["CL_CutHt"]
-        )
-        line_seg.loc[index, "CR_CutHt"] = float(
-            gpdR.loc[(gpdR.OLnFID == lnfid) & (gpdR.OLnSEG == Olnseg)]["CR_CutHt"]
-        )
-        line_seg.loc[index, "DynCanTh"] = (
-            line_seg.loc[index, "CL_CutHt"] + line_seg.loc[index, "CR_CutHt"]
-        ) / 2
-        print(
-            ' "PROGRESS_LABEL Recording ... {} of {}" '.format(index + 1, len(line_seg)),
-            flush=True,
-        )
-        print(" {}% ".format(index + 1 / len(line_seg) * 100), flush=True)
+    line_seg = line_seg.set_index(['OLnFID', 'OLnSEG'], drop=True)
+    gpdL['geometry'] = gpdL['geometry'].normalize()
+    gpdL['wkt'] = gpdL['geometry'].apply(lambda x: x.wkt)
+    deduplicated_gpdL = gpdL.drop_duplicates(subset=['wkt'], keep='first')
+    deduplicated_gpdL = deduplicated_gpdL.drop(columns=['wkt']).reset_index(drop=True)
+    gpdR['geometry'] = gpdR['geometry'].normalize()
+    gpdR['wkt'] = gpdR['geometry'].apply(lambda x: x.wkt)
+    deduplicated_gpdR = gpdR.drop_duplicates(subset=['wkt'], keep='first')
+    deduplicated_gpdR = deduplicated_gpdR.drop(columns=['wkt']).reset_index(drop=True)
+
+    mapping_left_ldist_cut = deduplicated_gpdL.set_index(['OLnFID', 'OLnSEG'])['LDist_Cut']
+    mapping_left_rdist_cut = deduplicated_gpdR.set_index(['OLnFID', 'OLnSEG'])['RDist_Cut']
+    mapping_left_lcl_cut = deduplicated_gpdL.set_index(['OLnFID', 'OLnSEG'])['CL_CutHt']
+    mapping_left_rcl_cut = deduplicated_gpdR.set_index(['OLnFID', 'OLnSEG'])['CR_CutHt']
+
+    condition_ldist_cut = line_seg.index.isin(mapping_left_ldist_cut.index)
+    condition_rdist_cut = line_seg.index.isin(mapping_left_rdist_cut.index)
+    condition_lcl_cut = line_seg.index.isin(mapping_left_lcl_cut.index)
+    condition_rcl_cut = line_seg.index.isin(mapping_left_rcl_cut.index)
+
+    line_seg.loc[condition_ldist_cut, "LDist_Cut"] = line_seg.index.map(mapping_left_ldist_cut)
+    line_seg.loc[condition_rdist_cut, "RDist_Cut"] = line_seg.index.map(mapping_left_rdist_cut)
+    line_seg.loc[condition_lcl_cut, "CL_CutHt"] = line_seg.index.map(mapping_left_lcl_cut)
+    line_seg.loc[condition_rcl_cut, "CR_CutHt"] = line_seg.index.map(mapping_left_rcl_cut)
+    line_seg["DynCanTh"] = (line_seg["CL_CutHt"] + line_seg["CR_CutHt"]) / 2
+    line_seg=line_seg.reset_index(drop=False)
+
 
     return line_seg
 

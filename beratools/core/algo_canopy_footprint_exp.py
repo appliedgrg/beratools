@@ -453,11 +453,11 @@ class LineInfo:
         Cut_Dist = None
         line_buffer = None
         if side == Side.left:
-            canopy_ht_threshold = line_df.CL_CutHt * canopy_thresh_percentage
+            canopy_ht_threshold = line_df.CL_CutHt.iloc[0] * canopy_thresh_percentage
             Cut_Dist = self.LDist_Cut
             line_buffer = self.buffer_left
         elif side == Side.right:
-            canopy_ht_threshold = line_df.CR_CutHt * canopy_thresh_percentage
+            canopy_ht_threshold = line_df.CR_CutHt.iloc[0] * canopy_thresh_percentage
             Cut_Dist = self.RDist_Cut
             line_buffer = self.buffer_right
         else:
