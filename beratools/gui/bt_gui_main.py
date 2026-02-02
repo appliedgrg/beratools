@@ -500,7 +500,7 @@ class MainWindow(QtWidgets.QMainWindow):
                                      QtWidgets.QMessageBox.StandardButton.Yes | QtWidgets.QMessageBox.StandardButton.No,
                                      QtWidgets.QMessageBox.StandardButton.No)
 
-        if reply == QtWidgets.QMessageBox.Yes:
+        if reply == QtWidgets.QMessageBox.StandardButton.Yes:
             if self.process is not None:
                 self.process.kill()
             event.accept()
