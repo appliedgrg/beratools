@@ -12,6 +12,7 @@ dependencies:
   - dask
   - gdal=3.9.3
   - geopandas
+  - pandas>=2.33,<3.0
   - pyogrio>=0.9.0
   - pyqt
   - rasterio
