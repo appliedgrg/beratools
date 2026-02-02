@@ -490,7 +490,7 @@ class MainWindow(QtWidgets.QMainWindow):
         self.setCentralWidget(widget)
 
     def closeEvent(self, event):
-        self.cancel_op=True
+        self.cancel_op = True
         if self.process is None:
             window_msg="Are you sure you want to quit?"
         else:
