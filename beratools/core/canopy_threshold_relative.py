@@ -382,6 +382,7 @@ def multiprocessing_RofC(line_seg, worklnbuffer_dfLRing, worklnbuffer_dfRRing, p
 
             gpdL = gpd.GeoDataFrame(pd.concat(featuresL, axis=1).T)
         with Pool(processes=int(processes)) as pool:
+            step=0
             try:
                 for resultR in pool.imap_unordered(rate_of_change, in_argsR):
                     if BT_DEBUGGING:
