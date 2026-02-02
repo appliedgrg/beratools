@@ -57,7 +57,7 @@ class FootprintCanopy:
             algo_common.process_single_item,
             self.lines,
             "Canopy Footprint",
-            processes=1,
+            processes,
         )
 
         fp = []
