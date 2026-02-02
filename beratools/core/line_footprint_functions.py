@@ -64,9 +64,9 @@ def dyn_canopy_cost_raster(args):
     exp_shk_cell=args[15]
 
     if Side == "Left":
-        canopy_ht_threshold = line_df.CL_CutHt * canopy_thresh_percentage
+        canopy_ht_threshold = line_df.CL_CutHt.iloc[0] * canopy_thresh_percentage
     elif Side == "Right":
-        canopy_ht_threshold = line_df.CR_CutHt * canopy_thresh_percentage
+        canopy_ht_threshold = line_df.CR_CutHt.iloc[0] * canopy_thresh_percentage
     elif Side == "Center":
         canopy_ht_threshold = DynCanTh * canopy_thresh_percentage
     else:
