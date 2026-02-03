@@ -43,9 +43,6 @@ dependencies = [
 ]
 
 [project.optional-dependencies]
-windows = [
-    "gdal @ https://github.com/cgohlke/geospatial-wheels/releases/download/v2025.10.25/gdal-3.11.4-cp311-cp311-win_amd64.whl ; platform_system == 'Windows'",
-]
 dev = [
     "pytest",
     "pytest-cov",

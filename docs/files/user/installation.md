@@ -22,7 +22,13 @@ conda activate bera
 
 BERA Tools is published to Pypi and can be installed by pip. But on Windows, GDAL should be installed first. Please refer to [GDAL for Windows](https://gdal.org/en/stable/download.html#windows) for more information.
 
- [OSGeo4W](https://trac.osgeo.org/osgeo4w/https://trac.osgeo.org/osgeo4w/) is recommended for Windows, alongside conda.
+Example: install GDAL from a Windows wheel (adjust the URL/version as needed):
+
+```bash
+pip install "gdal @ https://github.com/cgohlke/geospatial-wheels/releases/download/v2025.10.25/gdal-3.11.4-cp311-cp311-win_amd64.whl"
+```
+
+[OSGeo4W](https://trac.osgeo.org/osgeo4w/https://trac.osgeo.org/osgeo4w/) is recommended for Windows, alongside conda.
 
 ```bash
 pip install beratools
