@@ -5,7 +5,10 @@ on:
     branches: 
       - main
     paths:
-      - 'beratools/**'
+      - 'pyproject.toml'
+      - 'README.md'
+      - 'LICENSE'
+      - '.gchithub/workflows/publish_to_pypi_test.yml'
 
 jobs:
   testpypi:
