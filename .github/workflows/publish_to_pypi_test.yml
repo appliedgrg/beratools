@@ -1,14 +1,7 @@
 name: Publish to PyPI Test
 
 on:
-  pull_request:
-    branches: 
-      - main
-    paths:
-      - 'pyproject.toml'
-      - 'README.md'
-      - 'LICENSE'
-      - '.gchithub/workflows/publish_to_pypi_test.yml'
+  workflow_dispatch:
 
 jobs:
   testpypi:

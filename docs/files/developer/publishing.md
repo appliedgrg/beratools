@@ -20,6 +20,7 @@ See the following workflows:
 
 - Conda Packaging and Release: [publish_to_anaconda.yml](https://github.com/appliedgrg/beratools/blob/main/.github/workflows/publish_to_anaconda.yml)
 - PyPI Packaging and Release: [publish_to_pypi.yml](https://github.com/appliedgrg/beratools/blob/main/.github/workflows/publish_to_pypi.yml)
+- TestPyPI Packaging (manual): [publish_to_pypi_test.yml](https://github.com/appliedgrg/beratools/blob/main/.github/workflows/publish_to_pypi_test.yml)
 
 See two actions details in [Maintainer Guide](maintainer.md#version-tag-push).
 
@@ -28,3 +29,11 @@ See two actions details in [Maintainer Guide](maintainer.md#version-tag-push).
 [Anaconda BERA Tools](https://anaconda.org/appliedgrg/beratools)
 
 [Pypi BERA Tools](https://pypi.org/project/BERATools)
+
+## TestPyPI (Manual Validation)
+
+For release rehearsals or packaging checks, maintainers can trigger the TestPyPI workflow manually.
+
+1. Go to **Actions** in GitHub and select **Publish to PyPI Test**.
+2. Click **Run workflow** to trigger the `workflow_dispatch` job.
+3. The workflow builds the package and publishes it to TestPyPI.
