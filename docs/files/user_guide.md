@@ -61,3 +61,23 @@ Ensure your input data meets the following criteria:
 - **Vector Format**: Supported vector formats include GeoPackage (.gpkg), Shapefile (.shp).
 - **Raster Format**: Supported raster formats include GeoTIFF (.tif).
 - **Coordinate System**: Data should be in a projected coordinate system (e.g., UTM) for accurate distance measurements.
+
+## Troubleshooting
+
+### Windows GDAL/PROJ Warning
+
+On Windows, BERA Tools may display a warning if `GDAL_DATA` or `PROJ_LIB` point to a different Python environment than the one running BERA Tools. This can happen when OSGeo4W or another GDAL install is configured globally while you run a conda/venv environment.
+
+Example warning:
+
+```
+[GDAL/PROJ Warning] Potential env mismatch
+Python env: C:\Users\you\miniconda3\envs\bera
+GDAL_DATA : C:\OSGeo4W\share\gdal
+PROJ_LIB  : C:\OSGeo4W\share\proj
+If you encounter GDAL/PROJ errors, ensure these env paths belong to this Python environment.
+```
+
+**How to fix it**:
+- Prefer GDAL/PROJ bundled with your current Python environment.
+- Remove or update `GDAL_DATA`/`PROJ_LIB` to point into the active Python environment.

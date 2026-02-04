@@ -19,16 +19,17 @@ build:
   python:
     entry_points:
       - BERATools = beratools.gui.main:gui_main
+      - beratools = beratools.gui.main:gui_main
 
 requirements:
   host:
-    - python >=3.10,<3.14
+    - python >=3.10,<3.15
     - hatchling
     - pip
     - hatch-vcs
     - git
   run:
-    - python >=3.10,<3.14
+    - python >=3.10,<3.15
     - bera_centerlines
     - dask
     - gdal

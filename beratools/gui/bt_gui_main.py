@@ -22,6 +22,7 @@ from pathlib import Path
 
 import beratools.core.constants as bt_const
 from beratools.gui import bt_data
+from beratools.utility import env_checks
 from beratools.gui.tool_widgets import ToolWidgets
 
 from PyQt5 import QtCore, QtGui, QtWidgets
@@ -554,6 +555,14 @@ class MainWindow(QtWidgets.QMainWindow):
     def print_about(self):
         self.text_edit.clear()
         self.print_to_output(bt.about())
+        self.show_startup_warnings()
+
+    def show_startup_warnings(self):
+        warning_message = env_checks.get_gdal_proj_env_warning()
+        if warning_message:
+            self.print_line_to_output("")
+            self.print_line_to_output("[Warning]")
+            self.print_line_to_output(warning_message)
 
     def print_license(self):
         self.text_edit.clear()

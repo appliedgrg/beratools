@@ -49,6 +49,11 @@ def compose_tool_kwargs(tool_api):
     mode_parser.add_argument("-l", "--log_level", default="INFO")
     mode_args, remaining = mode_parser.parse_known_args()
 
+    if mode_args.input is None:
+        from beratools.utility import env_checks
+
+        env_checks.warn_gdal_proj_env()
+
     if mode_args.input is not None:
         # GUI MODE: unpack tool params from JSON with TYPE VALIDATION
         try:
