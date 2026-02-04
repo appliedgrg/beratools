@@ -20,7 +20,7 @@ conda activate bera
 
 ### Using Pip
 
-BERA Tools is published to Pypi and can be installed by pip. But on Windows, GDAL should be installed first. Please refer to [GDAL for Windows](https://gdal.org/en/stable/download.html#windows) for more information.
+BERA Tools is published to Pypi and can be installed by pip. On Windows, if you use the standalone installer, GDAL/PROJ are bundled. For pip-based installs, GDAL should be installed first. Please refer to [GDAL for Windows](https://gdal.org/en/stable/download.html#windows) for more information.
 
 Example: install GDAL from a Windows wheel (adjust the URL/version as needed):
 

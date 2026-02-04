@@ -43,15 +43,17 @@ Here is a summary of the actions defined in all workflow files in `.github/workf
     - Trigger: On push or pull request to `main` affecting `beratools/**`.
     - Runs pytest with coverage and uploads results to Codecov.
 
-- __publish_to_pypi_test.yml__
-    - Summary: Pre-merge PyPI test deployment to validate package publishing on PRs.
-    - Trigger: On pull request to `main`.
-    - Builds the package and publishes to TestPyPI.
-
 - __tox.yml__
     - Summary: Matrix testing via tox for multiple Python versions (3.10–3.13).
     - Trigger: On pull request to `main` affecting `beratools/**`.
     - Executes tox across multiple Python versions (matrix) to run tests for each target interpreter.
+
+### Manual (workflow_dispatch)
+
+- __publish_to_pypi_test.yml__
+    - Summary: Manual TestPyPI deployment to validate package publishing on demand.
+    - Trigger: Manually triggered via `workflow_dispatch`.
+    - Builds the package and publishes to TestPyPI.
 
 ### Version tag push
 
@@ -86,8 +88,10 @@ flowchart LR
     Files -->|beratools/**| Pytest[CI Tests]
     
     CheckType -->|PR to main| PR[PR Validation]
-    PR --> PyPITest[Test PyPI]
     PR --> Tox[Tox Grid Tests]
+
+    CheckType -->|Manual trigger| Manual[Workflow Dispatch]
+    Manual --> PyPITest[Test PyPI]
     
     CheckType -->|Version tag| Release[Release]
     Release --> Anaconda[Conda]
@@ -98,7 +102,8 @@ flowchart LR
     classDef rel fill:#e8f5e9,stroke:#2e7d32
     
     class Mkdocs,Pytest push
-    class PyPITest,Tox pr
+    class PyPITest manual
+    class Tox pr
     class Anaconda,PyPI rel
 ```
 
