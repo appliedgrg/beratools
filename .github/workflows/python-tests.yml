@@ -6,6 +6,8 @@ on:
       - main
     paths:
       - 'beratools/**'
+      - 'pixi.toml'
+      - 'pyproject.toml'
 
 jobs:
   test:
