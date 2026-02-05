@@ -71,6 +71,9 @@ beratools = "beratools.gui.main:gui_main"
 [project.urls]
 Homepage = "https://github.com/appliedgrg/beratools"
 
+[tool.beratools]
+gdal_url = "https://github.com/cgohlke/geospatial-wheels/releases/download/v2025.10.25/gdal-3.11.4-cp311-cp311-win_amd64.whl"
+
 [tool.hatch.metadata]
 allow-direct-references = true
 
