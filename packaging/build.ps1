@@ -105,17 +105,27 @@ $pyprojectPath = Join-Path $scriptDir "..\pyproject.toml"
 $pyprojectPath = [System.IO.Path]::GetFullPath($pyprojectPath)
 $pyproject = Get-Content $pyprojectPath -Raw
 
-# Extract GDAL URL from pyproject.toml (windows extra)
-if ($pyproject -match 'gdal\s*@\s*(https://[^\s;]+\.whl)') {
+# Extract GDAL URL (prefer env var, then [tool.beratools] gdal_url, then legacy regex)
+$gdalUrl = $env:BERATOOLS_GDAL_URL
+if (-not $gdalUrl -and $pyproject -match '(?m)^\s*\[tool\.beratools\]\s*$([\s\S]*?)(?=^\s*\[|\z)') {
+    $toolBlock = $Matches[1]
+    if ($toolBlock -match '(?m)^\s*gdal_url\s*=\s*"([^"]+)"\s*$') {
+        $gdalUrl = $Matches[1]
+    }
+}
+if (-not $gdalUrl -and $pyproject -match 'gdal\s*@\s*(https://[^\s;]+\.whl)') {
     $gdalUrl = $Matches[1]
-    Write-Host "Installing GDAL wheel..."
-    & (Join-Path $buildDir "python\python.exe") -m pip install $gdalUrl --quiet
+}
+
+if ($gdalUrl) {
+    Write-Host "Installing GDAL wheel from $gdalUrl..."
+    & (Join-Path $buildDir "python\python.exe") -m pip install $gdalUrl --quiet --no-warn-script-location
     if ($LASTEXITCODE -ne 0) {
         Write-Host "Failed to install GDAL" -ForegroundColor Red
         exit 1
     }
 } else {
-    Write-Host "Failed to extract GDAL URL from pyproject.toml" -ForegroundColor Red
+    Write-Host "Failed to extract GDAL URL from pyproject.toml or BERATOOLS_GDAL_URL" -ForegroundColor Red
     exit 1
 }
 
@@ -127,7 +137,7 @@ if ($pyproject -match '(?s)dependencies\s*=\s*\[(.*?)\]') {
         Where-Object { $_ -notmatch 'gdal' }  # Skip gdal, already installed
     
     Write-Host "Installing dependencies: $($deps -join ', ')"
-    & (Join-Path $buildDir "python\python.exe") -m pip install @deps --quiet
+    & (Join-Path $buildDir "python\python.exe") -m pip install @deps --quiet --no-warn-script-location
     if ($LASTEXITCODE -ne 0) {
         Write-Host "Failed to install dependencies" -ForegroundColor Red
         exit 1
