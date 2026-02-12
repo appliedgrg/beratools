@@ -94,10 +94,10 @@ class ToolWidgets(QtWidgets.QWidget):
                 option_list = p["parameter_type"].get("OptionList", [])
                 # Check if OptionList contains only boolean values (handle both string and bool types)
                 is_bool_list = (
-                    option_list == ["True", "False"] or 
-                    option_list == ["true", "false"] or 
-                    option_list == [True, False] or 
-                    option_list == [False, True]
+                    option_list == ["True", "False"]
+                    or option_list == ["true", "false"]
+                    or option_list == [True, False]
+                    or option_list == [False, True]
                 )
                 if is_bool_list:
                     widget = BooleanInput(json_str)
@@ -118,7 +118,7 @@ class ToolWidgets(QtWidgets.QWidget):
                 param_value = p["saved_value"]
             if param_value is None:
                 param_value = p["default_value"]
-            if param_value is '':
+            if param_value is "":
                 param_value = p["default_value"]
             if param_value is not None:
                 if type(widget) is OptionsInput:
@@ -572,7 +572,7 @@ class FileSelector(QtWidgets.QWidget):
                 self.in_file.setToolTip(self.value)
             except Exception as e:
                 # do nothing if first time initialize the tool with no previous values
-                self.value = ''
+                self.value = ""
                 self.in_file.setText(self.value)
                 self.in_file.setToolTip(self.value)
         self.update_combo_visibility()
@@ -611,6 +611,10 @@ class FileSelector(QtWidgets.QWidget):
             return {self.variable: encoded_value}
         else:
             return {self.variable: self.value}
+
+    def set_default_value(self):
+        default_value = self.default_value if self.default_value is not None else ""
+        self.set_value(default_value)
 
 
 class OptionsInput(QtWidgets.QWidget):
@@ -791,17 +795,17 @@ class BooleanInput(QtWidgets.QWidget):
     def _detect_boolean_source(self, params):
         """Determine if this is pure Boolean or OptionList boolean."""
         pt = params["parameter_type"]
-        
+
         if isinstance(pt, str) and pt == "Boolean":
             self.is_option_list = False
         elif isinstance(pt, dict) and "OptionList" in pt:
             option_list = pt["OptionList"]
             # Check if it's a boolean list (handle both string and bool types)
             is_bool_list = (
-                option_list == ["True", "False"] or 
-                option_list == ["true", "false"] or 
-                option_list == [True, False] or 
-                option_list == [False, True]
+                option_list == ["True", "False"]
+                or option_list == ["true", "false"]
+                or option_list == [True, False]
+                or option_list == [False, True]
             )
             if is_bool_list:
                 self.is_option_list = True
