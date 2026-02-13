@@ -78,19 +78,24 @@ def dyn_np_cc_map(in_chm, canopy_ht_threshold):
 
 
 def cost_focal_stats(canopy_ndarray, kernel):
-    mask = canopy_ndarray.mask
-    in_ndarray = np.ma.where(mask, np.nan, canopy_ndarray)
+    mask = canopy_ndarray.mask if np.ma.is_masked(canopy_ndarray) else np.zeros(canopy_ndarray.shape, dtype=bool)
+    # Replace masked/nan values with 0 for convolution; track valid pixel counts
+    data = np.where(mask, 0.0, np.asarray(canopy_ndarray, dtype=float))
+    valid = (~mask).astype(float)
 
-    # Function to compute mean and standard deviation
-    def calc_mean(arr):
-        return np.nanmean(arr)
+    # Use fast C-level convolution instead of generic_filter with Python callbacks
+    kernel_f = kernel.astype(float)
+    sum_vals = scipy.ndimage.convolve(data, kernel_f, mode="nearest")
+    count = scipy.ndimage.convolve(valid, kernel_f, mode="nearest")
+    count = np.maximum(count, 1.0)  # avoid division by zero
 
-    def calc_std(arr):
-        return np.nanstd(arr)
+    mean_array = sum_vals / count
 
-    # Apply the generic_filter function to compute mean and std
-    mean_array = scipy.ndimage.generic_filter(in_ndarray, calc_mean, footprint=kernel, mode="nearest")
-    std_array = scipy.ndimage.generic_filter(in_ndarray, calc_std, footprint=kernel, mode="nearest")
+    # Var = E[X^2] - E[X]^2
+    sum_sq = scipy.ndimage.convolve(data * data, kernel_f, mode="nearest")
+    variance = sum_sq / count - mean_array * mean_array
+    variance = np.maximum(variance, 0.0)  # clamp numerical noise
+    std_array = np.sqrt(variance)
 
     return std_array, mean_array
 

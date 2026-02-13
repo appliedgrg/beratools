@@ -84,6 +84,8 @@ def execute_multiprocessing(
     verbose = True if call_mode == CallMode.GUI else False
 
     try:
+        print("Multiprocessing mode: {}".format(mode.name), flush=True)
+
         if mode == bt_const.ParallelMode.MULTIPROCESSING:
             print("Multiprocessing started...", flush=True)
             print("Using {} CPU cores".format(processes), flush=True)
