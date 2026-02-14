@@ -34,6 +34,7 @@ def safe_linemerge(geom):
     else:
         return geom
 
+
 def custom_line_merge(geom):
     if geom.geom_type == "MultiLineString":
         # First try shapely's linemerge (fast)
@@ -156,7 +157,13 @@ class MergeLines:
         return lines
 
     def find_path_for_component(self, component):
+        if not component:
+            return []
+
         neighbors = list(self.G.iterNeighbors(component[0]))
+        if not neighbors:
+            return [component[0]]
+
         path = [component[0]]
         right = neighbors[0]
         path.append(right)
@@ -167,13 +174,18 @@ class MergeLines:
             path.insert(0, left)
 
         neighbors = list(self.G.iterNeighbors(right))
+        right_safety = 0
         while len(neighbors) > 1:
-            if neighbors[0] not in path:
-                path.append(neighbors[0])
-                right = neighbors[0]
-            else:
-                path.append(neighbors[1])
-                right = neighbors[1]
+            right_safety += 1
+            if right_safety > len(component) + 2:
+                break
+
+            next_candidates = [n for n in neighbors if n not in path]
+            if not next_candidates:
+                break
+
+            right = next_candidates[0]
+            path.append(right)
 
             neighbors = list(self.G.iterNeighbors(right))
 
@@ -184,13 +196,18 @@ class MergeLines:
         # process left side
         if left:
             neighbors = list(self.G.iterNeighbors(left))
+            left_safety = 0
             while len(neighbors) > 1:
-                if neighbors[0] not in path:
-                    path.insert(0, neighbors[0])
-                    left = neighbors[0]
-                else:
-                    path.insert(0, neighbors[1])
-                    left = neighbors[1]
+                left_safety += 1
+                if left_safety > len(component) + 2:
+                    break
+
+                next_candidates = [n for n in neighbors if n not in path]
+                if not next_candidates:
+                    break
+
+                left = next_candidates[0]
+                path.insert(0, left)
 
                 neighbors = list(self.G.iterNeighbors(left))
 
@@ -202,9 +219,16 @@ class MergeLines:
 
     def merge_single_line(self, component):
         path = self.find_path_for_component(component)
+        if len(path) < 2:
+            return None
 
         pairs = list(pairwise(path))
+        if not pairs:
+            return None
+
         line_list = [self.G.edgeId(i[0], i[1]) for i in pairs]
+        if not line_list:
+            return None
 
         vertices = []
 
@@ -232,7 +256,12 @@ class MergeLines:
         for c in components:
             line = self.get_merged_line_for_component(c)
             if line:
-                lines.extend(self.get_merged_line_for_component(c))
+                if isinstance(line, tuple):
+                    lines.extend(list(line))
+                elif isinstance(line, list):
+                    lines.extend(line)
+                else:
+                    lines.append(line)
             else:  # TODO: check line
                 print(f"merge_all_lines: failed to merge: {self.multi_line.bounds}")
 

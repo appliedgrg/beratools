@@ -83,6 +83,17 @@
               "optional": true
             },
             {
+              "variable": "optimize_internal_vertices",
+              "label": "Optimize Internal Vertices",
+              "description": "Enable split/merge workflow to optimize internal vertices in addition to endpoints.",
+              "type": "list",
+              "subtype": "bool",
+              "data": [true, false],
+              "default": false,
+              "output": false,
+              "optional": true
+            },
+            {
               "variable": "out_line",
               "label": "Optimized Line",
               "description": "Output optimized line file.",

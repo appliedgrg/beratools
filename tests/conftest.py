@@ -82,7 +82,7 @@ def tool_arguments_integration(testdata_dir, available_cpu_cores):
         },
         "args_ground_footprint": {
             "in_line": f"{testdata_dir.joinpath('integration_aoi.gpkg').as_posix()}|centerline",
-            "in_footprint": f"{testdata_dir.joinpath('integration_aoi.gpkg').as_posix()}|footprint_exp",
+            "in_footprint": f"{testdata_dir.joinpath('integration_aoi.gpkg').as_posix()}|footprint_abs",
             "n_samples": 15,
             "offset": 30,
             "max_width": True,
