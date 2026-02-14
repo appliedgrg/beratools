@@ -421,11 +421,16 @@ def find_least_cost_path(out_image, in_meta, line, find_nearest=True, output_lin
         start_tuple = start_tuples[0]
         end_tuple = end_tuples[0]
 
-        # regulate end point coords in case they are out of index of matrix
-        mat_size = matrix.shape
-        mat_size = (mat_size[0] - 1, mat_size[0] - 1)
-        start_tuple = (min(start_tuple[0], mat_size), start_tuple[1], start_tuple[2])
-        end_tuple = (min(end_tuple[0], mat_size), end_tuple[1], end_tuple[2])
+        # clamp row/col to valid matrix bounds
+        rows, cols = matrix.shape
+
+        def _clamp_row_col(row_col):
+            row = max(0, min(int(row_col[0]), rows - 1))
+            col = max(0, min(int(row_col[1]), cols - 1))
+            return row, col
+
+        start_tuple = (_clamp_row_col(start_tuple[0]), start_tuple[1], start_tuple[2])
+        end_tuple = (_clamp_row_col(end_tuple[0]), end_tuple[1], end_tuple[2])
 
     except Exception as e:
         print(f"find_least_cost_path: {e}")

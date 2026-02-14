@@ -25,10 +25,17 @@ from shapely import STRtree
 
 import beratools.core.algo_common as algo_common
 import beratools.core.algo_cost as algo_cost
+import beratools.core.algo_merge_lines as algo_merge_lines
+import beratools.core.algo_vertex_preclean as algo_vertex_preclean
 import beratools.core.constants as bt_const
 import beratools.core.tool_base as bt_base
 import beratools.utility.spatial_common as sp_common
 from beratools.core import algo_dijkstra
+
+try:
+    import rasterio
+except Exception:
+    rasterio = None
 
 
 def update_line_end_pt(line, index, new_vertex):
@@ -186,7 +193,7 @@ class _Vertex:
             remain = list({0, 1, 2} - set(pair))[0]  # the remaining index
 
             try:
-                pt_start_2 = lines[remain][2]
+                pt_start_2 = self.lines[remain].anchor
                 # symmetry point of pt_start_2 regarding vertex["point"]
                 X = vertex.x - (pt_start_2.x - vertex.x)
                 Y = vertex.y - (pt_start_2.y - vertex.y)
@@ -250,11 +257,15 @@ class _Vertex:
         try:
             if len(self.anchors) == 4:
                 seed_line = sh_geom.LineString(self.anchors[0:2])
+                if not self._should_process_seed_line(seed_line):
+                    return None
 
                 raster_clip, out_meta = sp_common.clip_raster(self.in_raster, seed_line, self.line_radius)
                 raster_clip, _ = algo_cost.cost_raster(raster_clip, out_meta)
                 centerline_1 = find_lc_path(raster_clip, out_meta, seed_line)
                 seed_line = sh_geom.LineString(self.anchors[2:4])
+                if not self._should_process_seed_line(seed_line):
+                    return None
 
                 raster_clip, out_meta = sp_common.clip_raster(self.in_raster, seed_line, self.line_radius)
                 raster_clip, _ = algo_cost.cost_raster(raster_clip, out_meta)
@@ -264,6 +275,8 @@ class _Vertex:
                     intersection = algo_common.intersection_of_lines(centerline_1, centerline_2)
             elif len(self.anchors) == 2:
                 seed_line = sh_geom.LineString(self.anchors)
+                if not self._should_process_seed_line(seed_line):
+                    return None
 
                 raster_clip, out_meta = sp_common.clip_raster(self.in_raster, seed_line, self.line_radius)
                 raster_clip, _ = algo_cost.cost_raster(raster_clip, out_meta)
@@ -280,6 +293,23 @@ class _Vertex:
 
         self.centerlines = [centerline_1, centerline_2]
         self.vertex_opt = intersection
+
+    def _should_process_seed_line(self, seed_line):
+        if seed_line is None or seed_line.length <= bt_const.SMALL_BUFFER:
+            return False
+
+        if self.cost_footprint is not None:
+            try:
+                if not self.cost_footprint.intersects(seed_line.buffer(self.line_radius)):
+                    return False
+            except Exception:
+                return False
+
+        max_seed_length = max(float(self.search_distance) * 6.0, float(self.line_radius) * 10.0)
+        if seed_line.length > max_seed_length:
+            return False
+
+        return True
 
     def get_lines(self):
         lines = [item.line for item in self.lines]
@@ -301,6 +331,10 @@ class VertexGrouping:
         processes,
         call_mode,
         layer=None,
+        optimize_internal_vertices=False,
+        close_distance=None,
+        min_segment_length=None,
+        angle_tol=10.0,
     ):
         self.in_line = in_line
         self.in_layer = layer
@@ -309,6 +343,7 @@ class VertexGrouping:
         self.search_distance = float(search_distance)
         self.processes = processes
         self.call_mode = call_mode
+        self.optimize_internal_vertices = bool(optimize_internal_vertices)
 
         self.crs = None
         self.vertex_grp = []
@@ -317,8 +352,38 @@ class VertexGrouping:
         self.line_list = []
         self.line_visited = None
 
+        self.close_distance = close_distance
+        self.min_segment_length = min_segment_length
+        self.angle_tol = float(angle_tol)
+
+        if self.optimize_internal_vertices:
+            if self.close_distance is None:
+                self.close_distance = self._default_close_distance()
+            else:
+                self.close_distance = float(self.close_distance)
+
+            if self.min_segment_length is None:
+                self.min_segment_length = self.close_distance
+            else:
+                self.min_segment_length = float(self.min_segment_length)
+
         # calculate cost raster footprint
         self.cost_footprint = algo_common.generate_raster_footprint(self.in_raster, latlon=False)
+
+    def _default_close_distance(self):
+        fallback = 0.75
+        if rasterio is None:
+            return fallback
+
+        try:
+            with rasterio.open(self.in_raster) as src:
+                transform = src.transform
+                cell_size = min(abs(transform.a), abs(transform.e))
+                if np.isclose(cell_size, 0.0):
+                    return fallback
+                return float(1.5 * cell_size)
+        except Exception:
+            return fallback
 
     def create_vertex_group(self, line_obj):
         """
@@ -361,7 +426,30 @@ class VertexGrouping:
         print(f"Preparing lines...{self.in_line}", flush=True)
         print("create_all_vertex_groups")
         print(f"in_file: {self.in_line}, in_layer: {self.in_layer}")
-        self.line_list = algo_common.prepare_lines_gdf(self.in_line, layer=self.in_layer, proc_segments=True)
+
+        if self.optimize_internal_vertices:
+            lines_gdf = algo_common.read_geospatial_file(self.in_line, layer=self.in_layer)
+            lines_gdf = algo_vertex_preclean.preclean_vertices(
+                lines_gdf,
+                self.close_distance,
+                self.min_segment_length,
+                self.angle_tol,
+            )
+            self.line_list = algo_common.split_lines_to_segments(lines_gdf)
+
+            if self.cost_footprint is not None:
+                self.line_list = [
+                    item for item in self.line_list if item.geometry[0].intersects(self.cost_footprint)
+                ]
+        else:
+            self.line_list = algo_common.prepare_lines_gdf(
+                self.in_line, layer=self.in_layer, proc_segments=False
+            )
+
+        if not self.line_list:
+            print("No lines within raster footprint for vertex optimization.")
+            return
+
         self.sindex = STRtree([item.geometry[0] for item in self.line_list])
         self.line_visited = [{0: False, -1: False} for _ in range(len(self.line_list))]
 
@@ -370,8 +458,8 @@ class VertexGrouping:
             if not self.line_visited[line_no][0]:
                 line = _SingleLine(self.line_list[line_no], line_no, 0, self.search_distance)
 
-                if not line.is_valid:
-                    print(f"Line {line['line_no']} is invalid")
+                if not line.is_valid():
+                    print(f"Line {line.line_no} is invalid")
                     continue
 
                 self.create_vertex_group(line)
@@ -381,8 +469,8 @@ class VertexGrouping:
             if not self.line_visited[line_no][-1]:
                 line = _SingleLine(self.line_list[line_no], line_no, -1, self.search_distance)
 
-                if not line.is_valid:
-                    print(f"Line {line['line_no']} is invalid")
+                if not line.is_valid():
+                    print(f"Line {line.line_no} is invalid")
                     continue
 
                 self.create_vertex_group(line)
@@ -403,7 +491,20 @@ class VertexGrouping:
     def save_all_layers(self, line_file):
         out_file, out_layer = sp_common.decode_file_layer(line_file)
         line_file = Path(line_file)
-        lines = pd.concat(self.line_list)
+
+        if not self.line_list:
+            lines = algo_common.read_geospatial_file(self.in_line, layer=self.in_layer)
+            lines = lines.iloc[0:0]
+            lines.to_file(out_file, layer=out_layer)
+            print(f"Saved output to: {line_file}", flush=True)
+            return
+
+        lines = pd.concat(self.line_list, ignore_index=True)
+
+        if self.optimize_internal_vertices and "BT_UID" in lines.columns:
+            lines[bt_const.BT_GROUP] = lines["BT_UID"]
+            lines = algo_merge_lines.run_line_merge(lines, merge_group=True)
+
         lines.to_file(out_file, layer=out_layer)
         print(f"Saved output to: {line_file}", flush=True)
 
@@ -437,11 +538,15 @@ class VertexGrouping:
             vertices.to_file(aux_file, layer="vertices")
 
     def compute(self):
+        compute_processes = self.processes
+        if self.optimize_internal_vertices and (compute_processes is None or int(compute_processes) <= 0):
+            compute_processes = 1
+
         vertex_grp = bt_base.execute_multiprocessing(
             algo_common.process_single_item,
             self.vertex_grp,
             "Vertex Optimization",
-            self.processes,
+            compute_processes,
             self.call_mode,
         )
 

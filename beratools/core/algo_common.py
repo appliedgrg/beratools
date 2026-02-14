@@ -77,7 +77,7 @@ def read_geospatial_file(file_path, layer=None):
     try:
         kwargs = {}
         if layer is not None:
-            kwargs['layer'] = layer
+            kwargs["layer"] = layer
 
         gdf = gpd.read_file(file_path, **kwargs)
 
@@ -130,6 +130,46 @@ def clean_line_geometries(line_gdf):
     return line_gdf
 
 
+def split_lines_to_segments(gdf):
+    """Split input lines to single-segment rows while preserving attributes."""
+    if gdf is None:
+        return []
+
+    if has_multilinestring(gdf):
+        gdf = gdf.explode(index_parts=False)
+
+    split_gdf_list = []
+    for row in gdf.itertuples(index=False):
+        line = row.geometry
+        coords = list(line.coords)
+
+        for i in range(len(coords) - 1):
+            segment = sh_geom.LineString([coords[i], coords[i + 1]])
+            attributes = {col: getattr(row, col) for col in gdf.columns if col != "geometry"}
+            single_row_gdf = gpd.GeoDataFrame([attributes], geometry=[segment], crs=gdf.crs)
+            split_gdf_list.append(single_row_gdf)
+
+    return split_gdf_list
+
+
+def lines_gdf_to_list(gdf):
+    """Convert lines GeoDataFrame rows to list of single-row GeoDataFrames."""
+    if gdf is None:
+        return []
+
+    if has_multilinestring(gdf):
+        gdf = gdf.explode(index_parts=False)
+
+    out_list = []
+    for row in gdf.itertuples(index=False):
+        line = row.geometry
+        attributes = {col: getattr(row, col) for col in gdf.columns if col != "geometry"}
+        single_row_gdf = gpd.GeoDataFrame([attributes], geometry=[line], crs=gdf.crs)
+        out_list.append(single_row_gdf)
+
+    return out_list
+
+
 def prepare_lines_gdf(file_path, layer=None, proc_segments=True):
     """
     Split lines at vertices or return original rows.
@@ -137,38 +177,14 @@ def prepare_lines_gdf(file_path, layer=None, proc_segments=True):
     It handles for MultiLineString.
 
     """
-    # Check if there are any MultiLineString geometries
     gdf = read_geospatial_file(file_path, layer=layer)
+    if gdf is None:
+        return []
 
-    # Explode MultiLineStrings into individual LineStrings
-    if has_multilinestring(gdf):
-        gdf = gdf.explode(index_parts=False)
+    if proc_segments:
+        return split_lines_to_segments(gdf)
 
-    split_gdf_list = []
-
-    for row in gdf.itertuples(index=False):  # Use itertuples to iterate
-        line = row.geometry  # Access geometry directly via the named tuple
-
-        # If proc_segment is True, split the line at vertices
-        if proc_segments:
-            coords = list(line.coords)  # Extract the list of coordinates (vertices)
-
-            # For each LineString, split the line into segments by the vertices
-            for i in range(len(coords) - 1):
-                segment = sh_geom.LineString([coords[i], coords[i + 1]])
-
-                # Copy over all non-geometry columns (excluding 'geometry')
-                attributes = {col: getattr(row, col) for col in gdf.columns if col != "geometry"}
-                single_row_gdf = gpd.GeoDataFrame([attributes], geometry=[segment], crs=gdf.crs)
-                split_gdf_list.append(single_row_gdf)
-
-        else:
-            # If not proc_segment, add the original row as a single-row GeoDataFrame
-            attributes = {col: getattr(row, col) for col in gdf.columns if col != "geometry"}
-            single_row_gdf = gpd.GeoDataFrame([attributes], geometry=[line], crs=gdf.crs)
-            split_gdf_list.append(single_row_gdf)
-
-    return split_gdf_list
+    return lines_gdf_to_list(gdf)
 
 
 # TODO use function from common
@@ -316,11 +332,11 @@ def generate_raster_footprint(in_raster, latlon=True):
             inter_img = Path(tmp_folder).joinpath(inter_img).as_posix()
             gdal.Translate(inter_img, src_ds, options=options)
 
-            shapes = gdal.Footprint(None, inter_img, dstSRS=src_crs, format="GeoJSON")
-            target_feat = shapes["features"][0]
-            geom = sh_geom.shape(target_feat["geometry"])
+        shapes = gdal.Footprint(None, inter_img, dstSRS=src_crs, format="GeoJSON")
+        target_feat = shapes["features"][0]
+        geom = sh_geom.shape(target_feat["geometry"])
 
-    if latlon:
+    if geom is not None and latlon:
         out_crs = pyproj.CRS("EPSG:4326")
         transformer = pyproj.Transformer.from_crs(pyproj.CRS(src_crs), out_crs)
 
