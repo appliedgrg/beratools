@@ -319,13 +319,7 @@ class FileSelector(QtWidgets.QWidget):
         self.layer_combo.setVisible(True)
         if Path(path).exists():
             if is_output:
-                self.layer_combo.setEditable(True)
-                if self.layer_combo.count() == 0:
-                    self.layer_combo.addItem("Result_layer")
-                    self.load_gpkg_layers(path)
-                elif self.layer_combo.itemText(0) != "Result_layer":
-                    self.layer_combo.insertItem(0, "Result_layer")
-                    self.load_gpkg_layers(path)
+                self.load_gpkg_layers(path)
             else:
                 self.layer_combo.setEditable(False)
                 if self.layer_combo.count() == 0 or self.layer_combo.itemText(0) == "Result_layer":
@@ -337,7 +331,8 @@ class FileSelector(QtWidgets.QWidget):
                 self.layer_combo.setEditable(True)
                 self.layer_combo.addItem("Result_layer")
             else:
-                self.layer_combo.addItem("Result_layer")
+                self.layer_combo.setVisible(False)
+                return
         # Set selected layer
         if selected_layer:
             if is_output and self.layer_combo.isEditable():
@@ -452,7 +447,10 @@ class FileSelector(QtWidgets.QWidget):
         if result.lower().endswith(".gpkg"):
             if not Path(result).exists():
                 self.layer_combo.clear()
-                self.layer_combo.addItem("Result_layer")
+                if self.output:
+                    self.layer_combo.addItem("Result_layer")
+                else:
+                    self.layer_combo.setVisible(False)
             else:
                 self.load_gpkg_layers(result)
                 if self.output:
@@ -491,25 +489,18 @@ class FileSelector(QtWidgets.QWidget):
 
             self.layer_combo.clear()
 
-            # Determine selected layer name (without geometry type)
-            selected_layer_name = self.selected_layer.split(" ")[0] if self.selected_layer else ""
-            loaded_layer_names = [str(k) for k in self.gpkg_layers.keys()]
-
-            # Output logic: add provided layer if missing
-            if self.output and selected_layer_name and selected_layer_name not in loaded_layer_names:
-                self.layer_combo.addItem(selected_layer_name)
-                for layer_name, geometry_type in self.gpkg_layers.items():
-                    self.layer_combo.addItem(f"{layer_name} ({geometry_type})")
+            # Output: always add "Result_layer" as default to avoid overwriting existing layers
+            if self.output:
+                self.layer_combo.addItem("Result_layer")
                 self.layer_combo.setEditable(True)
-                self.layer_combo.setCurrentText(selected_layer_name)
-            else:
-                for layer_name, geometry_type in self.gpkg_layers.items():
-                    self.layer_combo.addItem(f"{layer_name} ({geometry_type})")
-                self.layer_combo.setEditable(self.output)
-                if self.selected_layer:
-                    index = self.layer_combo.findText(self.selected_layer)
-                    if index >= 0:
-                        self.layer_combo.setCurrentIndex(index)
+
+            for layer_name, geometry_type in self.gpkg_layers.items():
+                self.layer_combo.addItem(f"{layer_name} ({geometry_type})")
+
+            if self.selected_layer:
+                index = self.layer_combo.findText(self.selected_layer)
+                if index >= 0:
+                    self.layer_combo.setCurrentIndex(index)
 
             self.layer_combo.setToolTip("Select layer")
             self.layer_combo.setVisible(True)
@@ -532,10 +523,12 @@ class FileSelector(QtWidgets.QWidget):
                 self.update_combo_visibility()
             else:
                 self.layer_combo.clear()
-                self.layer_combo.addItem("Result_layer")
                 if self.output:
+                    self.layer_combo.addItem("Result_layer")
                     self.layer_combo.setEditable(True)
-                self.layer_combo.setVisible(True)
+                    self.layer_combo.setVisible(True)
+                else:
+                    self.layer_combo.setVisible(False)
         else:
             self.layer_combo.setVisible(False)
         self.adjustSize()
@@ -555,6 +548,12 @@ class FileSelector(QtWidgets.QWidget):
                     self.value = {"path": path, "layer": layer}
                 else:
                     self.value = {"path": value, "layer": ""}
+            # For input, clear if file does not exist; for output, clear if parent folder does not exist
+            if self.value["path"]:
+                if not self.output and not Path(self.value["path"]).exists():
+                    self.value = {"path": "", "layer": ""}
+                elif self.output and not Path(self.value["path"]).parent.exists():
+                    self.value = {"path": "", "layer": ""}
             self.in_file.setText(self.value["path"])
             self.in_file.setToolTip(self.value["path"])
         else:
@@ -567,6 +566,12 @@ class FileSelector(QtWidgets.QWidget):
                             value = f"{base_name}.txt"
                 elif value.endswith("."):
                     value = base_name
+                # For input, clear if file does not exist; for output, clear if parent folder does not exist
+                if value:
+                    if not self.output and not Path(value).exists():
+                        value = ""
+                    elif self.output and not Path(value).parent.exists():
+                        value = ""
                 self.value = value
                 self.in_file.setText(self.value)
                 self.in_file.setToolTip(self.value)
