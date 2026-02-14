@@ -235,6 +235,14 @@ class _Vertex:
                 return pt_start_1, pt_end_1
 
     def compute(self):
+        if self.cost_footprint is not None:
+            try:
+                if not self.cost_footprint.covers(self.get_vertex()):
+                    return None
+            except Exception:
+                if not self.cost_footprint.contains(self.get_vertex()):
+                    return None
+
         try:
             self.anchors = self.generate_anchor_pairs()
         except Exception as e:
@@ -371,7 +379,7 @@ class VertexGrouping:
         self.cost_footprint = algo_common.generate_raster_footprint(self.in_raster, latlon=False)
 
     def _default_close_distance(self):
-        fallback = 0.75
+        fallback = 2.0
         if rasterio is None:
             return fallback
 
@@ -381,7 +389,7 @@ class VertexGrouping:
                 cell_size = min(abs(transform.a), abs(transform.e))
                 if np.isclose(cell_size, 0.0):
                     return fallback
-                return float(1.5 * cell_size)
+                return float(max(2.0, 1.5 * cell_size))
         except Exception:
             return fallback
 
