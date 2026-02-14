@@ -319,7 +319,7 @@ class FileSelector(QtWidgets.QWidget):
         self.layer_combo.setVisible(True)
         if Path(path).exists():
             if is_output:
-                self.load_gpkg_layers(path)
+                self.load_gpkg_layers(path, add_default=not selected_layer)
             else:
                 self.layer_combo.setEditable(False)
                 if self.layer_combo.count() == 0 or self.layer_combo.itemText(0) == "Result_layer":
@@ -342,6 +342,7 @@ class FileSelector(QtWidgets.QWidget):
                 if index >= 0:
                     self.layer_combo.setCurrentIndex(index)
         self.layer_combo.adjustSize()
+        self._update_layer_overwrite_warning()
 
     def update_combo_visibility(self):
         # Support both string and dict for self.value
@@ -480,7 +481,40 @@ class FileSelector(QtWidgets.QWidget):
             print(e)
             print("[Error] Could not find the selected file.")
 
-    def load_gpkg_layers(self, gpkg_file):
+    def _unique_layer_name(self, base_name):
+        """Return a layer name that does not conflict with existing layers in self.gpkg_layers."""
+        if not self.gpkg_layers:
+            return base_name
+        existing = {str(k) for k in self.gpkg_layers.keys()}
+        if base_name not in existing:
+            return base_name
+        counter = 1
+        while f"{base_name}_{counter}" in existing:
+            counter += 1
+        return f"{base_name}_{counter}"
+
+    def _update_layer_overwrite_warning(self):
+        """Update combo style based on whether the current layer exists (A: visual warning)."""
+        if not self.output or not self.gpkg_layers:
+            self.layer_combo.setStyleSheet("")
+            self.layer_combo.setToolTip("Select layer")
+            return
+        current = self.layer_combo.currentText()
+        if "(" in current:
+            current = current.split(" (")[0]
+        existing = {str(k) for k in self.gpkg_layers.keys()}
+        if current in existing:
+            warning = f"Warning: layer '{current}' already exists and will be overwritten"
+            self.layer_combo.setStyleSheet("QComboBox { background-color: #fff3cd; min-height: 1.4em; }")
+            self.layer_combo.setToolTip(warning)
+            pos = self.layer_combo.mapToGlobal(self.layer_combo.rect().bottomLeft())
+            QtWidgets.QToolTip.showText(pos, warning, self.layer_combo, self.layer_combo.rect(), 5000)
+        else:
+            self.layer_combo.setStyleSheet("")
+            self.layer_combo.setToolTip("New layer will be created")
+            QtWidgets.QToolTip.hideText()
+
+    def load_gpkg_layers(self, gpkg_file, add_default=True):
         """Load layers from a GeoPackage and populate the combo box using get_layers."""
         try:
             self.gpkg_layers = get_layers(gpkg_file)
@@ -489,9 +523,11 @@ class FileSelector(QtWidgets.QWidget):
 
             self.layer_combo.clear()
 
-            # Output: always add "Result_layer" as default to avoid overwriting existing layers
+            # Output: add unique default layer name to avoid overwriting existing layers
             if self.output:
-                self.layer_combo.addItem("Result_layer")
+                if add_default:
+                    default_name = self._unique_layer_name("Result_layer")
+                    self.layer_combo.addItem(default_name)
                 self.layer_combo.setEditable(True)
 
             for layer_name, geometry_type in self.gpkg_layers.items():
@@ -504,6 +540,7 @@ class FileSelector(QtWidgets.QWidget):
 
             self.layer_combo.setToolTip("Select layer")
             self.layer_combo.setVisible(True)
+            self._update_layer_overwrite_warning()
 
         except Exception as e:
             print(f"[Error] Could not load layers from GeoPackage: {gpkg_file}\nDetails: {e}")
@@ -591,6 +628,7 @@ class FileSelector(QtWidgets.QWidget):
             self.value["layer"] = layer
         else:
             self.selected_layer = layer
+        self._update_layer_overwrite_warning()
 
     def get_value(self):
         # For vector, encode from dict for compatibility
