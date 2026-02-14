@@ -444,18 +444,13 @@ class VertexGrouping:
                 self.angle_tol,
             )
             self.line_list = algo_common.split_lines_to_segments(lines_gdf)
-
-            if self.cost_footprint is not None:
-                self.line_list = [
-                    item for item in self.line_list if item.geometry[0].intersects(self.cost_footprint)
-                ]
         else:
             self.line_list = algo_common.prepare_lines_gdf(
                 self.in_line, layer=self.in_layer, proc_segments=False
             )
 
         if not self.line_list:
-            print("No lines within raster footprint for vertex optimization.")
+            print("No lines available for vertex optimization.")
             return
 
         self.sindex = STRtree([item.geometry[0] for item in self.line_list])
