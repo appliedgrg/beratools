@@ -38,7 +38,7 @@ except Exception:
     rasterio = None
 
 
-def update_line_end_pt(line, index, new_vertex):
+def update_line_end_pt(line, index, new_vertex, search_distance=0.0):
     if not line:
         return None
 
@@ -46,10 +46,35 @@ def update_line_end_pt(line, index, new_vertex):
         return line
 
     coords = list(line.coords)
-    if len(coords[index]) == 2:
-        coords[index] = (new_vertex.x, new_vertex.y)
-    elif len(coords[index]) == 3:
-        coords[index] = (new_vertex.x, new_vertex.y, 0.0)
+
+    # Remove internal vertices that are too close to the new endpoint.
+    # When the endpoint moves significantly, nearby internal vertices can
+    # create unnatural hooks or zigzag shapes in the line.
+    if search_distance > 0.0 and len(coords) > 2:
+        new_pt = sh_geom.Point(new_vertex.x, new_vertex.y)
+        if index == 0:
+            # Remove close vertices from the start (skip index 0 and last)
+            keep = [0]
+            for i in range(1, len(coords) - 1):
+                if sh_geom.Point(coords[i][:2]).distance(new_pt) >= search_distance:
+                    keep.append(i)
+            keep.append(len(coords) - 1)
+            coords = [coords[i] for i in keep]
+        elif index == -1:
+            # Remove close vertices from the end (skip first and last)
+            keep = [0]
+            for i in range(1, len(coords) - 1):
+                if sh_geom.Point(coords[i][:2]).distance(new_pt) >= search_distance:
+                    keep.append(i)
+            keep.append(len(coords) - 1)
+            coords = [coords[i] for i in keep]
+
+    # Update the endpoint coordinate
+    end_idx = index if index != -1 else len(coords) - 1
+    if len(coords[end_idx]) == 2:
+        coords[end_idx] = (new_vertex.x, new_vertex.y)
+    elif len(coords[end_idx]) == 3:
+        coords[end_idx] = (new_vertex.x, new_vertex.y, 0.0)
 
     return sh_geom.LineString(coords)
 
@@ -364,16 +389,15 @@ class VertexGrouping:
         self.min_segment_length = min_segment_length
         self.angle_tol = float(angle_tol)
 
-        if self.optimize_internal_vertices:
-            if self.close_distance is None:
-                self.close_distance = self._default_close_distance()
-            else:
-                self.close_distance = float(self.close_distance)
+        if self.close_distance is None:
+            self.close_distance = self._default_close_distance()
+        else:
+            self.close_distance = float(self.close_distance)
 
-            if self.min_segment_length is None:
-                self.min_segment_length = self.close_distance
-            else:
-                self.min_segment_length = float(self.min_segment_length)
+        if self.min_segment_length is None:
+            self.min_segment_length = self.close_distance
+        else:
+            self.min_segment_length = float(self.min_segment_length)
 
         # calculate cost raster footprint
         self.cost_footprint = algo_common.generate_raster_footprint(self.in_raster, latlon=False)
@@ -445,9 +469,14 @@ class VertexGrouping:
             )
             self.line_list = algo_common.split_lines_to_segments(lines_gdf)
         else:
-            self.line_list = algo_common.prepare_lines_gdf(
-                self.in_line, layer=self.in_layer, proc_segments=False
+            lines_gdf = algo_common.read_geospatial_file(self.in_line, layer=self.in_layer)
+            lines_gdf = algo_vertex_preclean.preclean_vertices(
+                lines_gdf,
+                self.close_distance,
+                self.min_segment_length,
+                self.angle_tol,
             )
+            self.line_list = algo_common.lines_gdf_to_list(lines_gdf)
 
         if not self.line_list:
             print("No lines available for vertex optimization.")
@@ -488,7 +517,9 @@ class VertexGrouping:
 
                 old_line = self.line_list[line.line_no].geometry[0]
                 self.line_list[line.line_no].geometry = [
-                    update_line_end_pt(old_line, line.end_no, vertex_obj.vertex_opt)
+                    update_line_end_pt(
+                        old_line, line.end_no, vertex_obj.vertex_opt, self.search_distance
+                    )
                 ]
 
     def save_all_layers(self, line_file):
