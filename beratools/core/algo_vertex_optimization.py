@@ -38,7 +38,7 @@ except Exception:
     rasterio = None
 
 
-def update_line_end_pt(line, index, new_vertex, search_distance=0.0):
+def update_line_end_pt(line, index, new_vertex):
     if not line:
         return None
 
@@ -46,35 +46,10 @@ def update_line_end_pt(line, index, new_vertex, search_distance=0.0):
         return line
 
     coords = list(line.coords)
-
-    # Remove internal vertices that are too close to the new endpoint.
-    # When the endpoint moves significantly, nearby internal vertices can
-    # create unnatural hooks or zigzag shapes in the line.
-    if search_distance > 0.0 and len(coords) > 2:
-        new_pt = sh_geom.Point(new_vertex.x, new_vertex.y)
-        if index == 0:
-            # Remove close vertices from the start (skip index 0 and last)
-            keep = [0]
-            for i in range(1, len(coords) - 1):
-                if sh_geom.Point(coords[i][:2]).distance(new_pt) >= search_distance:
-                    keep.append(i)
-            keep.append(len(coords) - 1)
-            coords = [coords[i] for i in keep]
-        elif index == -1:
-            # Remove close vertices from the end (skip first and last)
-            keep = [0]
-            for i in range(1, len(coords) - 1):
-                if sh_geom.Point(coords[i][:2]).distance(new_pt) >= search_distance:
-                    keep.append(i)
-            keep.append(len(coords) - 1)
-            coords = [coords[i] for i in keep]
-
-    # Update the endpoint coordinate
-    end_idx = index if index != -1 else len(coords) - 1
-    if len(coords[end_idx]) == 2:
-        coords[end_idx] = (new_vertex.x, new_vertex.y)
-    elif len(coords[end_idx]) == 3:
-        coords[end_idx] = (new_vertex.x, new_vertex.y, 0.0)
+    if len(coords[index]) == 2:
+        coords[index] = (new_vertex.x, new_vertex.y)
+    elif len(coords[index]) == 3:
+        coords[index] = (new_vertex.x, new_vertex.y, 0.0)
 
     return sh_geom.LineString(coords)
 
@@ -517,9 +492,7 @@ class VertexGrouping:
 
                 old_line = self.line_list[line.line_no].geometry[0]
                 self.line_list[line.line_no].geometry = [
-                    update_line_end_pt(
-                        old_line, line.end_no, vertex_obj.vertex_opt, self.search_distance
-                    )
+                    update_line_end_pt(old_line, line.end_no, vertex_obj.vertex_opt)
                 ]
 
     def save_all_layers(self, line_file):
@@ -528,8 +501,9 @@ class VertexGrouping:
 
         if not self.line_list:
             lines = algo_common.read_geospatial_file(self.in_line, layer=self.in_layer)
-            lines = lines.iloc[0:0]
-            lines.to_file(out_file, layer=out_layer)
+            if lines is not None:
+                lines = lines.iloc[0:0]
+                lines.to_file(out_file, layer=out_layer)
             print(f"Saved output to: {line_file}", flush=True)
             return
 
