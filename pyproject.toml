@@ -155,6 +155,10 @@ exclude_lines = [
 [tool.pytest.ini_options]
 filterwarnings = ["ignore::DeprecationWarning"]
 log_level = "INFO"
+markers = [
+    "gui: Windows UIA GUI tests using pywinauto",
+    "gui_qt: Cross-platform GUI tests using pytest-qt",
+]
 
 [tool.markdownlint]
 disabled_rules = ["MD007"]
