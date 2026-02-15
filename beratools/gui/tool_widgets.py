@@ -140,6 +140,42 @@ class ToolWidgets(QtWidgets.QWidget):
 
             self.widget_list.append(widget)
 
+        self._clear_output_paths_for_missing_input_history()
+
+    @staticmethod
+    def _extract_file_selector_path(value):
+        if isinstance(value, dict):
+            return value.get("path", "")
+        if isinstance(value, str) and "|" in value:
+            return value.rsplit("|", 1)[0]
+        if isinstance(value, str):
+            return value
+        return ""
+
+    def _clear_output_paths_for_missing_input_history(self):
+        missing_input_paths = set()
+
+        for widget in self.widget_list:
+            if not isinstance(widget, FileSelector) or widget.output:
+                continue
+            saved_path = self._extract_file_selector_path(widget.saved_value)
+            current_path = widget.value.get("path", "") if widget.is_vector else widget.value
+            if saved_path and not current_path:
+                missing_input_paths.add(saved_path)
+
+        if not missing_input_paths:
+            return
+
+        for widget in self.widget_list:
+            if not isinstance(widget, FileSelector) or not widget.output:
+                continue
+            current_path = widget.value.get("path", "") if widget.is_vector else widget.value
+            if current_path in missing_input_paths:
+                if widget.is_vector:
+                    widget.set_value({"path": "", "layer": ""})
+                else:
+                    widget.set_value("")
+
     def update_widgets(self, values_dict):
         for key, value in values_dict.items():
             for item in self.widget_list:

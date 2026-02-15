@@ -56,7 +56,7 @@ class TestCheckSeedLines:
 
     def test_round_trip(self, make_tool_widget, testdata_dir, tmp_path):
         tw = make_tool_widget(self.TOOL)
-        in_path = str(testdata_dir / "integration.gpkg")
+        in_path = str(testdata_dir / "seed_lines_aoi.gpkg")
         out_path = str(tmp_path / "output.gpkg")
 
         _set_widget_values(
@@ -87,13 +87,13 @@ class TestVertexOptimization:
         assert "FileSelector" in types
         assert "NumericInput" in types
 
-    def test_round_trip(self, make_tool_widget, tmp_path):
+    def test_round_trip(self, make_tool_widget, testdata_dir, tmp_path):
         tw = make_tool_widget(self.TOOL)
         _set_widget_values(
             tw,
             {
-                "in_line": {"path": str(tmp_path / "in.gpkg"), "layer": "lines"},
-                "in_raster": str(tmp_path / "chm.tif"),
+                "in_line": {"path": str(testdata_dir / "seed_lines_aoi.gpkg"), "layer": "seed_lines"},
+                "in_raster": str(testdata_dir / "chm_aoi.tif"),
                 "search_distance": 5.0,
                 "line_radius": 15,
                 "out_line": {"path": str(tmp_path / "out.gpkg"), "layer": "vo"},
@@ -120,13 +120,13 @@ class TestCenterline:
         assert proc_seg is not None
         assert isinstance(proc_seg, BooleanInput)
 
-    def test_round_trip(self, make_tool_widget, tmp_path):
+    def test_round_trip(self, make_tool_widget, testdata_dir, tmp_path):
         tw = make_tool_widget(self.TOOL)
         _set_widget_values(
             tw,
             {
-                "in_line": {"path": str(tmp_path / "in.gpkg"), "layer": "seeds"},
-                "in_raster": str(tmp_path / "chm.tif"),
+                "in_line": {"path": str(testdata_dir / "seed_lines_aoi.gpkg"), "layer": "seed_lines"},
+                "in_raster": str(testdata_dir / "chm_aoi.tif"),
                 "line_radius": 15.0,
                 "proc_segments": False,
                 "out_line": {"path": str(tmp_path / "out.gpkg"), "layer": "cl"},
@@ -199,13 +199,13 @@ class TestCanopyFootprintRelative:
         cp.set_value("75")
         assert cp.combobox.currentText() == "75"
 
-    def test_round_trip(self, make_tool_widget, tmp_path):
+    def test_round_trip(self, make_tool_widget, testdata_dir, tmp_path):
         tw = make_tool_widget(self.TOOL)
         _set_widget_values(
             tw,
             {
-                "in_line": {"path": str(tmp_path / "in.gpkg"), "layer": "cl"},
-                "in_chm": str(tmp_path / "chm.tif"),
+                "in_line": {"path": str(testdata_dir / "integration_aoi.gpkg"), "layer": "centerline"},
+                "in_chm": str(testdata_dir / "chm_aoi.tif"),
                 "max_ln_width": 32.0,
                 "exp_shk_cell": 0,
                 "out_footprint": {"path": str(tmp_path / "out.gpkg"), "layer": "fp"},
@@ -241,13 +241,16 @@ class TestGroundFootprint:
         assert mw is not None
         assert isinstance(mw, BooleanInput)
 
-    def test_round_trip(self, make_tool_widget, tmp_path):
+    def test_round_trip(self, make_tool_widget, testdata_dir, tmp_path):
         tw = make_tool_widget(self.TOOL)
         _set_widget_values(
             tw,
             {
-                "in_line": {"path": str(tmp_path / "in.gpkg"), "layer": "cl"},
-                "in_footprint": {"path": str(tmp_path / "in.gpkg"), "layer": "fp"},
+                "in_line": {"path": str(testdata_dir / "integration_aoi.gpkg"), "layer": "centerline"},
+                "in_footprint": {
+                    "path": str(testdata_dir / "integration_aoi.gpkg"),
+                    "layer": "footprint_rel",
+                },
                 "n_samples": 15,
                 "offset": 30.0,
                 "max_width": False,
@@ -279,7 +282,7 @@ class TestFeatureBuffer:
         _set_widget_values(
             tw,
             {
-                "in_feature": {"path": str(testdata_dir / "integration.gpkg"), "layer": "seed_lines"},
+                "in_feature": {"path": str(testdata_dir / "seed_lines_aoi.gpkg"), "layer": "seed_lines"},
                 "buffer_dist": 25.0,
                 "out_feature": {"path": str(tmp_path / "out.gpkg"), "layer": "buf"},
             },
@@ -288,7 +291,7 @@ class TestFeatureBuffer:
         args = tw.get_widgets_arguments()
         assert args is not None
         assert args["buffer_dist"] == pytest.approx(25.0)
-        assert str(testdata_dir / "integration.gpkg") in args["in_feature"]
+        assert str(testdata_dir / "seed_lines_aoi.gpkg") in args["in_feature"]
 
 
 # ---------------------------------------------------------------------------

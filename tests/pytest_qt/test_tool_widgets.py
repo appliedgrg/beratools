@@ -224,12 +224,13 @@ class TestWidgetSignals:
 
     def test_file_selector_text_changed_signal_payload(self, make_file_selector, qtbot):
         w = make_file_selector(TestFileSelectorRaster.PARAM)
+        updated = "updated.tif"
 
         with qtbot.waitSignal(w.in_file.textChanged, timeout=SIGNAL_TIMEOUT) as blocker:
-            w.in_file.setText("C:/data/updated.tif")
+            w.in_file.setText(updated)
 
-        assert blocker.args == ["C:/data/updated.tif"]
-        assert w.get_value() == {"in_raster": "C:/data/updated.tif"}
+        assert blocker.args == [updated]
+        assert w.get_value() == {"in_raster": updated}
 
 
 class TestKeyboardInput:
@@ -290,15 +291,17 @@ class TestFileSelectorRaster:
         "output": False,
     }
 
-    def test_set_and_get_path(self, make_file_selector):
+    def test_set_and_get_path(self, make_file_selector, testdata_dir):
+        raster = str(testdata_dir / "chm_aoi.tif")
         w = make_file_selector(self.PARAM)
-        w.set_value("C:/data/chm.tif")
-        assert w.in_file.text() == "C:/data/chm.tif"
-        assert w.get_value() == {"in_raster": "C:/data/chm.tif"}
+        w.set_value(raster)
+        assert w.in_file.text() == raster
+        assert w.get_value() == {"in_raster": raster}
 
-    def test_layer_combo_hidden_for_raster(self, make_file_selector):
+    def test_layer_combo_hidden_for_raster(self, make_file_selector, testdata_dir):
+        raster = str(testdata_dir / "chm_aoi.tif")
         w = make_file_selector(self.PARAM)
-        w.set_value("C:/data/chm.tif")
+        w.set_value(raster)
         assert not w.layer_combo.isVisible()
 
     def test_empty_default(self, make_file_selector):
@@ -323,7 +326,7 @@ class TestFileSelectorVector:
     }
 
     def test_set_dict_value(self, make_file_selector, testdata_dir):
-        gpkg = str(testdata_dir / "integration.gpkg")
+        gpkg = str(testdata_dir / "seed_lines_aoi.gpkg")
         w = make_file_selector(self.PARAM)
         with patch("beratools.gui.tool_widgets.get_layers") as mock_layers:
             mock_layers.return_value = {"seed_lines": "MultiLineString", "centerline": "MultiLineString"}
@@ -333,7 +336,7 @@ class TestFileSelectorVector:
         assert w.value["layer"] == "seed_lines"
 
     def test_set_pipe_string(self, make_file_selector, testdata_dir):
-        gpkg = str(testdata_dir / "integration.gpkg")
+        gpkg = str(testdata_dir / "seed_lines_aoi.gpkg")
         w = make_file_selector(self.PARAM)
         with patch("beratools.gui.tool_widgets.get_layers") as mock_layers:
             mock_layers.return_value = {"seed_lines": "MultiLineString"}
@@ -343,7 +346,7 @@ class TestFileSelectorVector:
         assert w.value["layer"] == "seed_lines"
 
     def test_get_value_encodes_pipe(self, make_file_selector, testdata_dir):
-        gpkg = str(testdata_dir / "integration.gpkg")
+        gpkg = str(testdata_dir / "seed_lines_aoi.gpkg")
         w = make_file_selector(self.PARAM)
         with patch("beratools.gui.tool_widgets.get_layers") as mock_layers:
             mock_layers.return_value = {"seed_lines": "MultiLineString"}
@@ -400,17 +403,18 @@ class TestFileSelectorDialogInteraction:
     RASTER_PARAM = TestFileSelectorRaster.PARAM
     VECTOR_OUTPUT_PARAM = TestFileSelectorOutput.PARAM
 
-    def test_browse_click_updates_raster_input(self, make_file_selector, qtbot):
+    def test_browse_click_updates_raster_input(self, make_file_selector, qtbot, testdata_dir):
+        raster = str(testdata_dir / "chm_aoi.tif")
         w = make_file_selector(self.RASTER_PARAM)
         fake_dialog = _FakeFileDialog(
-            file_names=["C:/data/chm.tif"],
+            file_names=[raster],
             selected_filter="Tiff raster files (*.tif *.tiff)",
         )
 
         with patch.object(w, "setup_file_dialog", return_value=fake_dialog):
             qtbot.mouseClick(w.btn_select, Qt.LeftButton)
 
-        assert w.in_file.text() == "C:/data/chm.tif"
+        assert w.in_file.text() == raster
 
     def test_browse_click_updates_output_with_selected_extension(self, make_file_selector, qtbot, tmp_path):
         w = make_file_selector(self.VECTOR_OUTPUT_PARAM)
@@ -427,16 +431,17 @@ class TestFileSelectorDialogInteraction:
         assert not w.layer_combo.isHidden()
         assert w.layer_combo.itemText(0) == "Result_layer"
 
-    def test_browse_cancel_does_not_overwrite_value(self, make_file_selector, qtbot):
+    def test_browse_cancel_does_not_overwrite_value(self, make_file_selector, qtbot, testdata_dir):
+        raster = str(testdata_dir / "chm_aoi.tif")
         w = make_file_selector(self.RASTER_PARAM)
-        w.set_value("C:/existing/input.tif")
+        w.set_value(raster)
         fake_dialog = _FakeFileDialog(file_names=[], selected_filter="")
 
         with patch.object(w, "setup_file_dialog", return_value=fake_dialog):
             qtbot.mouseClick(w.btn_select, Qt.LeftButton)
 
-        assert w.in_file.text() == "C:/existing/input.tif"
-        assert w.get_value()["in_raster"] == "C:/existing/input.tif"
+        assert w.in_file.text() == raster
+        assert w.get_value()["in_raster"] == raster
 
 
 class TestFileSelectorLayerComboInteraction:
@@ -485,13 +490,13 @@ class TestFileSelectorLayerComboInteraction:
     @pytest.mark.parametrize("ext", [".tif", ".tiff", ".img", ".asc"])
     def test_raster_extensions_keep_layer_combo_hidden(self, make_file_selector, ext):
         w = make_file_selector(TestFileSelectorRaster.PARAM)
-        w.set_value(f"C:/data/chm{ext}")
+        w.set_value(f"dummy{ext}")
 
         assert w.layer_combo.isHidden()
 
     def test_geojson_keeps_layer_combo_hidden_current_behavior(self, make_file_selector):
         w = make_file_selector(self.VECTOR_PARAM)
-        w.in_file.setText("C:/data/input.geojson")
+        w.in_file.setText("input.geojson")
 
         assert w.layer_combo.isHidden()
 
@@ -540,3 +545,38 @@ class TestToolWidgetsAdvancedVisibility:
         for w in tw.widget_list:
             if w.optional:
                 assert not w.isHidden()
+
+    def test_missing_input_history_clears_same_output_path(self, qtbot, tmp_path):
+        missing = str(tmp_path / "history_missing.gpkg")
+        tool_args = [
+            {
+                "name": "Input line",
+                "description": "Input vector",
+                "variable": "in_line",
+                "parameter_type": {"ExistingFile": ["vector"]},
+                "optional": False,
+                "default_value": "",
+                "saved_value": f"{missing}|seed_lines",
+                "output": False,
+            },
+            {
+                "name": "Output line",
+                "description": "Output vector",
+                "variable": "out_line",
+                "parameter_type": {"NewFile": ["vector"]},
+                "optional": False,
+                "default_value": "",
+                "saved_value": f"{missing}|Result_layer",
+                "output": True,
+            },
+        ]
+
+        tw = ToolWidgets("History edge", tool_args, show_advanced=True)
+        qtbot.addWidget(tw)
+
+        in_widget = next(w for w in tw.widget_list if w.variable == "in_line")
+        out_widget = next(w for w in tw.widget_list if w.variable == "out_line")
+
+        assert in_widget.value["path"] == ""
+        assert out_widget.value["path"] == ""
+        assert out_widget.value["layer"] == ""
