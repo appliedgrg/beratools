@@ -140,6 +140,42 @@ class ToolWidgets(QtWidgets.QWidget):
 
             self.widget_list.append(widget)
 
+        self._clear_output_paths_for_missing_input_history()
+
+    @staticmethod
+    def _extract_file_selector_path(value):
+        if isinstance(value, dict):
+            return value.get("path", "")
+        if isinstance(value, str) and "|" in value:
+            return value.rsplit("|", 1)[0]
+        if isinstance(value, str):
+            return value
+        return ""
+
+    def _clear_output_paths_for_missing_input_history(self):
+        missing_input_paths = set()
+
+        for widget in self.widget_list:
+            if not isinstance(widget, FileSelector) or widget.output:
+                continue
+            saved_path = self._extract_file_selector_path(widget.saved_value)
+            current_path = widget.value.get("path", "") if widget.is_vector else widget.value
+            if saved_path and not current_path:
+                missing_input_paths.add(saved_path)
+
+        if not missing_input_paths:
+            return
+
+        for widget in self.widget_list:
+            if not isinstance(widget, FileSelector) or not widget.output:
+                continue
+            current_path = widget.value.get("path", "") if widget.is_vector else widget.value
+            if current_path in missing_input_paths:
+                if widget.is_vector:
+                    widget.set_value({"path": "", "layer": ""})
+                else:
+                    widget.set_value("")
+
     def update_widgets(self, values_dict):
         for key, value in values_dict.items():
             for item in self.widget_list:
@@ -314,56 +350,63 @@ class FileSelector(QtWidgets.QWidget):
         self.in_file.textChanged.connect(self.file_name_edited)
         self.update_combo_visibility()
 
-    def update_gpkg_combo(self, path, is_output, selected_layer):
-        """Handle combo population, and layer selection for .gpkg files."""
-        self.layer_combo.setVisible(True)
+    def _reset_layer_state(self, clear_cache=False, visible=False, editable=False):
+        self.layer_combo.clear()
+        self.layer_combo.setEditable(editable)
+        self.layer_combo.setVisible(visible)
+        self.layer_combo.setStyleSheet("")
+        self.layer_combo.setToolTip("Select layer")
+        QtWidgets.QToolTip.hideText()
+        if clear_cache:
+            self.gpkg_layers = None
+
+    def _set_default_output_layer(self):
+        default_name = self._unique_layer_name("Result_layer")
+        self.layer_combo.addItem(default_name)
+
+    def _on_vector_path_changed(self, path, is_output, selected_layer=""):
+        is_gpkg = bool(path) and path.lower().endswith(".gpkg")
+        if not is_gpkg:
+            self._reset_layer_state(clear_cache=True, visible=False, editable=False)
+            return
+
         if Path(path).exists():
-            if is_output:
-                self.layer_combo.setEditable(True)
-                if self.layer_combo.count() == 0:
-                    self.layer_combo.addItem("Result_layer")
-                    self.load_gpkg_layers(path)
-                elif self.layer_combo.itemText(0) != "Result_layer":
-                    self.layer_combo.insertItem(0, "Result_layer")
-                    self.load_gpkg_layers(path)
-            else:
-                self.layer_combo.setEditable(False)
-                if self.layer_combo.count() == 0 or self.layer_combo.itemText(0) == "Result_layer":
-                    self.layer_combo.clear()
-                    self.load_gpkg_layers(path)
-        else:
-            self.layer_combo.clear()
-            if is_output:
-                self.layer_combo.setEditable(True)
-                self.layer_combo.addItem("Result_layer")
-            else:
-                self.layer_combo.addItem("Result_layer")
-        # Set selected layer
-        if selected_layer:
-            if is_output and self.layer_combo.isEditable():
+            self.load_gpkg_layers(path, add_default=is_output and not selected_layer)
+            if selected_layer:
+                if is_output and self.layer_combo.isEditable():
+                    self.layer_combo.setCurrentText(selected_layer)
+                else:
+                    index = self.layer_combo.findText(selected_layer)
+                    if index >= 0:
+                        self.layer_combo.setCurrentIndex(index)
+            self.layer_combo.adjustSize()
+            self._update_layer_overwrite_warning()
+            return
+
+        self._reset_layer_state(clear_cache=True, visible=bool(is_output), editable=bool(is_output))
+        if is_output:
+            self._set_default_output_layer()
+            if selected_layer:
                 self.layer_combo.setCurrentText(selected_layer)
-            else:
-                index = self.layer_combo.findText(selected_layer)
-                if index >= 0:
-                    self.layer_combo.setCurrentIndex(index)
-        self.layer_combo.adjustSize()
+            self.layer_combo.adjustSize()
+            self._update_layer_overwrite_warning()
+
+    def update_gpkg_combo(self, path, is_output, selected_layer):
+        """Handle combo population and layer selection for vector paths."""
+        self._on_vector_path_changed(path, is_output, selected_layer)
 
     def update_combo_visibility(self):
         # Support both string and dict for self.value
         if self.is_vector:
             path = self.value.get("path", "")
             layer = self.value.get("layer", "")
-            is_gpkg = path.lower().endswith(".gpkg")
-            if is_gpkg:
-                self.update_gpkg_combo(path, self.output, layer)
-            else:
-                self.layer_combo.setVisible(False)
+            self._on_vector_path_changed(path, self.output, layer)
         else:
             if isinstance(self.value, str) and self.value.lower().endswith(".gpkg"):
                 selected_layer = getattr(self, "selected_layer", "")
-                self.update_gpkg_combo(self.value, self.output, selected_layer)
+                self._on_vector_path_changed(self.value, self.output, selected_layer)
             else:
-                self.layer_combo.setVisible(False)
+                self._reset_layer_state(clear_cache=True, visible=False, editable=False)
         self.adjustSize()
         if self.parentWidget():
             self.parentWidget().layout().invalidate()
@@ -449,16 +492,10 @@ class FileSelector(QtWidgets.QWidget):
 
     def handle_gpkg_selection(self, result):
         """GeoPackage-specific logic after file selection."""
-        if result.lower().endswith(".gpkg"):
-            if not Path(result).exists():
-                self.layer_combo.clear()
-                self.layer_combo.addItem("Result_layer")
-            else:
-                self.load_gpkg_layers(result)
-                if self.output:
-                    self.layer_combo.setEditable(True)
-        else:
-            self.layer_combo.setVisible(False)
+        selected_layer = (
+            self.value.get("layer", "") if self.is_vector else getattr(self, "selected_layer", "")
+        )
+        self._on_vector_path_changed(result, self.output, selected_layer)
         self.update_combo_visibility()
 
     def select_file(self):
@@ -482,7 +519,40 @@ class FileSelector(QtWidgets.QWidget):
             print(e)
             print("[Error] Could not find the selected file.")
 
-    def load_gpkg_layers(self, gpkg_file):
+    def _unique_layer_name(self, base_name):
+        """Return a layer name that does not conflict with existing layers in self.gpkg_layers."""
+        if not self.gpkg_layers:
+            return base_name
+        existing = {str(k) for k in self.gpkg_layers.keys()}
+        if base_name not in existing:
+            return base_name
+        counter = 1
+        while f"{base_name}_{counter}" in existing:
+            counter += 1
+        return f"{base_name}_{counter}"
+
+    def _update_layer_overwrite_warning(self):
+        """Update combo style based on whether the current layer exists (A: visual warning)."""
+        if not self.output or not self.gpkg_layers:
+            self.layer_combo.setStyleSheet("")
+            self.layer_combo.setToolTip("Select layer")
+            return
+        current = self.layer_combo.currentText()
+        if "(" in current:
+            current = current.split(" (")[0]
+        existing = {str(k) for k in self.gpkg_layers.keys()}
+        if current in existing:
+            warning = f"Warning: layer '{current}' already exists and will be overwritten"
+            self.layer_combo.setStyleSheet("QComboBox { background-color: #fff3cd; min-height: 1.4em; }")
+            self.layer_combo.setToolTip(warning)
+            pos = self.layer_combo.mapToGlobal(self.layer_combo.rect().bottomLeft())
+            QtWidgets.QToolTip.showText(pos, warning, self.layer_combo, self.layer_combo.rect(), 5000)
+        else:
+            self.layer_combo.setStyleSheet("")
+            self.layer_combo.setToolTip("New layer will be created")
+            QtWidgets.QToolTip.hideText()
+
+    def load_gpkg_layers(self, gpkg_file, add_default=True):
         """Load layers from a GeoPackage and populate the combo box using get_layers."""
         try:
             self.gpkg_layers = get_layers(gpkg_file)
@@ -491,30 +561,27 @@ class FileSelector(QtWidgets.QWidget):
 
             self.layer_combo.clear()
 
-            # Determine selected layer name (without geometry type)
-            selected_layer_name = self.selected_layer.split(" ")[0] if self.selected_layer else ""
-            loaded_layer_names = [str(k) for k in self.gpkg_layers.keys()]
-
-            # Output logic: add provided layer if missing
-            if self.output and selected_layer_name and selected_layer_name not in loaded_layer_names:
-                self.layer_combo.addItem(selected_layer_name)
-                for layer_name, geometry_type in self.gpkg_layers.items():
-                    self.layer_combo.addItem(f"{layer_name} ({geometry_type})")
+            # Output: add unique default layer name to avoid overwriting existing layers
+            if self.output:
+                if add_default:
+                    default_name = self._unique_layer_name("Result_layer")
+                    self.layer_combo.addItem(default_name)
                 self.layer_combo.setEditable(True)
-                self.layer_combo.setCurrentText(selected_layer_name)
-            else:
-                for layer_name, geometry_type in self.gpkg_layers.items():
-                    self.layer_combo.addItem(f"{layer_name} ({geometry_type})")
-                self.layer_combo.setEditable(self.output)
-                if self.selected_layer:
-                    index = self.layer_combo.findText(self.selected_layer)
-                    if index >= 0:
-                        self.layer_combo.setCurrentIndex(index)
+
+            for layer_name, geometry_type in self.gpkg_layers.items():
+                self.layer_combo.addItem(f"{layer_name} ({geometry_type})")
+
+            if self.selected_layer:
+                index = self.layer_combo.findText(self.selected_layer)
+                if index >= 0:
+                    self.layer_combo.setCurrentIndex(index)
 
             self.layer_combo.setToolTip("Select layer")
             self.layer_combo.setVisible(True)
+            self._update_layer_overwrite_warning()
 
         except Exception as e:
+            self.gpkg_layers = None
             print(f"[Error] Could not load layers from GeoPackage: {gpkg_file}\nDetails: {e}")
 
     def file_name_edited(self):
@@ -526,23 +593,11 @@ class FileSelector(QtWidgets.QWidget):
         # Step 2: Check if the new value ends with a supported vector extension
         ext = Path(new_value).suffix.lower().replace(".", "")
         if self.is_vector and ext in self.VECTOR_FORMATS:
-            if Path(new_value).exists():
-                self.load_gpkg_layers(new_value)
-                self.layer_combo.setVisible(True)
-                self.update_combo_visibility()
-            else:
-                self.layer_combo.clear()
-                self.layer_combo.addItem("Result_layer")
-                if self.output:
-                    self.layer_combo.setEditable(True)
-                self.layer_combo.setVisible(True)
+            selected_layer = self.value.get("layer", "")
+            self._on_vector_path_changed(new_value, self.output, selected_layer)
         else:
-            self.layer_combo.setVisible(False)
-        self.adjustSize()
-        if self.parentWidget():
-            self.parentWidget().layout().invalidate()
-            self.parentWidget().adjustSize()
-            self.parentWidget().update()
+            self._reset_layer_state(clear_cache=True, visible=False, editable=False)
+        self.update_combo_visibility()
 
     def set_value(self, value):
         # Accept both string and dict for compatibility
@@ -555,6 +610,12 @@ class FileSelector(QtWidgets.QWidget):
                     self.value = {"path": path, "layer": layer}
                 else:
                     self.value = {"path": value, "layer": ""}
+            # For input, clear if file does not exist; for output, clear if parent folder does not exist
+            if self.value["path"]:
+                if not self.output and not Path(self.value["path"]).exists():
+                    self.value = {"path": "", "layer": ""}
+                elif self.output and not Path(self.value["path"]).parent.exists():
+                    self.value = {"path": "", "layer": ""}
             self.in_file.setText(self.value["path"])
             self.in_file.setToolTip(self.value["path"])
         else:
@@ -567,6 +628,12 @@ class FileSelector(QtWidgets.QWidget):
                             value = f"{base_name}.txt"
                 elif value.endswith("."):
                     value = base_name
+                # For input, clear if file does not exist; for output, clear if parent folder does not exist
+                if value:
+                    if not self.output and not Path(value).exists():
+                        value = ""
+                    elif self.output and not Path(value).parent.exists():
+                        value = ""
                 self.value = value
                 self.in_file.setText(self.value)
                 self.in_file.setToolTip(self.value)
@@ -586,6 +653,7 @@ class FileSelector(QtWidgets.QWidget):
             self.value["layer"] = layer
         else:
             self.selected_layer = layer
+        self._update_layer_overwrite_warning()
 
     def get_value(self):
         # For vector, encode from dict for compatibility

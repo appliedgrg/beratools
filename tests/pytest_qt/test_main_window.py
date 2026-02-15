@@ -127,7 +127,7 @@ class TestButtonInteractions:
             patch.object(
                 main_window.tool_widget,
                 "get_widgets_arguments",
-                return_value={"in_raster": "C:/data/chm.tif"},
+                return_value={"in_raster": "in_raster.tif"},
             ),
             patch.object(main_window, "save_tool_parameter"),
             patch("beratools.gui.bt_gui_main.bt.prepare_tool_run", return_value=("fake_tool", ["--arg"])),
@@ -336,6 +336,20 @@ class TestAdvancedOptions:
         main_window.show_advanced()
         assert main_window.btn_advanced.text() == "Show Advanced Options"
 
+    def test_internal_vertex_checkbox_appears_when_advanced_enabled(self, main_window, qtbot):
+        main_window.set_tool("Vertex Optimization")
+        advanced_btn = main_window.btn_advanced
+
+        internal_widget = next(
+            w for w in main_window.tool_widget.widget_list if w.variable == "optimize_internal_vertices"
+        )
+        assert internal_widget.optional is True
+        assert internal_widget.isHidden()
+
+        qtbot.mouseClick(advanced_btn, Qt.LeftButton)
+        qtbot.waitUntil(lambda: advanced_btn.text() == "Hide Advanced Options", timeout=SIGNAL_TIMEOUT)
+        assert not internal_widget.isHidden()
+
 
 # ---------------------------------------------------------------------------
 # Slider
@@ -441,7 +455,7 @@ class TestProcessSignals:
 class TestToolHistoryPersistence:
     def test_save_tool_parameter_updates_history_list(self, main_window):
         main_window.set_tool("Centerline")
-        params = {"in_line": "C:/data/input.gpkg|layername=centerline"}
+        params = {"in_line": "input.gpkg|layername=centerline"}
 
         def _set_history():
             from beratools.gui.bt_gui_main import bt

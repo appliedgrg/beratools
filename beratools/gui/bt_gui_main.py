@@ -29,6 +29,7 @@ from PyQt5 import QtCore, QtGui, QtWidgets
 
 bt = bt_data.BTData()
 
+
 def extract_string_from_printout(str_print, str_extract):
     str_array = shlex.split(str_print)  # keep string in double quotes
     str_array_enum = enumerate(str_array)
@@ -39,6 +40,7 @@ def extract_string_from_printout(str_print, str_extract):
             break
     str_out = str_array[index]
     return str_out.strip()
+
 
 class _SearchProxyModel(QtCore.QSortFilterProxyModel):
     def setFilterRegExp(self, pattern):
@@ -493,13 +495,17 @@ class MainWindow(QtWidgets.QMainWindow):
     def closeEvent(self, event):
         self.cancel_op = True
         if self.process is None:
-            window_msg="Are you sure you want to quit?"
+            window_msg = "Are you sure you want to quit?"
         else:
-            window_msg="Work in progress. Are you sure you want to quit?"
+            window_msg = "Work in progress. Are you sure you want to quit?"
 
-        reply= QtWidgets.QMessageBox.question(self,'Confirmation:',window_msg,
-                                     QtWidgets.QMessageBox.StandardButton.Yes | QtWidgets.QMessageBox.StandardButton.No,
-                                     QtWidgets.QMessageBox.StandardButton.No)
+        reply = QtWidgets.QMessageBox.question(
+            self,
+            "Confirmation:",
+            window_msg,
+            QtWidgets.QMessageBox.StandardButton.Yes | QtWidgets.QMessageBox.StandardButton.No,
+            QtWidgets.QMessageBox.StandardButton.No,
+        )
 
         if reply == QtWidgets.QMessageBox.StandardButton.Yes:
             if self.process is not None:
@@ -590,8 +596,14 @@ class MainWindow(QtWidgets.QMainWindow):
             bt.show_advanced = True
             self.btn_advanced.setText("Hide Advanced Options")
 
-        self.set_tool()
+        for widget in self.tool_widget.widget_list:
+            if widget.optional:
+                widget.setVisible(bt.show_advanced)
 
+        self.tool_widget.adjustSize()
+        self.tool_widget.updateGeometry()
+        self.top_right_layout.activate()
+        self.top_right_layout.update()
 
     def custom_callback(self, value):
         """Define custom callback that deals with tool output."""
@@ -727,6 +739,7 @@ def runner():
 
     # Cross-platform tray icon (Windows: .ico, macOS: .png)
     import platform
+
     if platform.system() == "Darwin":
         tray_icon_path = assets_path / "BERALogo.png"
     else:
@@ -740,6 +753,7 @@ def runner():
         if ready_flag:
             try:
                 from pathlib import Path
+
                 Path(ready_flag).touch()
             except Exception:
                 pass

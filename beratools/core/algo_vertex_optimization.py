@@ -364,16 +364,15 @@ class VertexGrouping:
         self.min_segment_length = min_segment_length
         self.angle_tol = float(angle_tol)
 
-        if self.optimize_internal_vertices:
-            if self.close_distance is None:
-                self.close_distance = self._default_close_distance()
-            else:
-                self.close_distance = float(self.close_distance)
+        if self.close_distance is None:
+            self.close_distance = self._default_close_distance()
+        else:
+            self.close_distance = float(self.close_distance)
 
-            if self.min_segment_length is None:
-                self.min_segment_length = self.close_distance
-            else:
-                self.min_segment_length = float(self.min_segment_length)
+        if self.min_segment_length is None:
+            self.min_segment_length = self.close_distance
+        else:
+            self.min_segment_length = float(self.min_segment_length)
 
         # calculate cost raster footprint
         self.cost_footprint = algo_common.generate_raster_footprint(self.in_raster, latlon=False)
@@ -445,9 +444,14 @@ class VertexGrouping:
             )
             self.line_list = algo_common.split_lines_to_segments(lines_gdf)
         else:
-            self.line_list = algo_common.prepare_lines_gdf(
-                self.in_line, layer=self.in_layer, proc_segments=False
+            lines_gdf = algo_common.read_geospatial_file(self.in_line, layer=self.in_layer)
+            lines_gdf = algo_vertex_preclean.preclean_vertices(
+                lines_gdf,
+                self.close_distance,
+                self.min_segment_length,
+                self.angle_tol,
             )
+            self.line_list = algo_common.lines_gdf_to_list(lines_gdf)
 
         if not self.line_list:
             print("No lines available for vertex optimization.")
@@ -497,6 +501,10 @@ class VertexGrouping:
 
         if not self.line_list:
             lines = algo_common.read_geospatial_file(self.in_line, layer=self.in_layer)
+            if lines is None:
+                print(f"No output written to: {line_file} (failed to read input lines)", flush=True)
+                return
+
             lines = lines.iloc[0:0]
             lines.to_file(out_file, layer=out_layer)
             print(f"Saved output to: {line_file}", flush=True)
