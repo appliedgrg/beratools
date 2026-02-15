@@ -501,9 +501,12 @@ class VertexGrouping:
 
         if not self.line_list:
             lines = algo_common.read_geospatial_file(self.in_line, layer=self.in_layer)
-            if lines is not None:
-                lines = lines.iloc[0:0]
-                lines.to_file(out_file, layer=out_layer)
+            if lines is None:
+                print(f"No output written to: {line_file} (failed to read input lines)", flush=True)
+                return
+
+            lines = lines.iloc[0:0]
+            lines.to_file(out_file, layer=out_layer)
             print(f"Saved output to: {line_file}", flush=True)
             return
 

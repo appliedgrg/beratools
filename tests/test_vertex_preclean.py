@@ -102,3 +102,92 @@ def test_internal_vertex_mode_keeps_segments_outside_raster(monkeypatch):
     segments = [item.geometry.iloc[0] for item in vg.line_list]
     assert len(segments) == 2
     assert any(not seg.intersects(footprint) for seg in segments)
+
+
+def _build_vertex_grouping(monkeypatch):
+    monkeypatch.setattr(
+        algo_common, "generate_raster_footprint", lambda *args, **kwargs: sh_geom.box(0, 0, 1, 1)
+    )
+    return algo_vertex_optimization.VertexGrouping(
+        in_line="dummy.gpkg",
+        in_raster="dummy.tif",
+        search_distance=1.0,
+        line_radius=1.0,
+        processes=1,
+        call_mode="test",
+        optimize_internal_vertices=False,
+        close_distance=0.5,
+        min_segment_length=0.5,
+        angle_tol=10.0,
+    )
+
+
+def test_save_all_layers_empty_lines_read_failed(monkeypatch, capsys):
+    vg = _build_vertex_grouping(monkeypatch)
+    vg.line_list = []
+
+    write_calls = []
+
+    def fake_to_file(self, *args, **kwargs):
+        write_calls.append((self, args, kwargs))
+
+    monkeypatch.setattr(algo_common, "read_geospatial_file", lambda *args, **kwargs: None)
+    monkeypatch.setattr(gpd.GeoDataFrame, "to_file", fake_to_file)
+
+    vg.save_all_layers("out.gpkg")
+    output = capsys.readouterr().out
+
+    assert "Saved output to:" not in output
+    assert "No output written to:" in output
+    assert len(write_calls) == 0
+
+
+def test_save_all_layers_empty_lines_writes_empty(monkeypatch, capsys):
+    vg = _build_vertex_grouping(monkeypatch)
+    vg.line_list = []
+
+    source_lines = gpd.GeoDataFrame(
+        {"id": [1]},
+        geometry=[sh_geom.LineString([(0.0, 0.0), (1.0, 0.0)])],
+        crs="EPSG:3857",
+    )
+    write_calls = []
+
+    def fake_to_file(self, *args, **kwargs):
+        write_calls.append((len(self), args, kwargs))
+
+    monkeypatch.setattr(algo_common, "read_geospatial_file", lambda *args, **kwargs: source_lines)
+    monkeypatch.setattr(gpd.GeoDataFrame, "to_file", fake_to_file)
+
+    vg.save_all_layers("out.gpkg")
+    output = capsys.readouterr().out
+
+    assert "Saved output to:" in output
+    assert len(write_calls) == 1
+    assert write_calls[0][0] == 0
+
+
+def test_save_all_layers_with_populated_lines_writes(monkeypatch, capsys):
+    vg = _build_vertex_grouping(monkeypatch)
+    vg.line_list = [
+        gpd.GeoDataFrame(
+            {"id": [1]},
+            geometry=[sh_geom.LineString([(0.0, 0.0), (2.0, 0.0)])],
+            crs="EPSG:3857",
+        )
+    ]
+
+    write_calls = []
+
+    def fake_to_file(self, *args, **kwargs):
+        write_calls.append((len(self), args, kwargs))
+
+    monkeypatch.setattr(algo_vertex_optimization.bt_const, "BT_DEBUGGING", False)
+    monkeypatch.setattr(gpd.GeoDataFrame, "to_file", fake_to_file)
+
+    vg.save_all_layers("out.gpkg")
+    output = capsys.readouterr().out
+
+    assert "Saved output to:" in output
+    assert len(write_calls) == 1
+    assert write_calls[0][0] == 1
