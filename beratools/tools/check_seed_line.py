@@ -292,12 +292,23 @@ def _snap_close_endpoints(gdf, tolerance):
     )
 
     updates = {}
+    moved_keys = set()
+    anchor_locked_keys = set()
     for _, ep_i, ep_j in candidate_pairs:
         anchor, mover = _choose_anchor(ep_i, ep_j)
+        anchor_key = (anchor["gdf_index"], anchor["endpoint_idx"])
         mover_key = (mover["gdf_index"], mover["endpoint_idx"])
-        if mover_key in updates:
+
+        if mover_key in moved_keys:
             continue
+        if mover_key in anchor_locked_keys:
+            continue
+        if anchor_key in moved_keys:
+            continue
+
         updates[mover_key] = tuple(anchor["point"].coords[0])
+        moved_keys.add(mover_key)
+        anchor_locked_keys.add(anchor_key)
 
     if not updates:
         return gdf
