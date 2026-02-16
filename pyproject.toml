@@ -55,6 +55,10 @@ dev = [
     "build",
     "twine"
 ]
+test = [
+    "gdal==3.8.4",
+    "pytest",
+]
 doc = [
     "mkdocs",
     "mkdocs-material",

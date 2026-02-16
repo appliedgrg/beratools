@@ -23,6 +23,26 @@
               "optional": false
             },
             {
+              "variable": "in_raster",
+              "label": "CHM Raster",
+              "description": "Input CHM raster used for seed line QC clipping.",
+              "type": "file",
+              "subtype": "raster",
+              "default": "",
+              "output": false,
+              "optional": false
+            },
+            {
+              "variable": "chm_footprint_shrink",
+              "label": "CHM footprint shrink (m)",
+              "description": "Inward buffer distance applied to CHM footprint before clipping seed lines.",
+              "type": "number",
+              "subtype": "float",
+              "default": 15.0,
+              "output": false,
+              "optional": true
+            },
+            {
               "variable": "out_line",
               "label": "Output Seed Line",
               "description": "Output Seed Line file.",
@@ -31,6 +51,91 @@
               "default": "",
               "output": true,
               "optional": false
+            },
+            {
+              "variable": "remove_short_lines",
+              "label": "Remove short lines",
+              "description": "Remove lines shorter than the configured minimum line length.",
+              "type": "list",
+              "subtype": "bool",
+              "data": [true, false],
+              "default": false,
+              "output": false,
+              "optional": true
+            },
+            {
+              "variable": "minimum_line_length",
+              "label": "Minimum line length (m)",
+              "description": "Minimum length threshold used when short line removal is enabled.",
+              "type": "number",
+              "subtype": "float",
+              "default": 5.0,
+              "output": false,
+              "optional": true
+            },
+            {
+              "variable": "snap_close_endpoints",
+              "label": "Snap close endpoints",
+              "description": "Snap close line endpoints together using directed endpoint snapping.",
+              "type": "list",
+              "subtype": "bool",
+              "data": [true, false],
+              "default": false,
+              "output": false,
+              "optional": true
+            },
+            {
+              "variable": "snap_tolerance",
+              "label": "Snap tolerance (m)",
+              "description": "Distance threshold used to snap close line endpoints.",
+              "type": "number",
+              "subtype": "float",
+              "default": 5.0,
+              "output": false,
+              "optional": true
+            },
+            {
+              "variable": "group_lines",
+              "label": "Group lines",
+              "description": "Run line grouping before optional merge by group.",
+              "type": "list",
+              "subtype": "bool",
+              "data": [true, false],
+              "default": false,
+              "output": false,
+              "optional": true
+            },
+            {
+              "variable": "merge_by_group",
+              "label": "Merge by group",
+              "description": "Merge grouped lines by BT_GROUP (ignored when Group lines is disabled).",
+              "type": "list",
+              "subtype": "bool",
+              "data": [true, false],
+              "default": false,
+              "output": false,
+              "optional": true
+            },
+            {
+              "variable": "densify_long_lines",
+              "label": "Densify long lines",
+              "description": "Insert equalized internal vertices for lines longer than max segment length.",
+              "type": "list",
+              "subtype": "bool",
+              "data": [true, false],
+              "default": false,
+              "output": false,
+              "optional": true
+            },
+            {
+              "variable": "max_segment_length",
+              "label": "Max segment length (m)",
+              "description": "Maximum segment length used by long line densification.",
+              "type": "number",
+              "subtype": "float",
+              "default": 500.0,
+              "output": false,
+              "optional": true
             }
           ]
         },

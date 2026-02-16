@@ -244,7 +244,7 @@ class TestFileDialog:
         try:
             combo = bera_app.child_window(control_type="ComboBox", found_index=1)
             if combo.exists(timeout=3) and combo.is_visible():
-                select_gpkg_layer(bera_app, "seed_lines")
+                select_gpkg_layer(bera_app, "seed_lines_checked")
         except Exception:
             pass  # layer combo may not appear if file doesn't exist on disk
 

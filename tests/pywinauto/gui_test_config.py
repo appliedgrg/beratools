@@ -21,17 +21,29 @@ def make_test_data(testdata_dir, output_dir):
         "Check Seed Lines": {
             "in_line": {
                 "path": str(testdata_dir / "integration_aoi.gpkg"),
-                "layer": "seed_lines",
+                "layer": "seed_lines_checked",
             },
+            "in_raster": {
+                "path": str(testdata_dir / "chm_aoi.tif"),
+            },
+            "chm_footprint_shrink": 15.0,
             "out_line": {
                 "path": str(output_dir / "gui_test_output.gpkg"),
                 "layer": "seed_lines_checked",
             },
+            "remove_short_lines": False,
+            "minimum_line_length": 5.0,
+            "snap_close_endpoints": False,
+            "snap_tolerance": 5.0,
+            "group_lines": False,
+            "merge_by_group": False,
+            "densify_long_lines": False,
+            "max_segment_length": 500.0,
         },
         "Vertex Optimization": {
             "in_line": {
                 "path": str(testdata_dir / "integration_aoi.gpkg"),
-                "layer": "seed_lines",
+                "layer": "seed_lines_checked",
             },
             "in_raster": {
                 "path": str(testdata_dir / "chm_aoi.tif"),
@@ -46,7 +58,7 @@ def make_test_data(testdata_dir, output_dir):
         "Centerline": {
             "in_line": {
                 "path": str(testdata_dir / "integration_aoi.gpkg"),
-                "layer": "seed_lines",
+                "layer": "seed_lines_checked",
             },
             "in_raster": {
                 "path": str(testdata_dir / "chm_aoi.tif"),
@@ -120,7 +132,7 @@ def make_test_data(testdata_dir, output_dir):
         "Feature Buffer": {
             "in_feature": {
                 "path": str(testdata_dir / "integration_aoi.gpkg"),
-                "layer": "seed_lines",
+                "layer": "seed_lines_checked",
             },
             "buffer_dist": 10.0,
             "out_feature": {
@@ -135,9 +147,18 @@ def make_test_data(testdata_dir, output_dir):
 PARAM_TYPES = {
     # Check Seed Lines
     "in_line": {"type": "file", "subtype": "vector"},
-    "out_line": {"type": "file", "subtype": "vector"},
-    # Vertex Optimization
     "in_raster": {"type": "file", "subtype": "raster"},
+    "chm_footprint_shrink": {"type": "number", "subtype": "float"},
+    "out_line": {"type": "file", "subtype": "vector"},
+    "remove_short_lines": {"type": "list", "subtype": "bool"},
+    "minimum_line_length": {"type": "number", "subtype": "float"},
+    "snap_close_endpoints": {"type": "list", "subtype": "bool"},
+    "snap_tolerance": {"type": "number", "subtype": "float"},
+    "group_lines": {"type": "list", "subtype": "bool"},
+    "merge_by_group": {"type": "list", "subtype": "bool"},
+    "densify_long_lines": {"type": "list", "subtype": "bool"},
+    "max_segment_length": {"type": "number", "subtype": "float"},
+    # Vertex Optimization
     "search_distance": {"type": "number", "subtype": "float"},
     "line_radius": {"type": "number", "subtype": "int"},
     "optimize_internal_vertices": {"type": "list", "subtype": "bool"},
@@ -174,7 +195,17 @@ PARAM_TYPES = {
 TOOL_PARAM_LABELS = {
     "Check Seed Lines": {
         "in_line": "Seed Line",
+        "in_raster": "CHM Raster",
+        "chm_footprint_shrink": "CHM footprint shrink (m)",
         "out_line": "Output Seed Line",
+        "remove_short_lines": "Remove short lines",
+        "minimum_line_length": "Minimum line length (m)",
+        "snap_close_endpoints": "Snap close endpoints",
+        "snap_tolerance": "Snap tolerance (m)",
+        "group_lines": "Group lines",
+        "merge_by_group": "Merge by group",
+        "densify_long_lines": "Densify long lines",
+        "max_segment_length": "Max segment length (m)",
     },
     "Vertex Optimization": {
         "in_line": "Input Line",
