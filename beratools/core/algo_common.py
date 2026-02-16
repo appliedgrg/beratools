@@ -117,7 +117,7 @@ def clean_geometries(gdf):
     return gdf
 
 
-def clean_line_geometries(line_gdf):
+def clean_line_geometries(line_gdf, min_length=bt_const.SMALL_BUFFER):
     """Clean line geometries in the GeoDataFrame."""
     if line_gdf is None:
         return line_gdf
@@ -126,7 +126,7 @@ def clean_line_geometries(line_gdf):
         return line_gdf
 
     line_gdf = line_gdf[~line_gdf.geometry.isna() & ~line_gdf.geometry.is_empty]
-    line_gdf = line_gdf[line_gdf.geometry.length > bt_const.SMALL_BUFFER]
+    line_gdf = line_gdf[line_gdf.geometry.length > float(min_length)]
     return line_gdf
 
 

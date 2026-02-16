@@ -48,11 +48,22 @@ def _find_widget(tw, variable):
 class TestCheckSeedLines:
     TOOL = "Check Seed Lines"
 
-    def test_widget_types(self, make_tool_widget):
+    def test_widget_types(self, make_tool_widget, btdata):
         tw = make_tool_widget(self.TOOL)
-        assert len(tw.widget_list) == 2
-        assert isinstance(tw.widget_list[0], FileSelector)  # in_line
-        assert isinstance(tw.widget_list[1], FileSelector)  # out_line
+        expected = len(btdata.get_bera_tool_args(self.TOOL))
+        assert len(tw.widget_list) == expected
+        assert isinstance(_find_widget(tw, "in_line"), FileSelector)
+        assert isinstance(_find_widget(tw, "in_raster"), FileSelector)
+        assert isinstance(_find_widget(tw, "out_line"), FileSelector)
+        assert isinstance(_find_widget(tw, "remove_short_lines"), BooleanInput)
+        assert isinstance(_find_widget(tw, "snap_close_endpoints"), BooleanInput)
+        assert isinstance(_find_widget(tw, "group_lines"), BooleanInput)
+        assert isinstance(_find_widget(tw, "merge_by_group"), BooleanInput)
+        assert isinstance(_find_widget(tw, "densify_long_lines"), BooleanInput)
+        assert isinstance(_find_widget(tw, "chm_footprint_shrink"), NumericInput)
+        assert isinstance(_find_widget(tw, "minimum_line_length"), NumericInput)
+        assert isinstance(_find_widget(tw, "snap_tolerance"), NumericInput)
+        assert isinstance(_find_widget(tw, "max_segment_length"), NumericInput)
 
     def test_round_trip(self, make_tool_widget, testdata_dir, tmp_path):
         tw = make_tool_widget(self.TOOL)
@@ -63,14 +74,46 @@ class TestCheckSeedLines:
             tw,
             {
                 "in_line": {"path": in_path, "layer": "seed_lines"},
+                "in_raster": str(testdata_dir / "chm_aoi.tif"),
+                "chm_footprint_shrink": 15.0,
                 "out_line": {"path": out_path, "layer": "checked"},
+                "remove_short_lines": True,
+                "minimum_line_length": 5.0,
+                "snap_close_endpoints": True,
+                "snap_tolerance": 5.0,
+                "group_lines": True,
+                "merge_by_group": False,
+                "densify_long_lines": False,
+                "max_segment_length": 500.0,
             },
         )
 
         args = tw.get_widgets_arguments()
         assert args is not None
         assert args["in_line"].startswith(f"{in_path}|")
+        assert args["in_raster"].endswith("chm_aoi.tif")
+        assert args["chm_footprint_shrink"] == pytest.approx(15.0)
         assert args["out_line"].startswith(f"{out_path}|")
+        assert args["remove_short_lines"] is True
+        assert args["minimum_line_length"] == pytest.approx(5.0)
+        assert args["snap_close_endpoints"] is True
+        assert args["snap_tolerance"] == pytest.approx(5.0)
+        assert args["group_lines"] is True
+        assert args["merge_by_group"] is False
+        assert args["densify_long_lines"] is False
+        assert args["max_segment_length"] == pytest.approx(500.0)
+
+    def test_initial_form_hides_shrink_when_advanced_off(self, make_tool_widget):
+        tw = make_tool_widget(self.TOOL, show_advanced=False)
+        shrink = _find_widget(tw, "chm_footprint_shrink")
+        assert shrink is not None
+        assert shrink.isHidden()
+
+    def test_advanced_form_shows_shrink_parameter(self, make_tool_widget):
+        tw = make_tool_widget(self.TOOL, show_advanced=True)
+        shrink = _find_widget(tw, "chm_footprint_shrink")
+        assert shrink is not None
+        assert not shrink.isHidden()
 
 
 # ---------------------------------------------------------------------------
