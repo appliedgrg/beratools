@@ -9,10 +9,10 @@ from beratools.core.algo_common import clean_line_geometries
 import beratools.tools.check_seed_line as csl
 
 
-def _write_seed_input(tmp_path, geoms, data=None, layer="seed_lines"):
+def _write_seed_input(tmp_path, geoms, data=None, layer="seed_lines", crs="EPSG:3857"):
     in_gpkg = tmp_path / "seed_input.gpkg"
     attrs = data if data is not None else {"id": list(range(1, len(geoms) + 1))}
-    src = gpd.GeoDataFrame(attrs, geometry=geoms, crs="EPSG:3857")
+    src = gpd.GeoDataFrame(attrs, geometry=geoms, crs=crs)
     src.to_file(in_gpkg, layer=layer)
     return in_gpkg
 
@@ -109,6 +109,40 @@ def test_snap_close_endpoints_anchor_can_snap_multiple_movers():
 
     assert a_end.equals(b_end)
     assert c_end.equals(b_end)
+
+
+def test_snap_close_endpoints_geographic_uses_meter_tolerance():
+    gdf = gpd.GeoDataFrame(
+        {"line_id": [1, 2]},
+        geometry=[
+            LineString([(-0.001, 0.0), (0.0, 0.0)]),
+            LineString([(-0.001, 0.0), (0.0001, 0.0)]),
+        ],
+        crs="EPSG:4326",
+    )
+
+    out = csl._snap_close_endpoints(gdf, tolerance=5.0)
+
+    a_end = Point(out.geometry.iloc[0].coords[-1])
+    b_end = Point(out.geometry.iloc[1].coords[-1])
+    assert not a_end.equals(b_end)
+
+
+def test_snap_close_endpoints_geographic_snaps_with_larger_meter_tolerance():
+    gdf = gpd.GeoDataFrame(
+        {"line_id": [1, 2]},
+        geometry=[
+            LineString([(-0.001, 0.0), (0.0, 0.0)]),
+            LineString([(-0.001, 0.0), (0.0001, 0.0)]),
+        ],
+        crs="EPSG:4326",
+    )
+
+    out = csl._snap_close_endpoints(gdf, tolerance=20.0)
+
+    a_end = Point(out.geometry.iloc[0].coords[-1])
+    b_end = Point(out.geometry.iloc[1].coords[-1])
+    assert a_end.equals(b_end)
 
 
 def test_densify_long_lines_preserves_feature_count_and_max_length():
@@ -226,6 +260,38 @@ def test_clip_to_chm_footprint_geographic_overshrink_raises(monkeypatch):
 
     with pytest.raises(ValueError, match="CHM footprint became empty"):
         csl._clip_to_chm_footprint(gdf, in_raster="dummy.tif", shrink_m=15.0)
+
+
+def test_check_seed_line_minimum_length_geographic_uses_meters(tmp_path, monkeypatch):
+    in_gpkg = _write_seed_input(
+        tmp_path,
+        [
+            LineString([(0.0, 0.0), (0.00008, 0.0)]),
+            LineString([(0.0, 0.001), (0.00002, 0.001)]),
+        ],
+        data={"id": [1, 2]},
+        crs="EPSG:4326",
+    )
+    out_gpkg = tmp_path / "seed_output.gpkg"
+
+    monkeypatch.setattr(csl.sp_common, "vector_crs", lambda *_args, **_kwargs: object())
+    monkeypatch.setattr(csl.sp_common, "raster_crs", lambda *_args, **_kwargs: object())
+    monkeypatch.setattr(csl.sp_common, "compare_crs", lambda *_args, **_kwargs: True)
+    monkeypatch.setattr(csl, "_clip_to_chm_footprint", lambda gdf, *_args, **_kwargs: gdf)
+
+    csl.check_seed_line(
+        in_line=f"{in_gpkg.as_posix()}|seed_lines",
+        in_raster="dummy.tif",
+        out_line=f"{out_gpkg.as_posix()}|seed_checked",
+        remove_short_lines=True,
+        minimum_line_length=5.0,
+        snap_close_endpoints=False,
+        group_lines=False,
+    )
+
+    out = gpd.read_file(out_gpkg, layer="seed_checked")
+    assert len(out) == 1
+    assert out.iloc[0]["id"] == 1
 
 
 def test_check_seed_line_requires_in_raster():

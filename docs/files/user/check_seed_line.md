@@ -28,9 +28,9 @@
 - **CHM footprint shrink (m)**: Inward buffer distance in meters applied before clipping (default `15`). Geographic CRS inputs are converted to a local meter-based projection for this step.
 - **Output Seed Line**: Output seed line file
 - **Remove short lines**: Enable removal of short segments
-- **Minimum line length (m)**: Threshold for short-line removal (default `5`)
+- **Minimum line length (m)**: Threshold in meters for short-line removal (default `5`). Geographic CRS inputs are evaluated in a local meter-based projection for this step.
 - **Snap close endpoints**: Enable endpoint-to-endpoint snapping only
-- **Snap tolerance (m)**: Maximum endpoint snap distance (default `5`). If both short-line removal and snapping are enabled, effective tolerance is `max(snap_tolerance, minimum_line_length)`.
+- **Snap tolerance (m)**: Maximum endpoint snap distance in meters (default `5`). Geographic CRS inputs are evaluated in a local meter-based projection for this step. If both short-line removal and snapping are enabled, effective tolerance is `max(snap_tolerance, minimum_line_length)`.
 - **Group lines**: Enable line grouping
 - **Merge by group**: Merge grouped lines (ignored when `Group lines` is off)
 - **Densify long lines**: Insert equalized internal vertices on long lines

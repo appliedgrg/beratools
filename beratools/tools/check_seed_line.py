@@ -25,7 +25,7 @@ from shapely.geometry import LineString, Point
 
 import beratools.core.constants as bt_const
 import beratools.utility.spatial_common as sp_common
-from beratools.core.algo_common import clean_line_geometries, generate_raster_footprint
+from beratools.core.algo_common import generate_raster_footprint
 from beratools.core.logger import Logger
 from beratools.utility.tool_args import CallMode
 
@@ -152,31 +152,92 @@ def _normalize_to_lines(gdf):
     return gpd.GeoDataFrame(records, columns=gdf.columns, crs=gdf.crs)
 
 
+def _require_crs(gdf, parameter_label):
+    crs = pyproj.CRS.from_user_input(gdf.crs) if gdf.crs else None
+    if crs is None:
+        raise ValueError(f"Input line CRS is missing; cannot apply '{parameter_label}'.")
+    return crs
+
+
+def _build_linear_unit_context(crs, reference_geom):
+    if crs.is_geographic:
+        if reference_geom is None or reference_geom.is_empty:
+            raise ValueError("Unable to determine reference geometry for geographic CRS unit conversion.")
+        ref_point = reference_geom.representative_point()
+        metric_crs = pyproj.CRS.from_proj4(
+            f"+proj=aeqd +lat_0={ref_point.y} +lon_0={ref_point.x} +datum=WGS84 +units=m +no_defs"
+        )
+        to_metric = pyproj.Transformer.from_crs(crs, metric_crs, always_xy=True)
+        to_source = pyproj.Transformer.from_crs(metric_crs, crs, always_xy=True)
+        return {
+            "is_geographic": True,
+            "to_metric": to_metric,
+            "to_source": to_source,
+            "unit_factor": None,
+        }
+
+    unit_factor = crs.axis_info[0].unit_conversion_factor if crs.axis_info else None
+    if unit_factor is None or unit_factor <= 0:
+        raise ValueError("Unable to determine projected CRS linear units.")
+    return {
+        "is_geographic": False,
+        "to_metric": None,
+        "to_source": None,
+        "unit_factor": unit_factor,
+    }
+
+
+def _meters_to_native_units(distance_m, unit_ctx):
+    if unit_ctx["is_geographic"]:
+        return float(distance_m)
+    return float(distance_m) / float(unit_ctx["unit_factor"])
+
+
+def _geometry_length_meters(geom, unit_ctx):
+    if geom is None or geom.is_empty:
+        return 0.0
+    if unit_ctx["is_geographic"]:
+        geom_metric = sh_ops.transform(unit_ctx["to_metric"].transform, geom)
+        return float(geom_metric.length)
+    return float(geom.length) * float(unit_ctx["unit_factor"])
+
+
+def _clean_line_geometries_min_length_m(line_gdf, min_length_m):
+    if line_gdf is None:
+        return line_gdf
+    if line_gdf.empty:
+        return line_gdf
+
+    out = line_gdf[~line_gdf.geometry.isna() & ~line_gdf.geometry.is_empty]
+    crs = _require_crs(out, "Minimum line length (m)")
+
+    reference_geom = out.unary_union.envelope
+    unit_ctx = _build_linear_unit_context(crs, reference_geom)
+    min_len_m = max(float(min_length_m), bt_const.SMALL_BUFFER)
+
+    if unit_ctx["is_geographic"]:
+        mask = out.geometry.apply(lambda geom: _geometry_length_meters(geom, unit_ctx) > min_len_m)
+        return out[mask]
+
+    min_len_native = max(_meters_to_native_units(min_len_m, unit_ctx), bt_const.SMALL_BUFFER)
+    return out[out.geometry.length > min_len_native]
+
+
 def _clip_to_chm_footprint(gdf, in_raster, shrink_m):
     footprint = generate_raster_footprint(in_raster, latlon=False)
     if footprint is None or footprint.is_empty:
         raise ValueError("Unable to build CHM footprint from input raster.")
 
     shrink_dist_m = abs(float(shrink_m))
-    crs = pyproj.CRS.from_user_input(gdf.crs) if gdf.crs else None
-    if crs is None:
-        raise ValueError("Input line CRS is missing; cannot apply 'CHM footprint shrink (m)'.")
+    crs = _require_crs(gdf, "CHM footprint shrink (m)")
+    unit_ctx = _build_linear_unit_context(crs, footprint)
 
-    if crs.is_geographic:
-        centroid = footprint.representative_point()
-        metric_crs = pyproj.CRS.from_proj4(
-            f"+proj=aeqd +lat_0={centroid.y} +lon_0={centroid.x} +datum=WGS84 +units=m +no_defs"
-        )
-        to_metric = pyproj.Transformer.from_crs(crs, metric_crs, always_xy=True)
-        to_source = pyproj.Transformer.from_crs(metric_crs, crs, always_xy=True)
-        footprint_metric = sh_ops.transform(to_metric.transform, footprint)
+    if unit_ctx["is_geographic"]:
+        footprint_metric = sh_ops.transform(unit_ctx["to_metric"].transform, footprint)
         shrunken_metric = footprint_metric.buffer(-shrink_dist_m)
-        shrunken = sh_ops.transform(to_source.transform, shrunken_metric)
+        shrunken = sh_ops.transform(unit_ctx["to_source"].transform, shrunken_metric)
     else:
-        unit_factor = crs.axis_info[0].unit_conversion_factor if crs.axis_info else None
-        if unit_factor is None or unit_factor <= 0:
-            raise ValueError("Unable to determine projected CRS linear units for 'CHM footprint shrink (m)'.")
-        shrink_dist_units = shrink_dist_m / unit_factor
+        shrink_dist_units = _meters_to_native_units(shrink_dist_m, unit_ctx)
         shrunken = footprint.buffer(-shrink_dist_units)
 
     if shrunken is None or shrunken.is_empty:
@@ -235,9 +296,14 @@ def _snap_close_endpoints(gdf, tolerance):
     if gdf.empty:
         return gdf
 
-    tol = float(tolerance)
-    if tol <= bt_const.SMALL_BUFFER:
+    tol_m = float(tolerance)
+    if tol_m <= bt_const.SMALL_BUFFER:
         return gdf
+
+    crs = _require_crs(gdf, "Snap tolerance (m)")
+    reference_geom = gdf.unary_union.envelope
+    unit_ctx = _build_linear_unit_context(crs, reference_geom)
+    tol_native = _meters_to_native_units(tol_m, unit_ctx)
 
     endpoints = []
     discovery_order = 0
@@ -250,14 +316,18 @@ def _snap_close_endpoints(gdf, tolerance):
         if len(coords) < 2:
             continue
 
-        line_length = float(geom.length)
+        line_length = _geometry_length_meters(geom, unit_ctx)
         line_id = row.get("line_id")
         for endpoint_idx, coord in ((0, coords[0]), (-1, coords[-1])):
+            metric_point = None
+            if unit_ctx["is_geographic"]:
+                metric_point = sh_ops.transform(unit_ctx["to_metric"].transform, Point(coord))
             endpoints.append(
                 {
                     "gdf_index": row_index,
                     "endpoint_idx": endpoint_idx,
                     "point": Point(coord),
+                    "metric_point": metric_point,
                     "line_length": line_length,
                     "line_id": line_id,
                     "discovery_order": discovery_order,
@@ -277,10 +347,18 @@ def _snap_close_endpoints(gdf, tolerance):
             if ep_i["gdf_index"] == ep_j["gdf_index"]:
                 continue
 
-            dist = ep_i["point"].distance(ep_j["point"])
-            if dist <= bt_const.SMALL_BUFFER:
+            if unit_ctx["is_geographic"]:
+                dist = ep_i["metric_point"].distance(ep_j["metric_point"])
+                close_threshold = bt_const.SMALL_BUFFER
+                snap_threshold = tol_m
+            else:
+                dist = ep_i["point"].distance(ep_j["point"])
+                close_threshold = bt_const.SMALL_BUFFER
+                snap_threshold = tol_native
+
+            if dist <= close_threshold:
                 continue
-            if dist <= tol:
+            if dist <= snap_threshold:
                 candidate_pairs.append((dist, ep_i, ep_j))
 
     candidate_pairs.sort(
@@ -539,7 +617,7 @@ def check_seed_line(
     step_name = "geometry cleanup"
     in_count = len(gdf)
     t0 = _step_timer()
-    gdf = clean_line_geometries(gdf, min_length=bt_const.SMALL_BUFFER).reset_index(drop=True)
+    gdf = _clean_line_geometries_min_length_m(gdf, bt_const.SMALL_BUFFER).reset_index(drop=True)
     _log_step(2, step_name, in_count, len(gdf), _elapsed(t0))
     if _bail_if_empty(gdf, step_name, out_file, out_layer, in_count):
         return
@@ -548,8 +626,7 @@ def check_seed_line(
     in_count = len(gdf)
     if config.remove_short_lines:
         t0 = _step_timer()
-        min_len = max(config.minimum_line_length, bt_const.SMALL_BUFFER)
-        gdf = clean_line_geometries(gdf, min_length=min_len).reset_index(drop=True)
+        gdf = _clean_line_geometries_min_length_m(gdf, config.minimum_line_length).reset_index(drop=True)
         _log_step(3, step_name, in_count, len(gdf), _elapsed(t0))
         if _bail_if_empty(gdf, step_name, out_file, out_layer, in_count):
             return
@@ -568,7 +645,7 @@ def check_seed_line(
     in_count = len(gdf)
     t0 = _step_timer()
     gdf = _normalize_to_lines(gdf)
-    gdf = clean_line_geometries(gdf, min_length=bt_const.SMALL_BUFFER).reset_index(drop=True)
+    gdf = _clean_line_geometries_min_length_m(gdf, bt_const.SMALL_BUFFER).reset_index(drop=True)
     _log_step(5, step_name, in_count, len(gdf), _elapsed(t0))
     if _bail_if_empty(gdf, step_name, out_file, out_layer, in_count):
         return
@@ -636,7 +713,7 @@ def check_seed_line(
     else:
         _log_step(10, step_name, in_count, in_count, skipped_reason="disabled")
 
-    gdf = clean_line_geometries(gdf, min_length=bt_const.SMALL_BUFFER).reset_index(drop=True)
+    gdf = _clean_line_geometries_min_length_m(gdf, bt_const.SMALL_BUFFER).reset_index(drop=True)
     _write_output(gdf, out_file, out_layer)
     print(f"Output saved to file: {out_file}, layer: {out_layer}")
 
