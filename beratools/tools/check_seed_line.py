@@ -19,6 +19,8 @@ import time
 from dataclasses import dataclass
 
 import geopandas as gpd
+import pyproj
+from shapely import ops as sh_ops
 from shapely.geometry import LineString, Point
 
 import beratools.core.constants as bt_const
@@ -155,8 +157,28 @@ def _clip_to_chm_footprint(gdf, in_raster, shrink_m):
     if footprint is None or footprint.is_empty:
         raise ValueError("Unable to build CHM footprint from input raster.")
 
-    shrink_dist = abs(float(shrink_m))
-    shrunken = footprint.buffer(-shrink_dist)
+    shrink_dist_m = abs(float(shrink_m))
+    crs = pyproj.CRS.from_user_input(gdf.crs) if gdf.crs else None
+    if crs is None:
+        raise ValueError("Input line CRS is missing; cannot apply 'CHM footprint shrink (m)'.")
+
+    if crs.is_geographic:
+        centroid = footprint.representative_point()
+        metric_crs = pyproj.CRS.from_proj4(
+            f"+proj=aeqd +lat_0={centroid.y} +lon_0={centroid.x} +datum=WGS84 +units=m +no_defs"
+        )
+        to_metric = pyproj.Transformer.from_crs(crs, metric_crs, always_xy=True)
+        to_source = pyproj.Transformer.from_crs(metric_crs, crs, always_xy=True)
+        footprint_metric = sh_ops.transform(to_metric.transform, footprint)
+        shrunken_metric = footprint_metric.buffer(-shrink_dist_m)
+        shrunken = sh_ops.transform(to_source.transform, shrunken_metric)
+    else:
+        unit_factor = crs.axis_info[0].unit_conversion_factor if crs.axis_info else None
+        if unit_factor is None or unit_factor <= 0:
+            raise ValueError("Unable to determine projected CRS linear units for 'CHM footprint shrink (m)'.")
+        shrink_dist_units = shrink_dist_m / unit_factor
+        shrunken = footprint.buffer(-shrink_dist_units)
+
     if shrunken is None or shrunken.is_empty:
         raise ValueError("CHM footprint became empty after inward shrink; reduce 'CHM footprint shrink (m)'.")
 

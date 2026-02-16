@@ -1,6 +1,6 @@
 import geopandas as gpd
 import pytest
-from shapely.geometry import GeometryCollection, LineString, Point
+from shapely.geometry import GeometryCollection, LineString, Point, box
 import json
 from pathlib import Path
 
@@ -147,6 +147,43 @@ def test_check_seed_line_merge_guard_assigns_unique_bt_group(tmp_path, monkeypat
     assert len(out) == 2
     assert bt_const.BT_GROUP in out.columns
     assert out[bt_const.BT_GROUP].nunique() == len(out)
+
+
+def test_clip_to_chm_footprint_shrink_is_meters_for_geographic_crs(monkeypatch):
+    gdf = gpd.GeoDataFrame(
+        {"id": [1]},
+        geometry=[LineString([(-0.0015, 0.0), (0.0015, 0.0)])],
+        crs="EPSG:4326",
+    )
+
+    monkeypatch.setattr(
+        csl, "generate_raster_footprint", lambda *_args, **_kwargs: box(-0.001, -0.001, 0.001, 0.001)
+    )
+
+    out = csl._clip_to_chm_footprint(gdf, in_raster="dummy.tif", shrink_m=15.0)
+
+    assert not out.empty
+    clipped = out.geometry.iloc[0]
+    assert clipped.length > 0
+    assert clipped.bounds[0] > -0.001
+    assert clipped.bounds[2] < 0.001
+
+
+def test_clip_to_chm_footprint_geographic_overshrink_raises(monkeypatch):
+    gdf = gpd.GeoDataFrame(
+        {"id": [1]},
+        geometry=[LineString([(-0.0003, 0.0), (0.0003, 0.0)])],
+        crs="EPSG:4326",
+    )
+
+    monkeypatch.setattr(
+        csl,
+        "generate_raster_footprint",
+        lambda *_args, **_kwargs: box(-0.00005, -0.00005, 0.00005, 0.00005),
+    )
+
+    with pytest.raises(ValueError, match="CHM footprint became empty"):
+        csl._clip_to_chm_footprint(gdf, in_raster="dummy.tif", shrink_m=15.0)
 
 
 def test_check_seed_line_requires_in_raster():

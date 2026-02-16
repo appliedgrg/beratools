@@ -25,7 +25,7 @@
 
 - **Seed Line**: Input seed line file
 - **CHM Raster**: Input raster used to build a valid-data footprint for clipping
-- **CHM footprint shrink (m)**: Inward buffer applied to the footprint before clipping (default `15`)
+- **CHM footprint shrink (m)**: Inward buffer distance in meters applied before clipping (default `15`). Geographic CRS inputs are converted to a local meter-based projection for this step.
 - **Output Seed Line**: Output seed line file
 - **Remove short lines**: Enable removal of short segments
 - **Minimum line length (m)**: Threshold for short-line removal (default `5`)
