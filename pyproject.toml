@@ -55,6 +55,13 @@ dev = [
     "build",
     "twine"
 ]
+test = [
+    "bera-centerlines==2024.7.0",
+    "gdal==3.8.4",
+    "dask",
+    "pyarrow",
+    "pytest",
+]
 doc = [
     "mkdocs",
     "mkdocs-material",
