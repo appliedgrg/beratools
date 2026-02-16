@@ -472,14 +472,43 @@ def _densify_long_lines(gdf, max_segment_length):
     if gdf.empty:
         return gdf
 
+    max_seg_m = float(max_segment_length)
+    if max_seg_m <= bt_const.SMALL_BUFFER:
+        raise ValueError("Max segment length must be greater than zero.")
+
+    valid = gdf[~gdf.geometry.isna() & ~gdf.geometry.is_empty]
+    if valid.empty:
+        return gdf
+
+    crs = _require_crs(valid, "Max segment length (m)")
+    reference_geom = valid.unary_union.envelope
+    unit_ctx = _build_linear_unit_context(crs, reference_geom)
+
     out = gdf.copy()
+
+    if unit_ctx["is_geographic"]:
+        for idx, row in out.iterrows():
+            geom = row.geometry
+            if geom is None or geom.is_empty or geom.geom_type != "LineString":
+                continue
+
+            geom_metric = sh_ops.transform(unit_ctx["to_metric"].transform, geom)
+            if geom_metric.length <= max_seg_m:
+                continue
+
+            densified_metric = _densify_linestring(geom_metric, max_seg_m)
+            out.at[idx, "geometry"] = sh_ops.transform(unit_ctx["to_source"].transform, densified_metric)
+
+        return out
+
+    max_seg_native = max(_meters_to_native_units(max_seg_m, unit_ctx), bt_const.SMALL_BUFFER)
     for idx, row in out.iterrows():
         geom = row.geometry
         if geom is None or geom.is_empty or geom.geom_type != "LineString":
             continue
-        if geom.length <= float(max_segment_length):
+        if geom.length <= max_seg_native:
             continue
-        out.at[idx, "geometry"] = _densify_linestring(geom, max_segment_length)
+        out.at[idx, "geometry"] = _densify_linestring(geom, max_seg_native)
     return out
 
 

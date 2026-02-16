@@ -161,6 +161,46 @@ def test_densify_long_lines_preserves_feature_count_and_max_length():
     assert all(seg <= 2.0 + bt_const.SMALL_BUFFER for seg in seg_lengths)
 
 
+def test_densify_long_lines_geographic_uses_meter_threshold():
+    gdf = gpd.GeoDataFrame(
+        {"id": [1]},
+        geometry=[LineString([(0.0, 0.0), (0.02, 0.0)])],
+        crs="EPSG:4326",
+    )
+
+    out = csl._densify_long_lines(gdf, max_segment_length=500.0)
+    coords = list(out.geometry.iloc[0].coords)
+    assert len(coords) > 2
+
+    crs = csl._require_crs(out, "Max segment length (m)")
+    unit_ctx = csl._build_linear_unit_context(crs, out.unary_union.envelope)
+    seg_lengths_m = [
+        csl._geometry_length_meters(LineString([coords[i], coords[i + 1]]), unit_ctx)
+        for i in range(len(coords) - 1)
+    ]
+    assert all(seg <= 500.0 + bt_const.SMALL_BUFFER for seg in seg_lengths_m)
+
+
+def test_densify_long_lines_projected_feet_converts_meter_threshold():
+    gdf = gpd.GeoDataFrame(
+        {"id": [1]},
+        geometry=[LineString([(0.0, 0.0), (4000.0, 0.0)])],
+        crs="EPSG:2263",
+    )
+
+    out = csl._densify_long_lines(gdf, max_segment_length=500.0)
+    coords = list(out.geometry.iloc[0].coords)
+    assert len(coords) > 2
+
+    crs = csl._require_crs(out, "Max segment length (m)")
+    unit_ctx = csl._build_linear_unit_context(crs, out.unary_union.envelope)
+    seg_lengths_m = [
+        csl._geometry_length_meters(LineString([coords[i], coords[i + 1]]), unit_ctx)
+        for i in range(len(coords) - 1)
+    ]
+    assert all(seg <= 500.0 + bt_const.SMALL_BUFFER for seg in seg_lengths_m)
+
+
 def test_normalize_to_lines_filters_non_line_parts():
     line = LineString([(0.0, 0.0), (1.0, 0.0)])
     mixed = GeometryCollection([line, Point(1.0, 0.0)])
