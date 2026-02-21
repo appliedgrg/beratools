@@ -189,8 +189,16 @@ def generate_line_class_list(
 
 
 def canopy_footprint_abs(
-    in_line, in_chm, corridor_thresh, max_ln_width, exp_shk_cell, out_footprint, 
-    processes=0, call_mode=CallMode.CLI, log_level="INFO"):
+    in_line,
+    in_chm,
+    corridor_thresh,
+    max_ln_width,
+    exp_shk_cell,
+    out_footprint,
+    processes=0,
+    call_mode=CallMode.CLI,
+    log_level="INFO",
+):
     in_file, in_layer = sp_common.decode_file_layer(in_line)
     out_file, out_layer = sp_common.decode_file_layer(out_footprint)
 
@@ -205,11 +213,7 @@ def canopy_footprint_abs(
     )
 
     feat_list = bt_base.execute_multiprocessing(
-        process_single_line,
-        line_class_list,
-        "Line footprint",
-        processes,
-        call_mode
+        process_single_line, line_class_list, "Line footprint", processes, call_mode
     )
 
     if feat_list:
@@ -223,6 +227,12 @@ def canopy_footprint_abs(
         results = gpd.GeoDataFrame(pd.concat(footprint_list))
         results = results.reset_index(drop=True)
         layer_name = out_layer if out_layer else "canopy_footprint"
+        results = algo_common.clean_geometries(
+            results,
+            stage="output",
+            out_file=out_file,
+            layer="rejected_output_canopy_footprint_absolute",
+        )
         results.to_file(out_file, layer=layer_name)
         print(f"Saved footprint to {out_file}, layer: {layer_name}")
     else:
@@ -231,6 +241,7 @@ def canopy_footprint_abs(
 
 if __name__ == "__main__":
     from beratools.utility.tool_args import compose_tool_kwargs
+
     start_time = time.time()
     print("Footprint processing started")
     kwargs = compose_tool_kwargs("canopy_footprint_absolute")

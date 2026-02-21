@@ -14,7 +14,6 @@ Description:
 """
 
 import logging
-from pathlib import Path
 
 import pandas as pd
 
@@ -102,14 +101,16 @@ def centerline(
     corridor_polys = pd.concat(corridor_poly_list, ignore_index=True)
 
     # Save the concatenated GeoDataFrames to the shapefile/gpkg
+    centerline_list = algo_common.clean_geometries(
+        centerline_list,
+        stage="output",
+        out_file=out_file,
+        layer="rejected_output_centerlines",
+    )
     centerline_list.to_file(out_file, layer=out_layer)
     print(f"Saved centerlines to: {out_file}")
 
-    # Check if the output file is a shapefile
-    out_line_path = Path(out_file)
-
-    # Generate the new file name for the GeoPackage with '_aux' appended
-    aux_file = out_line_path.with_name(out_line_path.stem + "_aux.gpkg")
+    aux_file = algo_common.get_aux_path(out_file)
     print(f"Saved auxiliary data to: {aux_file}")
 
     # Save lc_path_list and corridor_polys to the new GeoPackage with '_aux' suffix
@@ -123,6 +124,7 @@ if __name__ == "__main__":
     import time
 
     from beratools.utility.tool_args import compose_tool_kwargs
+
     start_time = time.time()
     kwargs = compose_tool_kwargs("centerline")
     centerline(**kwargs)
