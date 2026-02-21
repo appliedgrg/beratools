@@ -1,0 +1,47 @@
+# config.yaml for hydra
+
+DATA_DIR: F:/
+CHM: Study_Site_CHM_Projected.tif
+SEEDLINE_ORIGINAL: Study_Site_Center_Lines_new.shp
+SEEDLINE_ORIGINAL_LAYER: Study_Site_Center_Lines_new
+
+SEEDLINE: centerline.gpkg
+SEEDLINE_LAYER: centerline
+
+processes: null
+
+steps_to_run:
+  - check_seed_line
+  - centerline
+  - footprint_abs
+  - footprint_ground
+
+args_check_seed_line:
+  in_line: ${DATA_DIR}/${SEEDLINE_ORIGINAL}|${SEEDLINE_ORIGINAL_LAYER}
+  in_raster: ${DATA_DIR}/${CHM}
+  out_line: ${DATA_DIR}/${SEEDLINE}|${SEEDLINE_LAYER}
+
+args_centerline:
+  in_line: ${DATA_DIR}/${SEEDLINE}|${SEEDLINE_LAYER}
+  in_raster: ${DATA_DIR}/${CHM}
+  line_radius: 15
+  proc_segments: true
+  out_line: ${DATA_DIR}/centerline.gpkg|centerline
+
+args_footprint_abs:
+  in_line: ${DATA_DIR}/centerline.gpkg|centerline
+  in_chm: ${DATA_DIR}/${CHM}
+  corridor_thresh: 3.0
+  max_ln_width: 32.0
+  exp_shk_cell: 0
+  out_footprint: ${DATA_DIR}/footprint_abs.gpkg|footprint_abs
+
+args_footprint_ground:
+  in_line: ${DATA_DIR}/centerline.gpkg|centerline
+  in_footprint: ${DATA_DIR}/footprint_abs.gpkg|footprint_abs
+  n_samples: 15
+  offset: 30
+  max_width: true
+  width_percentile: 60
+  out_footprint: ${DATA_DIR}/footprint_ground.gpkg|footprint_ground
+  merge_group: false
