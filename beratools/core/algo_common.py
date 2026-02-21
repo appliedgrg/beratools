@@ -85,6 +85,7 @@ def read_geospatial_file(file_path, layer=None):
 
         # Clean the geometries in the GeoDataFrame
         gdf = clean_geometries(gdf, stage="input")
+        gdf = gdf.reset_index(drop=True)
         gdf["BT_UID"] = range(len(gdf))  # assign temporary UID
         return gdf
 

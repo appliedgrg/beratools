@@ -51,7 +51,7 @@ class FootprintCanopy:
         self.lines = []
 
         for idx in data.index:
-            line = LineInfo(data.iloc[[idx]], in_chm)
+            line = LineInfo(data.loc[[idx]], in_chm)
             self.lines.append(line)
 
     def compute(self, processes):
