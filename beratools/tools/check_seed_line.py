@@ -656,6 +656,15 @@ def check_seed_line(
     aux_file = algo_common.get_aux_path(out_file)
 
     qc_manifest = {
+        "qc_removed_input_cleanup": {
+            "layer_name": "qc_removed_input_cleanup",
+            "step": 0,
+            "step_name": "input cleanup",
+            "reason": "Invalid, null, or empty geometries removed during input hygiene",
+            "feature_count": 0,
+            "written": 0,
+            "notes": "not triggered",
+        },
         "qc_removed_cleanup": {
             "layer_name": "qc_removed_cleanup",
             "step": 2,
@@ -759,12 +768,26 @@ def check_seed_line(
         if not sp_common.compare_crs(sp_common.vector_crs(in_file), sp_common.raster_crs(in_raster)):
             raise ValueError("Input line and raster CRS do not match.")
 
-    gdf = algo_common.read_geospatial_file(in_file, layer=in_layer)
-    if gdf is None:
-        raise ValueError(f"Unable to read input seed lines from: {in_file}")
-
+    gdf = gpd.read_file(in_file, layer=in_layer)
     input_count = len(gdf)
-    logger.info("Seed line QC start: %s feature(s)", len(gdf))
+    gdf = algo_common.clean_geometries(
+        gdf,
+        stage="input",
+        out_file=out_file,
+        layer="qc_removed_input_cleanup",
+    ).reset_index(drop=True)
+    input_cleanup_removed_count = input_count - len(gdf)
+    qc_manifest["qc_removed_input_cleanup"]["feature_count"] = int(max(input_cleanup_removed_count, 0))
+    qc_manifest["qc_removed_input_cleanup"]["written"] = 1 if input_cleanup_removed_count > 0 else 0
+    qc_manifest["qc_removed_input_cleanup"]["notes"] = (
+        "written" if input_cleanup_removed_count > 0 else "empty"
+    )
+
+    logger.info(
+        "Seed line QC start: %s feature(s), input cleanup removed %s feature(s)",
+        len(gdf),
+        input_cleanup_removed_count,
+    )
 
     step_name = "qc_merge_multilinestring"
     in_count = len(gdf)

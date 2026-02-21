@@ -482,6 +482,89 @@ def test_check_seed_line_writes_qc_doc_tables(tmp_path, monkeypatch):
         assert manifest_rows[0][2] == 1
 
 
+def test_check_seed_line_accounts_input_cleanup_in_manifest(tmp_path):
+    in_gpkg = _write_seed_input(
+        tmp_path,
+        [
+            LineString([(0.0, 0.0), (1.0, 0.0)]),
+            None,
+        ],
+        data={"id": [1, 2]},
+    )
+    out_gpkg = tmp_path / "seed_output.gpkg"
+
+    csl.check_seed_line(
+        in_line=f"{in_gpkg.as_posix()}|seed_lines",
+        in_raster="",
+        out_line=f"{out_gpkg.as_posix()}|seed_checked",
+        clip_to_chm_footprint=False,
+        group_lines=False,
+    )
+
+    out = gpd.read_file(out_gpkg, layer="seed_checked")
+    assert len(out) == 1
+
+    aux_gpkg = out_gpkg.with_stem(out_gpkg.stem + "_aux")
+    with sqlite3.connect(aux_gpkg.as_posix()) as conn:
+        row = conn.execute(
+            "SELECT feature_count, written FROM qc_manifest WHERE layer_name='qc_removed_input_cleanup'"
+        ).fetchone()
+        assert row is not None
+        assert row[0] == 1
+        assert row[1] == 1
+
+
+def test_check_seed_line_overwrites_qc_tables_on_rerun(tmp_path, monkeypatch):
+    in_gpkg = _write_seed_input(
+        tmp_path,
+        [
+            LineString([(0.0, 0.0), (1.0, 0.0)]),
+            LineString([(100.0, 100.0), (101.0, 100.0)]),
+        ],
+        data={"id": [1, 2]},
+    )
+    out_gpkg = tmp_path / "seed_output.gpkg"
+
+    monkeypatch.setattr(csl.sp_common, "vector_crs", lambda *_args, **_kwargs: object())
+    monkeypatch.setattr(csl.sp_common, "raster_crs", lambda *_args, **_kwargs: object())
+    monkeypatch.setattr(csl.sp_common, "compare_crs", lambda *_args, **_kwargs: True)
+    monkeypatch.setattr(
+        csl.algo_common,
+        "generate_raster_footprint",
+        lambda *_args, **_kwargs: box(-20.0, -20.0, 20.0, 20.0),
+    )
+
+    csl.check_seed_line(
+        in_line=f"{in_gpkg.as_posix()}|seed_lines",
+        in_raster="dummy.tif",
+        out_line=f"{out_gpkg.as_posix()}|seed_checked",
+        clip_to_chm_footprint=False,
+        group_lines=False,
+    )
+
+    csl.check_seed_line(
+        in_line=f"{in_gpkg.as_posix()}|seed_lines",
+        in_raster="dummy.tif",
+        out_line=f"{out_gpkg.as_posix()}|seed_checked",
+        clip_to_chm_footprint=True,
+        group_lines=False,
+    )
+
+    aux_gpkg = out_gpkg.with_stem(out_gpkg.stem + "_aux")
+    with sqlite3.connect(aux_gpkg.as_posix()) as conn:
+        summary_count = conn.execute("SELECT COUNT(*) FROM qc_run_summary").fetchone()[0]
+        output_count = conn.execute("SELECT output_feature_count FROM qc_run_summary").fetchone()[0]
+        clipped = conn.execute(
+            "SELECT feature_count, written FROM qc_manifest WHERE layer_name='qc_removed_clipped'"
+        ).fetchone()
+
+    assert summary_count == 1
+    assert output_count == 1
+    assert clipped is not None
+    assert clipped[0] >= 1
+    assert clipped[1] == 1
+
+
 def test_schema_marks_chm_shrink_as_optional():
     schema_path = Path(__file__).resolve().parents[1] / "beratools" / "gui" / "assets" / "beratools.json"
     data = json.loads(schema_path.read_text(encoding="utf-8"))

@@ -164,8 +164,16 @@ def save_aux_table(rows, out_file, table, overwrite=True):
         if ds is None:
             raise RuntimeError(f"Unable to open or create GeoPackage: {aux_file}")
 
-        if overwrite and ds.GetLayerByName(table) is not None:
-            ds.DeleteLayer(table)
+        if overwrite:
+            layer_index = -1
+            for idx in range(ds.GetLayerCount()):
+                layer_obj = ds.GetLayer(idx)
+                if layer_obj is not None and layer_obj.GetName() == table:
+                    layer_index = idx
+                    break
+
+            if layer_index >= 0:
+                ds.DeleteLayer(layer_index)
 
         layer = ds.GetLayerByName(table)
         if layer is None:
