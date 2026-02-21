@@ -373,7 +373,7 @@ class ToolWidgets(QtWidgets.QWidget):
             current_layout = self.layout()
             if current_layout is not None:
                 current_layout.invalidate()
-            self.adjustSize()
+                current_layout.activate()
             self.updateGeometry()
             self.update()
 
@@ -539,6 +539,7 @@ class FileSelector(QtWidgets.QWidget):
 
     def set_inline_mode(self, unit=""):
         self.label.setVisible(False)
+        self.layout.setContentsMargins(0, 0, 0, 0)
 
     def _reset_layer_state(self, clear_cache=False, visible=False, editable=False):
         self.layer_combo.clear()
@@ -925,6 +926,7 @@ class OptionsInput(QtWidgets.QWidget):
 
     def set_inline_mode(self, unit=""):
         self.label.setVisible(False)
+        self.layout.setContentsMargins(0, 0, 0, 0)
 
     def selection_change(self, i):
         self.value = self.option_list[i]
@@ -1008,6 +1010,7 @@ class NumericInput(QtWidgets.QWidget):
 
     def set_inline_mode(self, unit=""):
         self.label.setVisible(False)
+        self.layout.setContentsMargins(0, 0, 0, 0)
         if unit:
             self.unit = unit
             self.unit_label.setText(unit)
