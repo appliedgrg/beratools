@@ -207,6 +207,7 @@ class ToolWidgets(QtWidgets.QWidget):
         self.ui_widget_list = [widget for widget in self.widget_list if widget]
         self._depends_on_specs = {}
         self._inline_controllers = {}
+        inline_controller_widgets = []
 
         for widget in self.widget_list:
             if not widget:
@@ -258,6 +259,7 @@ class ToolWidgets(QtWidgets.QWidget):
                     )
                 elif self._attach_inline_widget(controller_widgets[0], widget):
                     self._inline_controllers[controller_vars[0]] = widget.variable
+                    inline_controller_widgets.append(controller_widgets[0])
                     if widget in self.ui_widget_list:
                         self.ui_widget_list.remove(widget)
 
@@ -265,7 +267,35 @@ class ToolWidgets(QtWidgets.QWidget):
             for controller_widget in controller_widgets:
                 self._connect_widget_change_signal(controller_widget, self._update_dependency_states)
 
+        self._align_inline_controller_checkboxes(inline_controller_widgets)
         self._update_dependency_states()
+
+    @staticmethod
+    def _align_inline_controller_checkboxes(controller_widgets):
+        unique_widgets = []
+        seen_ids = set()
+        for widget in controller_widgets:
+            widget_id = id(widget)
+            if widget_id in seen_ids:
+                continue
+            seen_ids.add(widget_id)
+            unique_widgets.append(widget)
+
+        if not unique_widgets:
+            return
+
+        max_width = 0
+        for controller in unique_widgets:
+            if isinstance(controller, BooleanInput):
+                max_width = max(max_width, controller.checkbox.sizeHint().width())
+
+        if max_width <= 0:
+            return
+
+        aligned_width = max_width + 8
+        for controller in unique_widgets:
+            if isinstance(controller, BooleanInput):
+                controller.checkbox.setMinimumWidth(aligned_width)
 
     def _attach_inline_widget(self, controller_widget, dependent_widget):
         controller_layout = self._get_widget_layout(controller_widget)
