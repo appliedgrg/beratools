@@ -16,7 +16,6 @@ Description:
 import logging
 import math
 from itertools import chain
-from pathlib import Path
 
 import geopandas as gpd
 import numpy as np
@@ -277,7 +276,9 @@ def ground_footprint(
     merge_group=True,
     width_percentile=75,
     trim_output=True,
-    processes=0, call_mode=CallMode.CLI, log_level="INFO"
+    processes=0,
+    call_mode=CallMode.CLI,
+    log_level="INFO",
 ):
     in_file, in_layer = sp_common.decode_file_layer(in_line)
     in_fp_file, in_layer_fp = sp_common.decode_file_layer(in_footprint)
@@ -289,12 +290,16 @@ def ground_footprint(
 
     # TODO: refactor this code for better line quality check
     line_gdf = gpd.read_file(in_file, layer=in_layer)
+    line_gdf = algo_common.clean_geometries(line_gdf, stage="input")
+    line_gdf = line_gdf.reset_index(drop=True)
     if bt_const.BT_GROUP not in line_gdf.columns:
         line_gdf[bt_const.BT_GROUP] = range(1, len(line_gdf) + 1)
 
     use_least_cost_path = True
     try:
         lc_path_gdf = gpd.read_file(in_file, layer=in_layer_lc_path)
+        lc_path_gdf = algo_common.clean_geometries(lc_path_gdf, stage="input")
+        lc_path_gdf = lc_path_gdf.reset_index(drop=True)
     except (ValueError, OSError, pyogrio.errors.DataLayerError):
         print(f"Layer '{in_layer_lc_path}' not found in {in_file}, skipping least cost path logic.")
         use_least_cost_path = False
@@ -304,10 +309,10 @@ def ground_footprint(
         if use_least_cost_path:
             lc_path_gdf["geometry"] = lc_path_gdf.geometry.apply(custom_line_merge)
 
-    line_gdf = algo_common.clean_line_geometries(line_gdf)
-
     # read footprints and remove holes
     poly_gdf = gpd.read_file(in_fp_file, layer=in_layer_fp)
+    poly_gdf = algo_common.clean_geometries(poly_gdf, stage="input")
+    poly_gdf = poly_gdf.reset_index(drop=True)
     poly_gdf["geometry"] = poly_gdf["geometry"].apply(algo_common.remove_holes)
 
     # merge group and/or split lines at intersections
@@ -350,6 +355,12 @@ def ground_footprint(
             print(f"Exception: ground_footprint: {e}")
 
     # save original merged lines
+    merged_line_gdf = algo_common.clean_geometries(
+        merged_line_gdf,
+        stage="output",
+        out_file=out_file,
+        layer="rejected_output_ground_merged_lines",
+    )
     merged_line_gdf.to_file(out_file, layer="merged_lines_original")
 
     # prepare line arguments
@@ -395,6 +406,12 @@ def ground_footprint(
     buffer_gdf.reset_index(inplace=True, drop=True)
 
     untrimmed_footprint = "untrimmed_footprint"
+    buffer_gdf = algo_common.clean_geometries(
+        buffer_gdf,
+        stage="output",
+        out_file=out_file,
+        layer="rejected_output_ground_untrimmed_footprint",
+    )
     buffer_gdf.to_file(out_file, layer=untrimmed_footprint)
     print(f"Untrimmed fixed width footprint saved as '{untrimmed_footprint}'")
 
@@ -422,30 +439,29 @@ def ground_footprint(
 
     # perpendicular lines
     layer = "perp_lines"
-    out_footprint_path = Path(out_file)
-    out_aux_gpkg = out_footprint_path.with_stem(out_footprint_path.stem + "_aux").with_suffix(".gpkg")
+    out_aux_gpkg = algo_common.get_aux_path(out_file)
     perp_lines_gdf = perp_lines_gdf.set_geometry("perp_lines")
     perp_lines_gdf = perp_lines_gdf.drop(columns=["perp_lines_original"])
     perp_lines_gdf = perp_lines_gdf.drop(columns=["geometry"])
     perp_lines_gdf = perp_lines_gdf.set_crs(buffer_gdf.crs, allow_override=True)
-    perp_lines_gdf.to_file(out_aux_gpkg.as_posix(), layer=layer)
+    perp_lines_gdf.to_file(out_aux_gpkg, layer=layer)
 
     layer = "perp_lines_original"
     perp_lines_original_gdf = perp_lines_original_gdf.set_geometry("perp_lines_original")
     perp_lines_original_gdf = perp_lines_original_gdf.drop(columns=["perp_lines"])
     perp_lines_original_gdf = perp_lines_original_gdf.drop(columns=["geometry"])
     perp_lines_original_gdf = perp_lines_original_gdf.set_crs(buffer_gdf.crs, allow_override=True)
-    perp_lines_original_gdf.to_file(out_aux_gpkg.as_posix(), layer=layer)
+    perp_lines_original_gdf.to_file(out_aux_gpkg, layer=layer)
 
     layer = "centerline_simplified"
     # Drop perp_lines_original column if present to avoid export warnings
     if "perp_lines_original" in line_attr.columns:
         line_attr = line_attr.drop(columns=["perp_lines_original"])
     line_attr = line_attr.drop(columns="perp_lines")
-    line_attr.to_file(out_aux_gpkg.as_posix(), layer=layer)
+    line_attr.to_file(out_aux_gpkg, layer=layer)
 
     # save footprints without holes
-    poly_gdf.to_file(out_aux_gpkg.as_posix(), layer="footprint_no_holes")
+    poly_gdf.to_file(out_aux_gpkg, layer="footprint_no_holes")
     print("Step: Finished fixed width footprint tool")
 
 
@@ -453,6 +469,7 @@ if __name__ == "__main__":
     import time
 
     from beratools.utility.tool_args import compose_tool_kwargs
+
     start_time = time.time()
     kwargs = compose_tool_kwargs("ground_footprint")
     ground_footprint(**kwargs)

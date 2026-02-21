@@ -16,6 +16,7 @@ Description:
 
 import math
 import tempfile
+import logging
 from pathlib import Path
 
 import geopandas as gpd
@@ -35,6 +36,7 @@ import beratools.core.constants as bt_const
 
 gpd.options.io_engine = "pyogrio"
 DISTANCE_THRESHOLD = 2  # 1 meter for intersection neighborhood
+logger = logging.getLogger(__name__)
 
 
 def process_single_item(cls_obj):
@@ -82,7 +84,8 @@ def read_geospatial_file(file_path, layer=None):
         gdf = gpd.read_file(file_path, **kwargs)
 
         # Clean the geometries in the GeoDataFrame
-        gdf = clean_geometries(gdf)
+        gdf = clean_geometries(gdf, stage="input")
+        gdf = gdf.reset_index(drop=True)
         gdf["BT_UID"] = range(len(gdf))  # assign temporary UID
         return gdf
 
@@ -98,7 +101,23 @@ def has_multilinestring(gdf):
     return any(isinstance(geom, sh_geom.MultiLineString) for geom in valid_geometries)
 
 
-def clean_geometries(gdf):
+def get_aux_path(out_file):
+    out_path = Path(out_file)
+    return out_path.with_stem(out_path.stem + "_aux").with_suffix(".gpkg").as_posix()
+
+
+def save_aux_layer(gdf, out_file, layer):
+    if gdf is None or gdf.empty or out_file is None or layer is None:
+        return
+
+    aux_file = get_aux_path(out_file)
+    try:
+        gdf.to_file(aux_file, layer=layer)
+    except Exception as exc:
+        logger.warning("Failed saving aux layer '%s' to %s: %s", layer, aux_file, exc)
+
+
+def clean_geometries(gdf, stage=None, out_file=None, layer=None):
     """
     Remove rows with invalid, None, or empty geometries from the GeoDataFrame.
 
@@ -110,11 +129,64 @@ def clean_geometries(gdf):
         and non-empty geometries.
 
     """
-    # Remove rows where the geometry is invalid, None, or empty
-    gdf = gdf[gdf.geometry.is_valid]  # Only keep valid geometries
-    gdf = gdf[~gdf.geometry.isna()]  # Remove rows with None geometries
-    gdf = gdf[gdf.geometry.apply(lambda geom: not geom.is_empty)]  # Remove empty geometries
-    return gdf
+    if gdf is None:
+        return gdf
+
+    if gdf.empty:
+        return gdf
+
+    m_null = gdf.geometry.isna()
+
+    m_empty = m_null.copy()
+    m_empty[:] = False
+    non_null_mask = ~m_null
+    if non_null_mask.any():
+        m_empty.loc[non_null_mask] = gdf.geometry.loc[non_null_mask].is_empty
+
+    m_invalid = m_null.copy()
+    m_invalid[:] = False
+    valid_candidate_mask = non_null_mask & ~m_empty
+    if valid_candidate_mask.any():
+        m_invalid.loc[valid_candidate_mask] = ~gdf.geometry.loc[valid_candidate_mask].is_valid
+
+    rejected_mask = m_invalid | m_null | m_empty
+    if not rejected_mask.any():
+        return gdf
+
+    rejected_gdf = gdf[rejected_mask].copy()
+    rejected_gdf["BT_REJECT_REASON"] = np.where(
+        m_invalid[rejected_mask],
+        "invalid",
+        np.where(m_null[rejected_mask], "null", "empty"),
+    )
+
+    kept_gdf = gdf[~rejected_mask]
+
+    n_invalid = int((rejected_gdf["BT_REJECT_REASON"] == "invalid").sum())
+    n_null = int((rejected_gdf["BT_REJECT_REASON"] == "null").sum())
+    n_empty = int((rejected_gdf["BT_REJECT_REASON"] == "empty").sum())
+    total_removed = int(rejected_mask.sum())
+    original_count = len(gdf)
+
+    stage_prefix = f"[{stage}] " if stage else ""
+    logger.info(
+        "%sRemoved %s invalid, %s null, %s empty geometries (%s of %s rows)",
+        stage_prefix,
+        n_invalid,
+        n_null,
+        n_empty,
+        total_removed,
+        original_count,
+    )
+
+    layer_name = layer
+    if layer_name is None:
+        layer_name = f"rejected_{stage}" if stage else "rejected"
+
+    if out_file is not None:
+        save_aux_layer(rejected_gdf, out_file, layer_name)
+
+    return kept_gdf
 
 
 def clean_line_geometries(line_gdf, min_length=bt_const.SMALL_BUFFER):

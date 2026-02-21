@@ -506,6 +506,12 @@ class VertexGrouping:
                 return
 
             lines = lines.iloc[0:0]
+            lines = algo_common.clean_geometries(
+                lines,
+                stage="output",
+                out_file=out_file,
+                layer="rejected_output_vertex_optimization_lines",
+            )
             lines.to_file(out_file, layer=out_layer)
             print(f"Saved output to: {line_file}", flush=True)
             return
@@ -516,13 +522,16 @@ class VertexGrouping:
             lines[bt_const.BT_GROUP] = lines["BT_UID"]
             lines = algo_merge_lines.run_line_merge(lines, merge_group=True)
 
+        lines = algo_common.clean_geometries(
+            lines,
+            stage="output",
+            out_file=out_file,
+            layer="rejected_output_vertex_optimization_lines",
+        )
         lines.to_file(out_file, layer=out_layer)
         print(f"Saved output to: {line_file}", flush=True)
 
-        aux_file = line_file
-        if line_file.suffix == ".shp":
-            file_stem = line_file.stem
-            aux_file = line_file.with_stem(file_stem + "_aux").with_suffix(".gpkg")
+        aux_file = algo_common.get_aux_path(out_file)
 
         lc_paths = []
         anchors = []

@@ -840,10 +840,22 @@ class LineGrouping:
 
     def save_file(self, out_file, out_layer="ground_footprint"):
         if not self.valid_lines.empty:
+            self.valid_lines = algo_common.clean_geometries(
+                self.valid_lines,
+                stage="output",
+                out_file=out_file,
+                layer="rejected_output_ground_trimmed_lines",
+            )
             self.valid_lines["length"] = self.valid_lines.length
             self.valid_lines.to_file(out_file, layer="merged_lines")
 
         if not self.valid_polys.empty:
+            self.valid_polys = algo_common.clean_geometries(
+                self.valid_polys,
+                stage="output",
+                out_file=out_file,
+                layer="rejected_output_ground_trimmed_footprint",
+            )
             if "length" in self.valid_polys.columns:
                 self.valid_polys.drop(columns=["length"], inplace=True)
 

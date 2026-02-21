@@ -1,9 +1,11 @@
 import geopandas as gpd
+import numpy as np
 import pandas as pd
 import shapely.geometry as sh_geom
 
 import beratools.core.algo_common as algo_common
 import beratools.core.algo_vertex_optimization as algo_vertex_optimization
+from beratools.core.algo_canopy_footprint_exp import FootprintCanopy
 from beratools.core.algo_vertex_preclean import preclean_vertices
 
 
@@ -191,3 +193,74 @@ def test_save_all_layers_with_populated_lines_writes(monkeypatch, capsys):
     assert "Saved output to:" in output
     assert len(write_calls) == 1
     assert write_calls[0][0] == 1
+
+
+def test_read_geospatial_file_resets_index_after_clean(monkeypatch):
+    empty_geom = sh_geom.GeometryCollection()
+    input_gdf = gpd.GeoDataFrame(
+        {"name": ["bad", "good_a", "good_b"]},
+        geometry=[
+            empty_geom,
+            sh_geom.LineString([(0.0, 0.0), (1.0, 0.0)]),
+            sh_geom.LineString([(2.0, 0.0), (3.0, 0.0)]),
+        ],
+        crs="EPSG:3857",
+        index=pd.Index([0, 2, 3]),
+    )
+
+    monkeypatch.setattr(algo_common.gpd, "read_file", lambda *args, **kwargs: input_gdf)
+
+    out = algo_common.read_geospatial_file("dummy.gpkg", layer="lines")
+
+    assert out is not None
+    assert list(out.index) == [0, 1]
+    assert list(out["name"]) == ["good_a", "good_b"]
+    assert list(out["BT_UID"]) == [0, 1]
+
+
+def test_footprint_canopy_init_handles_rejected_geometry(monkeypatch):
+    empty_geom = sh_geom.GeometryCollection()
+    input_gdf = gpd.GeoDataFrame(
+        {"id": [1, 2, 3]},
+        geometry=[
+            empty_geom,
+            sh_geom.LineString([(0.0, 0.0), (1.0, 0.0)]),
+            sh_geom.LineString([(1.0, 1.0), (2.0, 1.0)]),
+        ],
+        crs="EPSG:3857",
+        index=pd.Index([0, 2, 3]),
+    )
+
+    monkeypatch.setattr(algo_common.gpd, "read_file", lambda *args, **kwargs: input_gdf)
+
+    canopy = FootprintCanopy("dummy.gpkg|lines", "dummy.tif")
+
+    assert len(canopy.lines) == 2
+
+
+def test_clean_geometries_handles_na_sentinels():
+    gdf = gpd.GeoDataFrame(
+        {"id": [1, 2, 3]},
+        geometry=[pd.NA, np.nan, sh_geom.LineString([(0.0, 0.0), (1.0, 0.0)])],
+        crs="EPSG:3857",
+    )
+
+    out = algo_common.clean_geometries(gdf, stage="input")
+
+    assert out is not None
+    assert len(out) == 1
+    assert out.iloc[0]["id"] == 3
+
+
+def test_clean_geometries_handles_na_and_empty_mix():
+    gdf = gpd.GeoDataFrame(
+        {"id": [1, 2, 3]},
+        geometry=[pd.NA, sh_geom.GeometryCollection(), sh_geom.LineString([(0.0, 0.0), (1.0, 0.0)])],
+        crs="EPSG:3857",
+    )
+
+    out = algo_common.clean_geometries(gdf, stage="input")
+
+    assert out is not None
+    assert len(out) == 1
+    assert out.iloc[0]["id"] == 3

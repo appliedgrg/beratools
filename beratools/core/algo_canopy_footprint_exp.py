@@ -45,11 +45,13 @@ class FootprintCanopy:
 
     def __init__(self, in_geom, in_chm):
         in_file, in_layer = sp_common.decode_file_layer(in_geom)
-        data = gpd.read_file(in_file, layer=in_layer)
+        data = algo_common.read_geospatial_file(in_file, layer=in_layer)
+        if data is None:
+            data = gpd.GeoDataFrame()
         self.lines = []
 
         for idx in data.index:
-            line = LineInfo(data.iloc[[idx]], in_chm)
+            line = LineInfo(data.loc[[idx]], in_chm)
             self.lines.append(line)
 
     def compute(self, processes):
@@ -93,6 +95,12 @@ class FootprintCanopy:
 
     def save_footprint(self, out_footprint, layer=None):
         if self.footprints is not None and isinstance(self.footprints, gpd.GeoDataFrame):
+            self.footprints = algo_common.clean_geometries(
+                self.footprints,
+                stage="output",
+                out_file=out_footprint,
+                layer="rejected_output_canopy_footprint_exp",
+            )
             self.footprints.to_file(out_footprint, layer=layer)
         else:
             print("No footprints to save (None or not a GeoDataFrame).")
