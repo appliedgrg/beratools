@@ -334,9 +334,54 @@ def test_check_seed_line_minimum_length_geographic_uses_meters(tmp_path, monkeyp
     assert out.iloc[0]["id"] == 1
 
 
-def test_check_seed_line_requires_in_raster():
-    with pytest.raises(ValueError, match="in_raster"):
-        csl.check_seed_line(in_line="dummy.gpkg|seed", in_raster="", out_line="out.gpkg|seed")
+def test_check_seed_line_missing_raster_logs_error_and_continues(tmp_path, monkeypatch):
+    in_gpkg = _write_seed_input(tmp_path, [LineString([(0.0, 0.0), (1.0, 0.0)])])
+    out_gpkg = tmp_path / "seed_output.gpkg"
+
+    clip_calls = []
+    errors = []
+
+    monkeypatch.setattr(
+        csl, "_clip_to_chm_footprint", lambda gdf, *_args, **_kwargs: clip_calls.append(1) or gdf
+    )
+    monkeypatch.setattr(csl, "qc_split_lines_at_intersections", lambda gdf: gdf)
+    monkeypatch.setattr(csl.logger, "error", lambda msg, *args: errors.append(msg % args if args else msg))
+
+    csl.check_seed_line(
+        in_line=f"{in_gpkg.as_posix()}|seed_lines",
+        in_raster="",
+        out_line=f"{out_gpkg.as_posix()}|seed_checked",
+        clip_to_chm_footprint=True,
+        group_lines=False,
+    )
+
+    out = gpd.read_file(out_gpkg, layer="seed_checked")
+    assert len(out) == 1
+    assert clip_calls == []
+    assert any("in_raster" in msg for msg in errors)
+
+
+def test_check_seed_line_skips_clip_when_disabled(tmp_path, monkeypatch):
+    in_gpkg = _write_seed_input(tmp_path, [LineString([(0.0, 0.0), (1.0, 0.0)])])
+    out_gpkg = tmp_path / "seed_output.gpkg"
+
+    clip_calls = []
+    monkeypatch.setattr(
+        csl, "_clip_to_chm_footprint", lambda gdf, *_args, **_kwargs: clip_calls.append(1) or gdf
+    )
+    monkeypatch.setattr(csl, "qc_split_lines_at_intersections", lambda gdf: gdf)
+
+    csl.check_seed_line(
+        in_line=f"{in_gpkg.as_posix()}|seed_lines",
+        in_raster="",
+        out_line=f"{out_gpkg.as_posix()}|seed_checked",
+        clip_to_chm_footprint=False,
+        group_lines=False,
+    )
+
+    out = gpd.read_file(out_gpkg, layer="seed_checked")
+    assert len(out) == 1
+    assert clip_calls == []
 
 
 def test_pipeline_runs_snap_before_split(tmp_path, monkeypatch):
@@ -398,3 +443,5 @@ def test_schema_marks_chm_shrink_as_optional():
     assert check_tool is not None
     params = {param["variable"]: param for param in check_tool.get("parameters", [])}
     assert params["chm_footprint_shrink"]["optional"] is True
+    assert params["clip_to_chm_footprint"]["default"] is True
+    assert params["clip_to_chm_footprint"]["optional"] is True

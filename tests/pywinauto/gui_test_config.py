@@ -27,6 +27,7 @@ def make_test_data(testdata_dir, output_dir):
                 "path": str(testdata_dir / "chm_aoi.tif"),
             },
             "chm_footprint_shrink": 15.0,
+            "clip_to_chm_footprint": True,
             "out_line": {
                 "path": str(output_dir / "gui_test_output.gpkg"),
                 "layer": "seed_lines_checked",
@@ -149,6 +150,7 @@ PARAM_TYPES = {
     "in_line": {"type": "file", "subtype": "vector"},
     "in_raster": {"type": "file", "subtype": "raster"},
     "chm_footprint_shrink": {"type": "number", "subtype": "float"},
+    "clip_to_chm_footprint": {"type": "list", "subtype": "bool"},
     "out_line": {"type": "file", "subtype": "vector"},
     "remove_short_lines": {"type": "list", "subtype": "bool"},
     "minimum_line_length": {"type": "number", "subtype": "float"},
@@ -197,6 +199,7 @@ TOOL_PARAM_LABELS = {
         "in_line": "Seed Line",
         "in_raster": "CHM Raster",
         "chm_footprint_shrink": "CHM footprint shrink (m)",
+        "clip_to_chm_footprint": "Clip to CHM footprint",
         "out_line": "Output Seed Line",
         "remove_short_lines": "Remove short lines",
         "minimum_line_length": "Minimum line length (m)",

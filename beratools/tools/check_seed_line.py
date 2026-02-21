@@ -37,6 +37,7 @@ print = log.print
 @dataclass
 class SeedLineQCConfig:
     chm_footprint_shrink: float = 15.0
+    clip_to_chm_footprint: bool = True
     remove_short_lines: bool = False
     minimum_line_length: float = 5.0
     snap_close_endpoints: bool = False
@@ -593,6 +594,7 @@ def check_seed_line(
     in_raster,
     out_line,
     chm_footprint_shrink=15.0,
+    clip_to_chm_footprint=True,
     remove_short_lines=False,
     minimum_line_length=5.0,
     snap_close_endpoints=False,
@@ -610,11 +612,9 @@ def check_seed_line(
 
     del processes, call_mode, log_level
 
-    if not in_raster:
-        raise ValueError("Parameter 'in_raster' is required for Check Seed Lines.")
-
     config = SeedLineQCConfig(
         chm_footprint_shrink=float(chm_footprint_shrink),
+        clip_to_chm_footprint=_to_bool(clip_to_chm_footprint),
         remove_short_lines=_to_bool(remove_short_lines),
         minimum_line_length=float(minimum_line_length),
         snap_close_endpoints=_to_bool(snap_close_endpoints),
@@ -629,8 +629,9 @@ def check_seed_line(
     in_file, in_layer = sp_common.decode_file_layer(in_line)
     out_file, out_layer = sp_common.decode_file_layer(out_line)
 
-    if not sp_common.compare_crs(sp_common.vector_crs(in_file), sp_common.raster_crs(in_raster)):
-        raise ValueError("Input line and raster CRS do not match.")
+    if config.clip_to_chm_footprint and in_raster:
+        if not sp_common.compare_crs(sp_common.vector_crs(in_file), sp_common.raster_crs(in_raster)):
+            raise ValueError("Input line and raster CRS do not match.")
 
     gdf = gpd.read_file(in_file, layer=in_layer)
     logger.info("Seed line QC start: %s feature(s)", len(gdf))
@@ -664,11 +665,20 @@ def check_seed_line(
 
     step_name = "CHM footprint clipping"
     in_count = len(gdf)
-    t0 = _step_timer()
-    gdf = _clip_to_chm_footprint(gdf, in_raster, config.chm_footprint_shrink)
-    _log_step(4, step_name, in_count, len(gdf), _elapsed(t0))
-    if _bail_if_empty(gdf, step_name, out_file, out_layer, in_count):
-        return
+    if config.clip_to_chm_footprint:
+        if in_raster:
+            t0 = _step_timer()
+            gdf = _clip_to_chm_footprint(gdf, in_raster, config.chm_footprint_shrink)
+            _log_step(4, step_name, in_count, len(gdf), _elapsed(t0))
+            if _bail_if_empty(gdf, step_name, out_file, out_layer, in_count):
+                return
+        else:
+            logger.error(
+                "CHM footprint clipping enabled but 'in_raster' is missing; continuing without footprint clip."
+            )
+            _log_step(4, step_name, in_count, in_count, skipped_reason="enabled but missing in_raster")
+    else:
+        _log_step(4, step_name, in_count, in_count, skipped_reason="disabled")
 
     step_name = "post-clip normalize + cleanup"
     in_count = len(gdf)

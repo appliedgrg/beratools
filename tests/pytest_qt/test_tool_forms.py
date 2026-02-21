@@ -60,6 +60,7 @@ class TestCheckSeedLines:
         assert isinstance(_find_widget(tw, "group_lines"), BooleanInput)
         assert isinstance(_find_widget(tw, "merge_by_group"), BooleanInput)
         assert isinstance(_find_widget(tw, "densify_long_lines"), BooleanInput)
+        assert isinstance(_find_widget(tw, "clip_to_chm_footprint"), BooleanInput)
         assert isinstance(_find_widget(tw, "chm_footprint_shrink"), NumericInput)
         assert isinstance(_find_widget(tw, "minimum_line_length"), NumericInput)
         assert isinstance(_find_widget(tw, "snap_tolerance"), NumericInput)
@@ -76,6 +77,7 @@ class TestCheckSeedLines:
                 "in_line": {"path": in_path, "layer": "seed_lines"},
                 "in_raster": str(testdata_dir / "chm_aoi.tif"),
                 "chm_footprint_shrink": 15.0,
+                "clip_to_chm_footprint": True,
                 "out_line": {"path": out_path, "layer": "checked"},
                 "remove_short_lines": True,
                 "minimum_line_length": 5.0,
@@ -93,6 +95,7 @@ class TestCheckSeedLines:
         assert args["in_line"].startswith(f"{in_path}|")
         assert args["in_raster"].endswith("chm_aoi.tif")
         assert args["chm_footprint_shrink"] == pytest.approx(15.0)
+        assert args["clip_to_chm_footprint"] is True
         assert args["out_line"].startswith(f"{out_path}|")
         assert args["remove_short_lines"] is True
         assert args["minimum_line_length"] == pytest.approx(5.0)
