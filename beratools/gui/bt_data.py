@@ -151,7 +151,7 @@ def get_app_version_info():
         pass
 
     git_describe = _run_git_command(
-        ["git", "describe", "--tags", "--long", "--always"],
+        ["git", "describe", "--tags", "--long", "--always", "--dirty"],
         cwd=repo_root,
     )
     git_revision = _resolve_git_revision(repo_root)
