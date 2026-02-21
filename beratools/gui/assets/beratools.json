@@ -23,17 +23,6 @@
               "optional": false
             },
             {
-              "variable": "clip_to_chm_footprint",
-              "label": "Clip to CHM footprint",
-              "description": "Clip seed lines to CHM footprint after inward shrink.",
-              "type": "list",
-              "subtype": "bool",
-              "data": [true, false],
-              "default": true,
-              "output": false,
-              "optional": true
-            },
-            {
               "variable": "in_raster",
               "label": "CHM Raster",
               "description": "Input CHM raster used for seed line QC clipping.",
@@ -47,6 +36,27 @@
                 "condition": true,
                 "mode": "hide"
               }
+            },
+            {
+              "variable": "out_line",
+              "label": "Output Seed Line",
+              "description": "Output Seed Line file.",
+              "type": "file",
+              "subtype": "vector",
+              "default": "",
+              "output": true,
+              "optional": false
+            },
+            {
+              "variable": "clip_to_chm_footprint",
+              "label": "Clip to CHM footprint",
+              "description": "Clip seed lines to CHM footprint after inward shrink.",
+              "type": "list",
+              "subtype": "bool",
+              "data": [true, false],
+              "default": true,
+              "output": false,
+              "optional": true
             },
             {
               "variable": "chm_footprint_shrink",
@@ -63,16 +73,6 @@
                 "condition": true,
                 "mode": "inline"
               }
-            },
-            {
-              "variable": "out_line",
-              "label": "Output Seed Line",
-              "description": "Output Seed Line file.",
-              "type": "file",
-              "subtype": "vector",
-              "default": "",
-              "output": true,
-              "optional": false
             },
             {
               "variable": "remove_short_lines",
