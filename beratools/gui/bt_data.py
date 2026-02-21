@@ -503,6 +503,8 @@ class BTData(object):
         try:
             about_text = "BERA Tools provide a series of tools developed by AppliedGRG lab.\n\n"
             about_text += self.ascii_art
+            version_info = get_app_version_info()
+            about_text += f"\nVersion: {version_info.get('version', 'unknown')}\n"
             return about_text
         except (OSError, ValueError) as err:
             return err
