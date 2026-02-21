@@ -16,7 +16,10 @@ Description:
 import json
 import logging
 import os
+import re
+import subprocess
 from collections import OrderedDict
+from importlib import metadata as importlib_metadata
 from pathlib import Path
 
 import beratools.core.constants as bt_const
@@ -24,6 +27,8 @@ from beratools.utility.spatial_common import decode_file_layer
 from beratools.utility.tool_args import CallMode, determine_cpu_core_limit
 
 BT_SHOW_ADVANCED_OPTIONS = False
+GLOBAL_DOCS_URL = "https://appliedgrg.github.io/beratools/"
+_LOG = logging.getLogger(__name__)
 
 
 def default_callback(value):
@@ -36,9 +41,152 @@ def default_callback(value):
     print(value)
 
 
+def _run_git_command(command, cwd, timeout_s=1.0):
+    try:
+        completed = subprocess.run(
+            command,
+            cwd=str(cwd),
+            capture_output=True,
+            text=True,
+            check=True,
+            timeout=timeout_s,
+        )
+        value = completed.stdout.strip()
+        return value if value else None
+    except Exception:
+        return None
+
+
+def _normalize_version_string(raw_version):
+    cleaned = str(raw_version).strip()
+    semver_match = re.match(r"^v?(\d+\.\d+\.\d+)", cleaned)
+    short_version = semver_match.group(1) if semver_match else cleaned
+    is_release = bool(semver_match) and all(
+        token not in cleaned.lower() for token in ("a", "b", "rc", "dev", "post", "+")
+    )
+    return {
+        "version": cleaned,
+        "short_version": short_version,
+        "git_revision": None,
+        "is_release": is_release,
+    }
+
+
+def _extract_git_revision_from_version(version_value):
+    match = re.search(r"\+[^\s]*g([0-9a-fA-F]{6,40})", str(version_value))
+    if match:
+        return match.group(1).lower()
+    return None
+
+
+def _resolve_git_revision(repo_root):
+    return _run_git_command(["git", "rev-parse", "--short", "HEAD"], cwd=repo_root)
+
+
+def _parse_git_version(git_describe, git_revision):
+    if git_describe:
+        describe = git_describe.strip()
+        is_dirty = describe.endswith("-dirty")
+        if is_dirty:
+            describe = describe[: -len("-dirty")]
+
+        ahead_match = re.match(r"^v?(\d+\.\d+\.\d+)-(\d+)-g([0-9a-fA-F]+)$", describe)
+        if ahead_match:
+            tag_version = ahead_match.group(1)
+            ahead_count = ahead_match.group(2)
+            revision = ahead_match.group(3).lower()
+            if ahead_count == "0" and not is_dirty:
+                return {
+                    "version": tag_version,
+                    "short_version": tag_version,
+                    "git_revision": revision,
+                    "is_release": True,
+                }
+
+            version_value = f"{tag_version}+{ahead_count}.g{revision}"
+            if is_dirty:
+                version_value = f"{version_value}.dirty"
+            return {
+                "version": version_value,
+                "short_version": tag_version,
+                "git_revision": revision,
+                "is_release": False,
+            }
+
+        tag_match = re.match(r"^v?(\d+\.\d+\.\d+)$", describe)
+        if tag_match and not is_dirty:
+            tag_version = tag_match.group(1)
+            return {
+                "version": tag_version,
+                "short_version": tag_version,
+                "git_revision": (git_revision or "").lower() or None,
+                "is_release": True,
+            }
+
+    if git_revision:
+        revision = git_revision.strip().lower()
+        return {
+            "version": f"0+g{revision}",
+            "short_version": "0",
+            "git_revision": revision,
+            "is_release": False,
+        }
+
+    return None
+
+
+def get_app_version_info():
+    repo_root = Path(__file__).resolve().parents[2]
+
+    try:
+        installed_version = importlib_metadata.version("BERATools")
+        version_info = _normalize_version_string(installed_version)
+        if not version_info["git_revision"]:
+            version_info["git_revision"] = _extract_git_revision_from_version(installed_version)
+        if not version_info["git_revision"]:
+            version_info["git_revision"] = _resolve_git_revision(repo_root)
+        _LOG.debug("Resolved app version via metadata")
+        return version_info
+    except Exception:
+        pass
+
+    git_describe = _run_git_command(
+        ["git", "describe", "--tags", "--long", "--always"],
+        cwd=repo_root,
+    )
+    git_revision = _resolve_git_revision(repo_root)
+    git_version_info = _parse_git_version(git_describe, git_revision)
+    if git_version_info:
+        _LOG.debug("Resolved app version via git")
+        return git_version_info
+
+    try:
+        import beratools
+
+        static_version = getattr(beratools, "__version__", None)
+        if static_version:
+            version_info = _normalize_version_string(static_version)
+            _LOG.debug("Resolved app version via static __version__")
+            return version_info
+    except Exception:
+        pass
+
+    _LOG.debug("Resolved app version as unknown")
+    return {
+        "version": "unknown",
+        "short_version": "unknown",
+        "git_revision": None,
+        "is_release": False,
+    }
+
+
+def get_global_docs_url():
+    return GLOBAL_DOCS_URL
+
+
 class SettingsManager:
     """An object for managing settings related to BERA Tools GUI."""
-    
+
     def __init__(self, setting_file):
         self.setting_file = setting_file
         self.settings = {}
@@ -64,8 +212,7 @@ class SettingsManager:
             # Remove any entry with None or "null" as tool name
             if isinstance(saved_parameters, dict):
                 saved_parameters = OrderedDict(
-                    (k, v) for k, v in saved_parameters.items()
-                    if k is not None and k != "null"
+                    (k, v) for k, v in saved_parameters.items() if k is not None and k != "null"
                 )
 
             self.settings = saved_parameters
@@ -79,7 +226,7 @@ class SettingsManager:
         if recent_tool:
             if "gui_parameters" not in self.settings:
                 self.settings["gui_parameters"] = {}
-                
+
             self.settings["gui_parameters"]["recent_tool"] = recent_tool
 
         if self.setting_file is not None:
@@ -176,6 +323,7 @@ class SettingsManager:
             tool_history = self.settings["tool_history"]
 
         return tool_history
+
 
 class BTData(object):
     """An object for interfacing with the BERA Tools executable."""
@@ -359,6 +507,12 @@ class BTData(object):
         except (OSError, ValueError) as err:
             return err
 
+    def get_app_version_info(self):
+        return get_app_version_info()
+
+    def get_global_docs_url(self):
+        return get_global_docs_url()
+
     def license(self):
         """Retrieve the license information for BERA Tools."""
         try:
@@ -410,6 +564,7 @@ class BTData(object):
                 api_result = self.get_bera_tool_api(self.recent_tool)
                 if not api_result:
                     self.recent_tool = None
+
     def load_gui_data(self):
         gui_settings = {}
         if not self.gui_setting_file.exists():
@@ -523,7 +678,7 @@ class BTData(object):
         Find raw tool parameters by name.
 
         Eliminates duplication across multiple methods.
-        
+
         Returns:
             List of parameter definitions from beratools.json, or empty list if not found.
         """
@@ -537,7 +692,7 @@ class BTData(object):
     def validate_tool_parameter(self, value, param_def):
         """
         Validate and convert parameter to correct type based on beratools.json definition.
-        
+
         Orchestrates validation by dispatching to type-specific validators.
 
         Args:
@@ -554,11 +709,11 @@ class BTData(object):
         if value is None or value == "":
             if param_def.get("optional", False):
                 return param_def.get("default", None)
-        
+
         # GUARD CLAUSE 2: Skip validation for output parameters (they don't exist yet)
         if param_def.get("output", False):
             return value
-        
+
         # DISPATCH to type-specific validator
         param_type = param_def.get("type")
         if param_type == "number":
@@ -571,74 +726,74 @@ class BTData(object):
             return self._validate_text(value, param_def)
         elif param_type == "list":
             return self._validate_list(value, param_def)
-        
+
         return value
 
     def _validate_number(self, value, param_def):
         """Validate and convert numeric types (int, float)."""
         subtype = param_def.get("subtype", "")
         variable = param_def.get("variable", "unknown")
-        
+
         if subtype == "int":
             if not isinstance(value, int) or isinstance(value, bool):
                 try:
                     value = int(value)
                 except (ValueError, TypeError):
                     raise ValueError(f"Parameter '{variable}' must be an integer, got {type(value).__name__}")
-        
+
         elif subtype == "float":
             if not isinstance(value, (int, float)) or isinstance(value, bool):
                 try:
                     value = float(value)
                 except (ValueError, TypeError):
                     raise ValueError(f"Parameter '{variable}' must be a number, got {type(value).__name__}")
-        
+
         return value
 
     def _validate_file(self, value, param_def):
         """Validate file exists and is accessible."""
         variable = param_def.get("variable", "unknown")
-        
+
         if not isinstance(value, str):
             raise ValueError(f"Parameter '{variable}' must be a file path string")
-        
+
         # Extract file path and layer name (supports both | and :: separators)
         actual_file_path, layer_name = decode_file_layer(value)
         file_path = Path(actual_file_path)
-        
+
         if not file_path.exists():
             raise ValueError(f"File not found: {actual_file_path}")
         if not file_path.is_file():
             raise ValueError(f"Path is not a file: {actual_file_path}")
-        
+
         return value
 
     def _validate_directory(self, value, param_def):
         """Validate directory exists and is accessible."""
         variable = param_def.get("variable", "unknown")
-        
+
         if not isinstance(value, str):
             raise ValueError(f"Parameter '{variable}' must be a directory path string")
-        
+
         dir_path = Path(value)
-        
+
         if not dir_path.exists():
             raise ValueError(f"Directory not found: {value}")
         if not dir_path.is_dir():
             raise ValueError(f"Path is not a directory: {value}")
-        
+
         return value
 
     def _validate_text(self, value, param_def):
         """Validate and convert to text/string type."""
         variable = param_def.get("variable", "unknown")
-        
+
         if not isinstance(value, str):
             try:
                 value = str(value)
             except Exception:
                 raise ValueError(f"Parameter '{variable}' must be text/string")
-        
+
         return value
 
     def _validate_list(self, value, param_def):
@@ -646,7 +801,7 @@ class BTData(object):
         subtype = param_def.get("subtype", "")
         variable = param_def.get("variable", "unknown")
         allowed_values = param_def.get("data", [])
-        
+
         # Convert to correct type based on subtype
         if subtype == "bool":
             value = self._convert_bool(value, variable)
@@ -654,13 +809,13 @@ class BTData(object):
             value = self._convert_int(value, variable)
         elif subtype == "float":
             value = self._convert_float(value, variable)
-        
+
         # Validate against allowed values
         if value not in allowed_values:
             raise ValueError(
                 f"Parameter '{variable}' value '{value}' not in allowed options: {allowed_values}"
             )
-        
+
         return value
 
     def _convert_bool(self, value, variable):
@@ -743,7 +898,7 @@ class BTData(object):
     def get_bera_tool_params(self, tool_name):
         new_param_whole = {"parameters": []}
         tool = {}
-        
+
         # Find tool in beratools.json
         if self.bera_tools and "toolbox" in self.bera_tools:
             for toolbox in self.bera_tools["toolbox"]:
