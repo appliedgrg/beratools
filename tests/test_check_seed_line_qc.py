@@ -2,6 +2,7 @@ import geopandas as gpd
 import pytest
 from shapely.geometry import GeometryCollection, LineString, Point, box
 import json
+import sqlite3
 from pathlib import Path
 
 import beratools.core.constants as bt_const
@@ -219,7 +220,9 @@ def test_check_seed_line_early_return_writes_empty_output(tmp_path, monkeypatch)
     monkeypatch.setattr(csl.sp_common, "raster_crs", lambda *_args, **_kwargs: object())
     monkeypatch.setattr(csl.sp_common, "compare_crs", lambda *_args, **_kwargs: True)
     monkeypatch.setattr(
-        csl, "generate_raster_footprint", lambda *_args, **_kwargs: Point(100.0, 100.0).buffer(100.0)
+        csl.algo_common,
+        "generate_raster_footprint",
+        lambda *_args, **_kwargs: Point(100.0, 100.0).buffer(100.0),
     )
 
     csl.check_seed_line(
@@ -248,7 +251,9 @@ def test_check_seed_line_merge_guard_assigns_unique_bt_group(tmp_path, monkeypat
     monkeypatch.setattr(csl.sp_common, "raster_crs", lambda *_args, **_kwargs: object())
     monkeypatch.setattr(csl.sp_common, "compare_crs", lambda *_args, **_kwargs: True)
     monkeypatch.setattr(
-        csl, "generate_raster_footprint", lambda *_args, **_kwargs: Point(0.0, 0.0).buffer(50.0)
+        csl.algo_common,
+        "generate_raster_footprint",
+        lambda *_args, **_kwargs: Point(0.0, 0.0).buffer(50.0),
     )
 
     csl.check_seed_line(
@@ -273,12 +278,16 @@ def test_clip_to_chm_footprint_shrink_is_meters_for_geographic_crs(monkeypatch):
     )
 
     monkeypatch.setattr(
-        csl, "generate_raster_footprint", lambda *_args, **_kwargs: box(-0.001, -0.001, 0.001, 0.001)
+        csl.algo_common,
+        "generate_raster_footprint",
+        lambda *_args, **_kwargs: box(-0.001, -0.001, 0.001, 0.001),
     )
 
-    out = csl._clip_to_chm_footprint(gdf, in_raster="dummy.tif", shrink_m=15.0)
+    out, rejected, footprint = csl._clip_to_chm_footprint(gdf, in_raster="dummy.tif", shrink_m=15.0)
 
     assert not out.empty
+    assert rejected.empty
+    assert footprint is not None
     clipped = out.geometry.iloc[0]
     assert clipped.length > 0
     assert clipped.bounds[0] > -0.001
@@ -293,7 +302,7 @@ def test_clip_to_chm_footprint_geographic_overshrink_raises(monkeypatch):
     )
 
     monkeypatch.setattr(
-        csl,
+        csl.algo_common,
         "generate_raster_footprint",
         lambda *_args, **_kwargs: box(-0.00005, -0.00005, 0.00005, 0.00005),
     )
@@ -317,7 +326,11 @@ def test_check_seed_line_minimum_length_geographic_uses_meters(tmp_path, monkeyp
     monkeypatch.setattr(csl.sp_common, "vector_crs", lambda *_args, **_kwargs: object())
     monkeypatch.setattr(csl.sp_common, "raster_crs", lambda *_args, **_kwargs: object())
     monkeypatch.setattr(csl.sp_common, "compare_crs", lambda *_args, **_kwargs: True)
-    monkeypatch.setattr(csl, "_clip_to_chm_footprint", lambda gdf, *_args, **_kwargs: gdf)
+    monkeypatch.setattr(
+        csl,
+        "_clip_to_chm_footprint",
+        lambda gdf, *_args, **_kwargs: (gdf, gdf.iloc[0:0].copy(), Point(0.0, 0.0).buffer(1.0)),
+    )
 
     csl.check_seed_line(
         in_line=f"{in_gpkg.as_posix()}|seed_lines",
@@ -402,7 +415,7 @@ def test_pipeline_runs_snap_before_split(tmp_path, monkeypatch):
     call_order = []
 
     def _fake_clip(gdf, *_args, **_kwargs):
-        return gdf
+        return gdf, gdf.iloc[0:0].copy(), Point(0.0, 0.0).buffer(1.0)
 
     def _fake_snap(gdf, *_args, **_kwargs):
         call_order.append("snap")
@@ -425,6 +438,131 @@ def test_pipeline_runs_snap_before_split(tmp_path, monkeypatch):
     )
 
     assert call_order == ["snap", "split"]
+
+
+def test_check_seed_line_writes_qc_doc_tables(tmp_path, monkeypatch):
+    in_gpkg = _write_seed_input(
+        tmp_path,
+        [
+            LineString([(0.0, 0.0), (1.0, 0.0)]),
+            LineString([(100.0, 100.0), (101.0, 100.0)]),
+        ],
+        data={"id": [1, 2]},
+    )
+    out_gpkg = tmp_path / "seed_output.gpkg"
+
+    monkeypatch.setattr(csl.sp_common, "vector_crs", lambda *_args, **_kwargs: object())
+    monkeypatch.setattr(csl.sp_common, "raster_crs", lambda *_args, **_kwargs: object())
+    monkeypatch.setattr(csl.sp_common, "compare_crs", lambda *_args, **_kwargs: True)
+    monkeypatch.setattr(
+        csl.algo_common,
+        "generate_raster_footprint",
+        lambda *_args, **_kwargs: box(-20.0, -20.0, 20.0, 20.0),
+    )
+
+    csl.check_seed_line(
+        in_line=f"{in_gpkg.as_posix()}|seed_lines",
+        in_raster="dummy.tif",
+        out_line=f"{out_gpkg.as_posix()}|seed_checked",
+        group_lines=False,
+        clip_to_chm_footprint=True,
+    )
+
+    aux_gpkg = out_gpkg.with_stem(out_gpkg.stem + "_aux")
+    with sqlite3.connect(aux_gpkg.as_posix()) as conn:
+        tables = {row[0] for row in conn.execute("SELECT table_name FROM gpkg_contents")}
+        assert "qc_manifest" in tables
+        assert "qc_run_summary" in tables
+
+        manifest_rows = conn.execute(
+            "SELECT layer_name, feature_count, written FROM qc_manifest WHERE layer_name='qc_removed_clipped'"
+        ).fetchall()
+        assert len(manifest_rows) == 1
+        assert manifest_rows[0][1] >= 1
+        assert manifest_rows[0][2] == 1
+
+
+def test_check_seed_line_accounts_input_cleanup_in_manifest(tmp_path):
+    in_gpkg = _write_seed_input(
+        tmp_path,
+        [
+            LineString([(0.0, 0.0), (1.0, 0.0)]),
+            None,
+        ],
+        data={"id": [1, 2]},
+    )
+    out_gpkg = tmp_path / "seed_output.gpkg"
+
+    csl.check_seed_line(
+        in_line=f"{in_gpkg.as_posix()}|seed_lines",
+        in_raster="",
+        out_line=f"{out_gpkg.as_posix()}|seed_checked",
+        clip_to_chm_footprint=False,
+        group_lines=False,
+    )
+
+    out = gpd.read_file(out_gpkg, layer="seed_checked")
+    assert len(out) == 1
+
+    aux_gpkg = out_gpkg.with_stem(out_gpkg.stem + "_aux")
+    with sqlite3.connect(aux_gpkg.as_posix()) as conn:
+        row = conn.execute(
+            "SELECT feature_count, written FROM qc_manifest WHERE layer_name='qc_removed_input_cleanup'"
+        ).fetchone()
+        assert row is not None
+        assert row[0] == 1
+        assert row[1] == 1
+
+
+def test_check_seed_line_overwrites_qc_tables_on_rerun(tmp_path, monkeypatch):
+    in_gpkg = _write_seed_input(
+        tmp_path,
+        [
+            LineString([(0.0, 0.0), (1.0, 0.0)]),
+            LineString([(100.0, 100.0), (101.0, 100.0)]),
+        ],
+        data={"id": [1, 2]},
+    )
+    out_gpkg = tmp_path / "seed_output.gpkg"
+
+    monkeypatch.setattr(csl.sp_common, "vector_crs", lambda *_args, **_kwargs: object())
+    monkeypatch.setattr(csl.sp_common, "raster_crs", lambda *_args, **_kwargs: object())
+    monkeypatch.setattr(csl.sp_common, "compare_crs", lambda *_args, **_kwargs: True)
+    monkeypatch.setattr(
+        csl.algo_common,
+        "generate_raster_footprint",
+        lambda *_args, **_kwargs: box(-20.0, -20.0, 20.0, 20.0),
+    )
+
+    csl.check_seed_line(
+        in_line=f"{in_gpkg.as_posix()}|seed_lines",
+        in_raster="dummy.tif",
+        out_line=f"{out_gpkg.as_posix()}|seed_checked",
+        clip_to_chm_footprint=False,
+        group_lines=False,
+    )
+
+    csl.check_seed_line(
+        in_line=f"{in_gpkg.as_posix()}|seed_lines",
+        in_raster="dummy.tif",
+        out_line=f"{out_gpkg.as_posix()}|seed_checked",
+        clip_to_chm_footprint=True,
+        group_lines=False,
+    )
+
+    aux_gpkg = out_gpkg.with_stem(out_gpkg.stem + "_aux")
+    with sqlite3.connect(aux_gpkg.as_posix()) as conn:
+        summary_count = conn.execute("SELECT COUNT(*) FROM qc_run_summary").fetchone()[0]
+        output_count = conn.execute("SELECT output_feature_count FROM qc_run_summary").fetchone()[0]
+        clipped = conn.execute(
+            "SELECT feature_count, written FROM qc_manifest WHERE layer_name='qc_removed_clipped'"
+        ).fetchone()
+
+    assert summary_count == 1
+    assert output_count == 1
+    assert clipped is not None
+    assert clipped[0] >= 1
+    assert clipped[1] == 1
 
 
 def test_schema_marks_chm_shrink_as_optional():

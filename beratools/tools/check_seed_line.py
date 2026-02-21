@@ -16,6 +16,7 @@ Description:
 import logging
 import math
 import time
+from datetime import datetime, timezone
 from dataclasses import dataclass
 
 import geopandas as gpd
@@ -24,8 +25,8 @@ from shapely import ops as sh_ops
 from shapely.geometry import LineString, Point
 
 import beratools.core.constants as bt_const
+import beratools.core.algo_common as algo_common
 import beratools.utility.spatial_common as sp_common
-from beratools.core.algo_common import generate_raster_footprint
 from beratools.core.logger import Logger
 from beratools.utility.tool_args import CallMode
 
@@ -205,11 +206,17 @@ def _geometry_length_meters(geom, unit_ctx):
 
 def _clean_line_geometries_min_length_m(line_gdf, min_length_m):
     if line_gdf is None:
-        return line_gdf
+        return line_gdf, None
     if line_gdf.empty:
-        return line_gdf
+        return line_gdf.copy(), line_gdf.copy()
 
-    out = line_gdf[~line_gdf.geometry.isna() & ~line_gdf.geometry.is_empty]
+    valid_mask = ~line_gdf.geometry.isna() & ~line_gdf.geometry.is_empty
+    out = line_gdf[valid_mask]
+    rejected = line_gdf[~valid_mask].copy()
+
+    if out.empty:
+        return out.reset_index(drop=True), rejected.reset_index(drop=True)
+
     crs = _require_crs(out, "Minimum line length (m)")
 
     reference_geom = out.unary_union.envelope
@@ -218,14 +225,27 @@ def _clean_line_geometries_min_length_m(line_gdf, min_length_m):
 
     if unit_ctx["is_geographic"]:
         mask = out.geometry.apply(lambda geom: _geometry_length_meters(geom, unit_ctx) > min_len_m)
-        return out[mask]
+        kept = out[mask]
+        removed_short = out[~mask]
+    else:
+        min_len_native = max(_meters_to_native_units(min_len_m, unit_ctx), bt_const.SMALL_BUFFER)
+        kept = out[out.geometry.length > min_len_native]
+        removed_short = out[~(out.geometry.length > min_len_native)]
 
-    min_len_native = max(_meters_to_native_units(min_len_m, unit_ctx), bt_const.SMALL_BUFFER)
-    return out[out.geometry.length > min_len_native]
+    if rejected.empty:
+        rejected = removed_short.copy()
+    elif not removed_short.empty:
+        rejected = gpd.GeoDataFrame(
+            [*rejected.to_dict("records"), *removed_short.to_dict("records")],
+            columns=line_gdf.columns,
+            crs=line_gdf.crs,
+        )
+
+    return kept.reset_index(drop=True), rejected.reset_index(drop=True)
 
 
 def _clip_to_chm_footprint(gdf, in_raster, shrink_m):
-    footprint = generate_raster_footprint(in_raster, latlon=False)
+    footprint = algo_common.generate_raster_footprint(in_raster, latlon=False)
     if footprint is None or footprint.is_empty:
         raise ValueError("Unable to build CHM footprint from input raster.")
 
@@ -244,21 +264,26 @@ def _clip_to_chm_footprint(gdf, in_raster, shrink_m):
     if shrunken is None or shrunken.is_empty:
         raise ValueError("CHM footprint became empty after inward shrink; reduce 'CHM footprint shrink (m)'.")
 
-    records = []
+    clipped_records = []
+    rejected_records = []
     for _, row in gdf.iterrows():
         geom = row.geometry
         if geom is None or geom.is_empty:
+            rejected_records.append(row.to_dict())
             continue
 
         clipped = geom.intersection(shrunken)
         if clipped is None or clipped.is_empty:
+            rejected_records.append(row.to_dict())
             continue
 
         rec = row.to_dict()
         rec["geometry"] = clipped
-        records.append(rec)
+        clipped_records.append(rec)
 
-    return gpd.GeoDataFrame(records, columns=gdf.columns, crs=gdf.crs)
+    clipped_gdf = gpd.GeoDataFrame(clipped_records, columns=gdf.columns, crs=gdf.crs)
+    rejected_gdf = gpd.GeoDataFrame(rejected_records, columns=gdf.columns, crs=gdf.crs)
+    return clipped_gdf, rejected_gdf, shrunken
 
 
 def _parse_line_id(raw_id):
@@ -628,13 +653,141 @@ def check_seed_line(
 
     in_file, in_layer = sp_common.decode_file_layer(in_line)
     out_file, out_layer = sp_common.decode_file_layer(out_line)
+    aux_file = algo_common.get_aux_path(out_file)
+
+    qc_manifest = {
+        "qc_removed_input_cleanup": {
+            "layer_name": "qc_removed_input_cleanup",
+            "step": 0,
+            "step_name": "input cleanup",
+            "reason": "Invalid, null, or empty geometries removed during input hygiene",
+            "feature_count": 0,
+            "written": 0,
+            "notes": "not triggered",
+        },
+        "qc_removed_cleanup": {
+            "layer_name": "qc_removed_cleanup",
+            "step": 2,
+            "step_name": "geometry cleanup",
+            "reason": "Null, empty, or too-short lines removed in cleanup",
+            "feature_count": 0,
+            "written": 0,
+            "notes": "not triggered",
+        },
+        "qc_removed_short": {
+            "layer_name": "qc_removed_short",
+            "step": 3,
+            "step_name": "short line removal",
+            "reason": "Lines below user minimum length",
+            "feature_count": 0,
+            "written": 0,
+            "notes": "disabled",
+        },
+        "qc_removed_clipped": {
+            "layer_name": "qc_removed_clipped",
+            "step": 4,
+            "step_name": "CHM footprint clipping",
+            "reason": "Lines outside shrunken CHM footprint",
+            "feature_count": 0,
+            "written": 0,
+            "notes": "not triggered",
+        },
+        "chm_footprint": {
+            "layer_name": "chm_footprint",
+            "step": 4,
+            "step_name": "CHM footprint clipping",
+            "reason": "Shrunken CHM footprint used for clipping",
+            "feature_count": 0,
+            "written": 0,
+            "notes": "not triggered",
+        },
+        "qc_removed_post_clip": {
+            "layer_name": "qc_removed_post_clip",
+            "step": 5,
+            "step_name": "post-clip normalize + cleanup",
+            "reason": "Fragments removed after clipping and normalization",
+            "feature_count": 0,
+            "written": 0,
+            "notes": "not triggered",
+        },
+        "qc_removed_final": {
+            "layer_name": "qc_removed_final",
+            "step": 11,
+            "step_name": "final cleanup",
+            "reason": "Remaining invalid/empty/too-short lines",
+            "feature_count": 0,
+            "written": 0,
+            "notes": "not triggered",
+        },
+    }
+
+    def _mark_layer(layer_name, layer_gdf, notes=None):
+        if layer_name not in qc_manifest:
+            return
+        count = 0 if layer_gdf is None else len(layer_gdf)
+        qc_manifest[layer_name]["feature_count"] = int(count)
+        qc_manifest[layer_name]["written"] = 1 if count > 0 else 0
+        qc_manifest[layer_name]["notes"] = notes or ("written" if count > 0 else "empty")
+        if count > 0:
+            algo_common.save_aux_layer(layer_gdf, out_file, layer_name)
+
+    def _has_rows(layer_gdf):
+        return layer_gdf is not None and hasattr(layer_gdf, "empty") and not layer_gdf.empty
+
+    def _ensure_gdf(obj, fallback_crs):
+        if isinstance(obj, gpd.GeoDataFrame):
+            return obj
+        return gpd.GeoDataFrame(obj, crs=fallback_crs)
+
+    def _persist_qc_tables(input_count, output_count):
+        manifest_rows = [qc_manifest[key] for key in qc_manifest.keys()]
+        algo_common.save_aux_table(manifest_rows, out_file, "qc_manifest", overwrite=True)
+        summary_row = {
+            "tool_name": "check_seed_line",
+            "run_timestamp_utc": datetime.now(timezone.utc).isoformat(),
+            "input_line": in_line,
+            "input_raster": in_raster,
+            "output_line": out_line,
+            "aux_gpkg": aux_file,
+            "clip_to_chm_footprint": int(config.clip_to_chm_footprint),
+            "chm_footprint_shrink_m": float(config.chm_footprint_shrink),
+            "remove_short_lines": int(config.remove_short_lines),
+            "minimum_line_length_m": float(config.minimum_line_length),
+            "snap_close_endpoints": int(config.snap_close_endpoints),
+            "snap_tolerance_m": float(config.snap_tolerance),
+            "group_lines": int(config.group_lines),
+            "merge_by_group": int(config.merge_by_group),
+            "densify_long_lines": int(config.densify_long_lines),
+            "max_segment_length_m": float(config.max_segment_length),
+            "input_feature_count": int(input_count),
+            "output_feature_count": int(output_count),
+        }
+        algo_common.save_aux_table([summary_row], out_file, "qc_run_summary", overwrite=True)
 
     if config.clip_to_chm_footprint and in_raster:
         if not sp_common.compare_crs(sp_common.vector_crs(in_file), sp_common.raster_crs(in_raster)):
             raise ValueError("Input line and raster CRS do not match.")
 
     gdf = gpd.read_file(in_file, layer=in_layer)
-    logger.info("Seed line QC start: %s feature(s)", len(gdf))
+    input_count = len(gdf)
+    gdf = algo_common.clean_geometries(
+        gdf,
+        stage="input",
+        out_file=out_file,
+        layer="qc_removed_input_cleanup",
+    ).reset_index(drop=True)
+    input_cleanup_removed_count = input_count - len(gdf)
+    qc_manifest["qc_removed_input_cleanup"]["feature_count"] = int(max(input_cleanup_removed_count, 0))
+    qc_manifest["qc_removed_input_cleanup"]["written"] = 1 if input_cleanup_removed_count > 0 else 0
+    qc_manifest["qc_removed_input_cleanup"]["notes"] = (
+        "written" if input_cleanup_removed_count > 0 else "empty"
+    )
+
+    logger.info(
+        "Seed line QC start: %s feature(s), input cleanup removed %s feature(s)",
+        len(gdf),
+        input_cleanup_removed_count,
+    )
 
     step_name = "qc_merge_multilinestring"
     in_count = len(gdf)
@@ -642,25 +795,33 @@ def check_seed_line(
     gdf = qc_merge_multilinestring(gdf)
     _log_step(1, step_name, in_count, len(gdf), _elapsed(t0))
     if _bail_if_empty(gdf, step_name, out_file, out_layer, in_count):
+        _persist_qc_tables(input_count, 0)
         return
 
     step_name = "geometry cleanup"
     in_count = len(gdf)
     t0 = _step_timer()
-    gdf = _clean_line_geometries_min_length_m(gdf, bt_const.SMALL_BUFFER).reset_index(drop=True)
+    gdf, removed_gdf = _clean_line_geometries_min_length_m(gdf, bt_const.SMALL_BUFFER)
+    gdf = gdf.reset_index(drop=True)
+    _mark_layer("qc_removed_cleanup", removed_gdf, notes="written" if _has_rows(removed_gdf) else "empty")
     _log_step(2, step_name, in_count, len(gdf), _elapsed(t0))
     if _bail_if_empty(gdf, step_name, out_file, out_layer, in_count):
+        _persist_qc_tables(input_count, 0)
         return
 
     step_name = "short line removal"
     in_count = len(gdf)
     if config.remove_short_lines:
         t0 = _step_timer()
-        gdf = _clean_line_geometries_min_length_m(gdf, config.minimum_line_length).reset_index(drop=True)
+        gdf, removed_gdf = _clean_line_geometries_min_length_m(gdf, config.minimum_line_length)
+        gdf = gdf.reset_index(drop=True)
+        _mark_layer("qc_removed_short", removed_gdf, notes="written" if _has_rows(removed_gdf) else "empty")
         _log_step(3, step_name, in_count, len(gdf), _elapsed(t0))
         if _bail_if_empty(gdf, step_name, out_file, out_layer, in_count):
+            _persist_qc_tables(input_count, 0)
             return
     else:
+        qc_manifest["qc_removed_short"]["notes"] = "disabled"
         _log_step(3, step_name, in_count, in_count, skipped_reason="disabled")
 
     step_name = "CHM footprint clipping"
@@ -668,25 +829,40 @@ def check_seed_line(
     if config.clip_to_chm_footprint:
         if in_raster:
             t0 = _step_timer()
-            gdf = _clip_to_chm_footprint(gdf, in_raster, config.chm_footprint_shrink)
+            gdf, removed_gdf, footprint = _clip_to_chm_footprint(gdf, in_raster, config.chm_footprint_shrink)
+            _mark_layer(
+                "qc_removed_clipped", removed_gdf, notes="written" if _has_rows(removed_gdf) else "empty"
+            )
+            footprint_gdf = gpd.GeoDataFrame(
+                [{"source": "chm_footprint_shrunken"}], geometry=[footprint], crs=gdf.crs
+            )
+            _mark_layer("chm_footprint", footprint_gdf, notes="written")
             _log_step(4, step_name, in_count, len(gdf), _elapsed(t0))
             if _bail_if_empty(gdf, step_name, out_file, out_layer, in_count):
+                _persist_qc_tables(input_count, 0)
                 return
         else:
+            qc_manifest["qc_removed_clipped"]["notes"] = "enabled but missing in_raster"
+            qc_manifest["chm_footprint"]["notes"] = "enabled but missing in_raster"
             logger.error(
                 "CHM footprint clipping enabled but 'in_raster' is missing; continuing without footprint clip."
             )
             _log_step(4, step_name, in_count, in_count, skipped_reason="enabled but missing in_raster")
     else:
+        qc_manifest["qc_removed_clipped"]["notes"] = "disabled"
+        qc_manifest["chm_footprint"]["notes"] = "disabled"
         _log_step(4, step_name, in_count, in_count, skipped_reason="disabled")
 
     step_name = "post-clip normalize + cleanup"
     in_count = len(gdf)
     t0 = _step_timer()
     gdf = _normalize_to_lines(gdf)
-    gdf = _clean_line_geometries_min_length_m(gdf, bt_const.SMALL_BUFFER).reset_index(drop=True)
+    gdf, removed_gdf = _clean_line_geometries_min_length_m(gdf, bt_const.SMALL_BUFFER)
+    gdf = gdf.reset_index(drop=True)
+    _mark_layer("qc_removed_post_clip", removed_gdf, notes="written" if _has_rows(removed_gdf) else "empty")
     _log_step(5, step_name, in_count, len(gdf), _elapsed(t0))
     if _bail_if_empty(gdf, step_name, out_file, out_layer, in_count):
+        _persist_qc_tables(input_count, 0)
         return
 
     step_name = "endpoint snapping"
@@ -699,6 +875,7 @@ def check_seed_line(
         gdf = _snap_close_endpoints(gdf, effective_tolerance).reset_index(drop=True)
         _log_step(6, step_name, in_count, len(gdf), _elapsed(t0))
         if _bail_if_empty(gdf, step_name, out_file, out_layer, in_count):
+            _persist_qc_tables(input_count, 0)
             return
     else:
         _log_step(6, step_name, in_count, in_count, skipped_reason="disabled")
@@ -706,9 +883,12 @@ def check_seed_line(
     step_name = "qc_split_lines_at_intersections"
     in_count = len(gdf)
     t0 = _step_timer()
-    gdf = qc_split_lines_at_intersections(gdf)
+    prev_crs = gdf.crs
+    split_out = qc_split_lines_at_intersections(gdf)
+    gdf = _ensure_gdf(split_out, prev_crs)
     _log_step(7, step_name, in_count, len(gdf), _elapsed(t0))
     if _bail_if_empty(gdf, step_name, out_file, out_layer, in_count):
+        _persist_qc_tables(input_count, 0)
         return
 
     step_name = "LineGrouping"
@@ -717,12 +897,13 @@ def check_seed_line(
         t0 = _step_timer()
         lg = LineGrouping(gdf, use_angle_grouping=config.use_angle_grouping)
         lg.run_grouping()
-        gdf = lg.lines.reset_index(drop=True)
+        gdf = _ensure_gdf(lg.lines, gdf.crs).reset_index(drop=True)
         _log_step(8, step_name, in_count, len(gdf), _elapsed(t0))
         if _bail_if_empty(gdf, step_name, out_file, out_layer, in_count):
+            _persist_qc_tables(input_count, 0)
             return
     else:
-        gdf = gdf.reset_index(drop=True)
+        gdf = _ensure_gdf(gdf, gdf.crs).reset_index(drop=True)
         gdf[bt_const.BT_GROUP] = list(range(len(gdf)))
         _log_step(8, step_name, in_count, len(gdf), skipped_reason="disabled; assigned unique BT_GROUP")
 
@@ -734,6 +915,7 @@ def check_seed_line(
         gdf = qc_merge_multilinestring(gdf).reset_index(drop=True)
         _log_step(9, step_name, in_count, len(gdf), _elapsed(t0))
         if _bail_if_empty(gdf, step_name, out_file, out_layer, in_count):
+            _persist_qc_tables(input_count, 0)
             return
     else:
         reason = "disabled"
@@ -748,12 +930,17 @@ def check_seed_line(
         gdf = _densify_long_lines(gdf, config.max_segment_length).reset_index(drop=True)
         _log_step(10, step_name, in_count, len(gdf), _elapsed(t0))
         if _bail_if_empty(gdf, step_name, out_file, out_layer, in_count):
+            _persist_qc_tables(input_count, 0)
             return
     else:
         _log_step(10, step_name, in_count, in_count, skipped_reason="disabled")
 
-    gdf = _clean_line_geometries_min_length_m(gdf, bt_const.SMALL_BUFFER).reset_index(drop=True)
+    gdf, removed_gdf = _clean_line_geometries_min_length_m(gdf, bt_const.SMALL_BUFFER)
+    gdf = gdf.reset_index(drop=True)
+    _mark_layer("qc_removed_final", removed_gdf, notes="written" if _has_rows(removed_gdf) else "empty")
+
     _write_output(gdf, out_file, out_layer)
+    _persist_qc_tables(input_count, len(gdf))
     print(f"Output saved to file: {out_file}, layer: {out_layer}")
 
 
