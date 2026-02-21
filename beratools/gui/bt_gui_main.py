@@ -640,9 +640,13 @@ class MainWindow(QtWidgets.QMainWindow):
             bt.show_advanced = True
             self.btn_advanced.setText("Hide Advanced Options")
 
+        self.tool_widget.show_advanced = bt.show_advanced
+
         for widget in self.tool_widget.widget_list:
             if widget.optional:
                 widget.setVisible(bt.show_advanced)
+
+        self.tool_widget._update_dependency_states()
 
         self.tool_widget.adjustSize()
         self.tool_widget.updateGeometry()

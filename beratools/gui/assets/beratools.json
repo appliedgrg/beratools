@@ -30,17 +30,22 @@
               "subtype": "raster",
               "default": "",
               "output": false,
-              "optional": true
+              "optional": true,
+              "depends_on": {
+                "variable": "clip_to_chm_footprint",
+                "condition": true,
+                "mode": "hide"
+              }
             },
             {
-              "variable": "chm_footprint_shrink",
-              "label": "CHM footprint shrink (m)",
-              "description": "Inward buffer distance applied to CHM footprint before clipping seed lines.",
-              "type": "number",
-              "subtype": "float",
-              "default": 15.0,
-              "output": false,
-              "optional": true
+              "variable": "out_line",
+              "label": "Output Seed Line",
+              "description": "Output Seed Line file.",
+              "type": "file",
+              "subtype": "vector",
+              "default": "",
+              "output": true,
+              "optional": false
             },
             {
               "variable": "clip_to_chm_footprint",
@@ -54,14 +59,20 @@
               "optional": true
             },
             {
-              "variable": "out_line",
-              "label": "Output Seed Line",
-              "description": "Output Seed Line file.",
-              "type": "file",
-              "subtype": "vector",
-              "default": "",
-              "output": true,
-              "optional": false
+              "variable": "chm_footprint_shrink",
+              "label": "CHM footprint shrink (m)",
+              "description": "Inward buffer distance applied to CHM footprint before clipping seed lines.",
+              "type": "number",
+              "subtype": "float",
+              "default": 15.0,
+              "output": false,
+              "optional": true,
+              "unit": "m",
+              "depends_on": {
+                "variable": "clip_to_chm_footprint",
+                "condition": true,
+                "mode": "inline"
+              }
             },
             {
               "variable": "remove_short_lines",
@@ -82,7 +93,13 @@
               "subtype": "float",
               "default": 5.0,
               "output": false,
-              "optional": true
+              "optional": true,
+              "unit": "m",
+              "depends_on": {
+                "variable": "remove_short_lines",
+                "condition": true,
+                "mode": "inline"
+              }
             },
             {
               "variable": "snap_close_endpoints",
@@ -103,7 +120,13 @@
               "subtype": "float",
               "default": 5.0,
               "output": false,
-              "optional": true
+              "optional": true,
+              "unit": "m",
+              "depends_on": {
+                "variable": "snap_close_endpoints",
+                "condition": true,
+                "mode": "inline"
+              }
             },
             {
               "variable": "group_lines",
@@ -125,7 +148,12 @@
               "data": [true, false],
               "default": false,
               "output": false,
-              "optional": true
+              "optional": true,
+              "depends_on": {
+                "variable": "group_lines",
+                "condition": true,
+                "mode": "hide"
+              }
             },
             {
               "variable": "densify_long_lines",
@@ -146,7 +174,13 @@
               "subtype": "float",
               "default": 500.0,
               "output": false,
-              "optional": true
+              "optional": true,
+              "unit": "m",
+              "depends_on": {
+                "variable": "densify_long_lines",
+                "condition": true,
+                "mode": "inline"
+              }
             }
           ]
         },

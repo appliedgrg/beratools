@@ -503,6 +503,8 @@ class BTData(object):
         try:
             about_text = "BERA Tools provide a series of tools developed by AppliedGRG lab.\n\n"
             about_text += self.ascii_art
+            version_info = get_app_version_info()
+            about_text += f"\nVersion: {version_info.get('version', 'unknown')}\n"
             return about_text
         except (OSError, ValueError) as err:
             return err
@@ -930,6 +932,10 @@ class BTData(object):
                     self._set_param_type_for_output(single_param, param)
 
                 single_param["description"] = param["description"]
+                if "depends_on" in param:
+                    single_param["depends_on"] = param["depends_on"]
+                if "unit" in param:
+                    single_param["unit"] = param["unit"]
 
                 single_param["default_value"] = param["default"]
                 single_param["optional"] = param.get("optional", False)
