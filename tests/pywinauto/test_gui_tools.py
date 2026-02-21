@@ -65,7 +65,7 @@ class TestMainWindowBasics:
         assert btn.exists(timeout=5)
 
     def test_help_button_exists(self, bera_app):
-        btn = bera_app.child_window(title="help", control_type="Button")
+        btn = bera_app.child_window(title="Tool Help", control_type="Button")
         assert btn.exists(timeout=5)
 
     def test_load_default_args_button_exists(self, bera_app):

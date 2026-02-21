@@ -13,9 +13,19 @@ from PyQt5.QtCore import Qt
 from PyQt5.QtWidgets import QMessageBox, QPushButton
 
 from beratools.gui import bt_data
-from tests.pytest_qt.conftest import ALL_TOOL_NAMES, SIGNAL_TIMEOUT
 
 pytestmark = pytest.mark.gui_qt
+
+SIGNAL_TIMEOUT = 2000
+ALL_TOOL_NAMES = [
+    "Check Seed Lines",
+    "Vertex Optimization",
+    "Centerline",
+    "Canopy Footprint (Absolute Threshold)",
+    "Canopy Footprint (Relative Threshold)",
+    "Ground Footprint",
+    "Feature Buffer",
+]
 
 
 # ---------------------------------------------------------------------------
@@ -56,7 +66,7 @@ class TestButtons:
             "Cancel",
             "Exit",
             "Show Advanced Options",
-            "help",
+            "Tool Help",
             "Load Default Arguments",
         ],
     )
@@ -172,7 +182,7 @@ class TestButtonInteractions:
         assert main_window.isVisible()
 
     def test_help_click_opens_current_tool_url(self, main_window, qtbot):
-        help_btn = _get_button_by_text(main_window, "help")
+        help_btn = _get_button_by_text(main_window, "Tool Help")
         tech_link = main_window.get_current_tool_parameters()["tech_link"]
         if isinstance(tech_link, list):
             expected_url = str(tech_link[0]) if tech_link else ""
@@ -183,6 +193,34 @@ class TestButtonInteractions:
             qtbot.mouseClick(help_btn, Qt.LeftButton)
 
         mock_open.assert_called_once_with(expected_url)
+
+
+class TestHelpMenu:
+    def test_help_menu_exists_with_actions(self, main_window):
+        assert main_window.help_menu is not None
+        action_texts = [action.text() for action in main_window.help_menu.actions()]
+        assert "BERA Tools Guide" in action_texts
+        assert "About BERA Tools" in action_texts
+
+    def test_guide_action_opens_global_url(self, main_window):
+        expected_url = bt_data.get_global_docs_url()
+        with patch("webbrowser.open_new_tab") as mock_open:
+            main_window.action_bera_tools_guide.trigger()
+
+        mock_open.assert_called_once_with(expected_url)
+
+    def test_about_action_opens_dialog_with_version_info(self, main_window):
+        with patch("beratools.gui.bt_gui_main.QtWidgets.QMessageBox.about") as mock_about:
+            main_window.action_about_bera_tools.trigger()
+
+        assert mock_about.called
+        message_text = mock_about.call_args.args[2]
+        assert "BERA Tools" in message_text
+        assert "Version:" in message_text
+        assert "Python:" in message_text
+
+        version_part = message_text.split("Version:", 1)[1].splitlines()[0].strip()
+        assert version_part != ""
 
     def test_load_default_button_resets_widget_values(self, main_window, qtbot):
         from beratools.gui.tool_widgets import NumericInput

@@ -13,9 +13,19 @@ import pytest
 from PyQt5.QtCore import Qt
 
 from beratools.gui.tool_widgets import ToolWidgets
-from tests.pytest_qt.conftest import ALL_TOOL_NAMES, SIGNAL_TIMEOUT
 
 pytestmark = pytest.mark.gui_qt
+
+SIGNAL_TIMEOUT = 2000
+ALL_TOOL_NAMES = [
+    "Check Seed Lines",
+    "Vertex Optimization",
+    "Centerline",
+    "Canopy Footprint (Absolute Threshold)",
+    "Canopy Footprint (Relative Threshold)",
+    "Ground Footprint",
+    "Feature Buffer",
+]
 
 
 # ---------------------------------------------------------------------------

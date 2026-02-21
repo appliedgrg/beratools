@@ -15,6 +15,7 @@ Description:
 
 import json
 import os
+import platform
 import shlex
 import sys
 import webbrowser
@@ -353,6 +354,10 @@ class MainWindow(QtWidgets.QMainWindow):
         self.script_dir = os.path.dirname(os.path.realpath(__file__))
         self.title = "BERA Tools"
         self.setWindowTitle(self.title)
+        self.help_menu = None
+        self.action_bera_tools_guide = None
+        self.action_about_bera_tools = None
+        self._create_help_menu()
         self.working_dir = bt.work_dir
         self.tool_api = None
         self.tool_name = "Centerline"
@@ -414,15 +419,15 @@ class MainWindow(QtWidgets.QMainWindow):
         label.setFont(QtGui.QFont("Consolas", 14))
         self.btn_advanced = QtWidgets.QPushButton("Show Advanced Options")
         self.btn_advanced.setFixedWidth(180)
-        btn_help = QtWidgets.QPushButton("help")
-        btn_help.setFixedWidth(100)
+        self.btn_tool_help = QtWidgets.QPushButton("Tool Help")
+        self.btn_tool_help.setFixedWidth(100)
 
         self.btn_layout_top = QtWidgets.QHBoxLayout()
         self.btn_layout_top.setAlignment(QtCore.Qt.AlignRight)
         self.btn_layout_top.addWidget(label)
         self.btn_layout_top.addStretch(1)
         self.btn_layout_top.addWidget(self.btn_advanced)
-        self.btn_layout_top.addWidget(btn_help)
+        self.btn_layout_top.addWidget(self.btn_tool_help)
 
         # ToolWidgets
         tool_args = bt.get_bera_tool_args(self.tool_name)
@@ -482,7 +487,7 @@ class MainWindow(QtWidgets.QMainWindow):
 
         # signals and slots
         self.btn_advanced.clicked.connect(self.show_advanced)
-        btn_help.clicked.connect(self.show_help)
+        self.btn_tool_help.clicked.connect(self.show_help)
         btn_default_args.clicked.connect(self.load_default_args)
         self.btn_run.clicked.connect(self.start_process)
         btn_cancel.clicked.connect(self.stop_process)
@@ -491,6 +496,19 @@ class MainWindow(QtWidgets.QMainWindow):
         widget = QtWidgets.QWidget(self)
         widget.setLayout(page_layout)
         self.setCentralWidget(widget)
+
+    def _create_help_menu(self):
+        menu_bar = self.menuBar()
+        self.help_menu = menu_bar.addMenu("Help")
+
+        self.action_bera_tools_guide = QtWidgets.QAction("BERA Tools Guide", self)
+        self.action_about_bera_tools = QtWidgets.QAction("About BERA Tools", self)
+
+        self.action_bera_tools_guide.triggered.connect(self.open_global_guide)
+        self.action_about_bera_tools.triggered.connect(self.show_about_dialog)
+
+        self.help_menu.addAction(self.action_bera_tools_guide)
+        self.help_menu.addAction(self.action_about_bera_tools)
 
     def closeEvent(self, event):
         self.cancel_op = True
@@ -557,6 +575,32 @@ class MainWindow(QtWidgets.QMainWindow):
             else:
                 tech_link = ""
         webbrowser.open_new_tab(str(tech_link))
+
+    def open_global_guide(self):
+        webbrowser.open_new_tab(bt_data.get_global_docs_url())
+
+    def show_about_dialog(self):
+        version_info = bt_data.get_app_version_info()
+        git_revision = version_info.get("git_revision") or "n/a"
+        release_type = "Release" if version_info.get("is_release") else "Development"
+
+        about_text = (
+            "BERA Tools\n"
+            "Applied Geospatial Research Group (AppliedGRG)\n\n"
+            "A suite of geospatial analysis tools for research and operations.\n\n"
+            f"Version: {version_info.get('version', 'unknown')}\n"
+            f"Short Version: {version_info.get('short_version', 'unknown')}\n"
+            f"Git Revision: {git_revision}\n"
+            f"Build Type: {release_type}\n\n"
+            f"Python: {sys.version.split()[0]}\n"
+            f"PyQt: {QtCore.PYQT_VERSION_STR}\n"
+            f"Qt: {QtCore.QT_VERSION_STR}\n"
+            f"OS: {platform.platform()}\n\n"
+            "License: GPL-3.0-or-later\n"
+            f"Project: {bt_data.get_global_docs_url()}\n"
+            "Credits: AppliedGRG / BERA"
+        )
+        QtWidgets.QMessageBox.about(self, "About BERA Tools", about_text)
 
     def print_about(self):
         self.text_edit.clear()
@@ -738,8 +782,6 @@ def runner():
     window.show()
 
     # Cross-platform tray icon (Windows: .ico, macOS: .png)
-    import platform
-
     if platform.system() == "Darwin":
         tray_icon_path = assets_path / "BERALogo.png"
     else:
