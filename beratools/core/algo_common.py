@@ -136,8 +136,18 @@ def clean_geometries(gdf, stage=None, out_file=None, layer=None):
         return gdf
 
     m_null = gdf.geometry.isna()
-    m_empty = gdf.geometry.apply(lambda geom: False if geom is None else geom.is_empty)
-    m_invalid = (~gdf.geometry.is_valid) & ~m_null & ~m_empty
+
+    m_empty = m_null.copy()
+    m_empty[:] = False
+    non_null_mask = ~m_null
+    if non_null_mask.any():
+        m_empty.loc[non_null_mask] = gdf.geometry.loc[non_null_mask].is_empty
+
+    m_invalid = m_null.copy()
+    m_invalid[:] = False
+    valid_candidate_mask = non_null_mask & ~m_empty
+    if valid_candidate_mask.any():
+        m_invalid.loc[valid_candidate_mask] = ~gdf.geometry.loc[valid_candidate_mask].is_valid
 
     rejected_mask = m_invalid | m_null | m_empty
     if not rejected_mask.any():

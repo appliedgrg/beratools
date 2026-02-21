@@ -1,4 +1,5 @@
 import geopandas as gpd
+import numpy as np
 import pandas as pd
 import shapely.geometry as sh_geom
 
@@ -235,3 +236,31 @@ def test_footprint_canopy_init_handles_rejected_geometry(monkeypatch):
     canopy = FootprintCanopy("dummy.gpkg|lines", "dummy.tif")
 
     assert len(canopy.lines) == 2
+
+
+def test_clean_geometries_handles_na_sentinels():
+    gdf = gpd.GeoDataFrame(
+        {"id": [1, 2, 3]},
+        geometry=[pd.NA, np.nan, sh_geom.LineString([(0.0, 0.0), (1.0, 0.0)])],
+        crs="EPSG:3857",
+    )
+
+    out = algo_common.clean_geometries(gdf, stage="input")
+
+    assert out is not None
+    assert len(out) == 1
+    assert out.iloc[0]["id"] == 3
+
+
+def test_clean_geometries_handles_na_and_empty_mix():
+    gdf = gpd.GeoDataFrame(
+        {"id": [1, 2, 3]},
+        geometry=[pd.NA, sh_geom.GeometryCollection(), sh_geom.LineString([(0.0, 0.0), (1.0, 0.0)])],
+        crs="EPSG:3857",
+    )
+
+    out = algo_common.clean_geometries(gdf, stage="input")
+
+    assert out is not None
+    assert len(out) == 1
+    assert out.iloc[0]["id"] == 3
