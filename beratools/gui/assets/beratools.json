@@ -93,7 +93,13 @@
               "subtype": "float",
               "default": 5.0,
               "output": false,
-              "optional": true
+              "optional": true,
+              "unit": "m",
+              "depends_on": {
+                "variable": "remove_short_lines",
+                "condition": true,
+                "mode": "inline"
+              }
             },
             {
               "variable": "snap_close_endpoints",
@@ -114,7 +120,13 @@
               "subtype": "float",
               "default": 5.0,
               "output": false,
-              "optional": true
+              "optional": true,
+              "unit": "m",
+              "depends_on": {
+                "variable": "snap_close_endpoints",
+                "condition": true,
+                "mode": "inline"
+              }
             },
             {
               "variable": "group_lines",
@@ -136,7 +148,12 @@
               "data": [true, false],
               "default": false,
               "output": false,
-              "optional": true
+              "optional": true,
+              "depends_on": {
+                "variable": "group_lines",
+                "condition": true,
+                "mode": "hide"
+              }
             },
             {
               "variable": "densify_long_lines",
@@ -157,7 +174,13 @@
               "subtype": "float",
               "default": 500.0,
               "output": false,
-              "optional": true
+              "optional": true,
+              "unit": "m",
+              "depends_on": {
+                "variable": "densify_long_lines",
+                "condition": true,
+                "mode": "inline"
+              }
             }
           ]
         },
