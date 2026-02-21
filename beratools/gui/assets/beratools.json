@@ -23,26 +23,6 @@
               "optional": false
             },
             {
-              "variable": "in_raster",
-              "label": "CHM Raster",
-              "description": "Input CHM raster used for seed line QC clipping.",
-              "type": "file",
-              "subtype": "raster",
-              "default": "",
-              "output": false,
-              "optional": true
-            },
-            {
-              "variable": "chm_footprint_shrink",
-              "label": "CHM footprint shrink (m)",
-              "description": "Inward buffer distance applied to CHM footprint before clipping seed lines.",
-              "type": "number",
-              "subtype": "float",
-              "default": 15.0,
-              "output": false,
-              "optional": true
-            },
-            {
               "variable": "clip_to_chm_footprint",
               "label": "Clip to CHM footprint",
               "description": "Clip seed lines to CHM footprint after inward shrink.",
@@ -52,6 +32,37 @@
               "default": true,
               "output": false,
               "optional": true
+            },
+            {
+              "variable": "in_raster",
+              "label": "CHM Raster",
+              "description": "Input CHM raster used for seed line QC clipping.",
+              "type": "file",
+              "subtype": "raster",
+              "default": "",
+              "output": false,
+              "optional": true,
+              "depends_on": {
+                "variable": "clip_to_chm_footprint",
+                "condition": true,
+                "mode": "hide"
+              }
+            },
+            {
+              "variable": "chm_footprint_shrink",
+              "label": "CHM footprint shrink (m)",
+              "description": "Inward buffer distance applied to CHM footprint before clipping seed lines.",
+              "type": "number",
+              "subtype": "float",
+              "default": 15.0,
+              "output": false,
+              "optional": true,
+              "unit": "m",
+              "depends_on": {
+                "variable": "clip_to_chm_footprint",
+                "condition": true,
+                "mode": "inline"
+              }
             },
             {
               "variable": "out_line",

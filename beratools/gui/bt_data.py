@@ -930,6 +930,10 @@ class BTData(object):
                     self._set_param_type_for_output(single_param, param)
 
                 single_param["description"] = param["description"]
+                if "depends_on" in param:
+                    single_param["depends_on"] = param["depends_on"]
+                if "unit" in param:
+                    single_param["unit"] = param["unit"]
 
                 single_param["default_value"] = param["default"]
                 single_param["optional"] = param.get("optional", False)

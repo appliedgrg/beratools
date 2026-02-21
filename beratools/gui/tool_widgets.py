@@ -37,12 +37,16 @@ class ToolWidgets(QtWidgets.QWidget):
         self.show_advanced = show_advanced
         self.current_tool_api = ""
         self.widget_list = []
+        self.ui_widget_list = []
+        self.widgets_by_variable = {}
+        self._depends_on_specs = {}
+        self._inline_controllers = {}
         self.setWindowTitle("Tool widgets")
 
         self.create_widgets(tool_args)
         layout = QtWidgets.QVBoxLayout()
 
-        for item in self.widget_list:
+        for item in self.ui_widget_list:
             layout.addWidget(item)
 
         self.save_button = QtWidgets.QPushButton("Save Parameters")
@@ -68,7 +72,6 @@ class ToolWidgets(QtWidgets.QWidget):
         return args
 
     def create_widgets(self, tool_args):
-        param_num = 0
         valid_types = {"number", "file", "list", "text", "directory"}
         for p in tool_args:
             # Validate parameter type is not a subtype value
@@ -83,13 +86,10 @@ class ToolWidgets(QtWidgets.QWidget):
 
             if "ExistingFile" in pt or "NewFile" in pt or "Directory" in pt:
                 widget = FileSelector(json_str, None)
-                param_num = param_num + 1
             elif "FileList" in pt:
                 widget = MultiFileSelector(json_str, None)
-                param_num = param_num + 1
             elif "Boolean" in pt:
                 widget = BooleanInput(json_str)
-                param_num = param_num + 1
             elif "OptionList" in pt:
                 option_list = p["parameter_type"].get("OptionList", [])
                 # Check if OptionList contains only boolean values (handle both string and bool types)
@@ -103,10 +103,8 @@ class ToolWidgets(QtWidgets.QWidget):
                     widget = BooleanInput(json_str)
                 else:
                     widget = OptionsInput(json_str)
-                param_num = param_num + 1
             elif "float" in pt or "int" in pt:
                 widget = NumericInput(json_str)
-                param_num = param_num + 1
             else:
                 msg_box = QtWidgets.QMessageBox()
                 msg_box.setIcon(QtWidgets.QMessageBox.Warning)
@@ -130,6 +128,11 @@ class ToolWidgets(QtWidgets.QWidget):
 
             # hide optional widgets
             if widget:
+                self._set_widget_tooltip(widget)
+                widget.depends_on = p.get("depends_on")
+                widget.unit = p.get("unit", "")
+                self.widgets_by_variable[widget.variable] = widget
+
                 if widget.optional and widget.label:
                     widget.label.setStyleSheet(
                         "QtWidgets.QLabel { background-color : transparent; color : blue; }"
@@ -140,6 +143,7 @@ class ToolWidgets(QtWidgets.QWidget):
 
             self.widget_list.append(widget)
 
+        self._configure_widget_dependencies()
         self._clear_output_paths_for_missing_input_history()
 
     @staticmethod
@@ -193,6 +197,185 @@ class ToolWidgets(QtWidgets.QWidget):
     def load_default_args(self):
         for item in self.widget_list:
             item.set_default_value()
+
+    def _set_widget_tooltip(self, widget):
+        description = getattr(widget, "description", "")
+        if description:
+            widget.setToolTip(description)
+
+    def _configure_widget_dependencies(self):
+        self.ui_widget_list = [widget for widget in self.widget_list if widget]
+        self._depends_on_specs = {}
+        self._inline_controllers = {}
+
+        for widget in self.widget_list:
+            if not widget:
+                continue
+
+            depends_on = getattr(widget, "depends_on", None)
+            if not isinstance(depends_on, dict):
+                continue
+
+            mode = depends_on.get("mode", "hide")
+            controller_vars = []
+            if "conditions" in depends_on:
+                for condition in depends_on.get("conditions", []):
+                    variable = condition.get("variable")
+                    if variable:
+                        controller_vars.append(variable)
+            else:
+                controller_var = depends_on.get("variable")
+                if controller_var:
+                    controller_vars.append(controller_var)
+
+            if not controller_vars or widget.variable in controller_vars:
+                print(f"[Warning] Invalid depends_on for '{widget.variable}'. Widget will remain visible.")
+                continue
+
+            controller_widgets = []
+            missing_vars = []
+            for controller_var in controller_vars:
+                controller_widget = self.widgets_by_variable.get(controller_var)
+                if controller_widget is None:
+                    missing_vars.append(controller_var)
+                else:
+                    controller_widgets.append(controller_widget)
+
+            if missing_vars:
+                print(
+                    f"[Warning] Missing depends_on controller(s) {missing_vars} for '{widget.variable}'. Widget will remain visible."
+                )
+                continue
+
+            if mode == "inline":
+                if "conditions" in depends_on or len(controller_vars) != 1:
+                    print(
+                        f"[Warning] Inline depends_on for '{widget.variable}' requires exactly one controller variable. Widget remains separate."
+                    )
+                elif controller_vars[0] in self._inline_controllers:
+                    print(
+                        f"[Warning] Multiple inline dependents for '{controller_vars[0]}' are not supported. '{widget.variable}' remains separate."
+                    )
+                elif self._attach_inline_widget(controller_widgets[0], widget):
+                    self._inline_controllers[controller_vars[0]] = widget.variable
+                    if widget in self.ui_widget_list:
+                        self.ui_widget_list.remove(widget)
+
+            self._depends_on_specs[widget.variable] = depends_on
+            for controller_widget in controller_widgets:
+                self._connect_widget_change_signal(controller_widget, self._update_dependency_states)
+
+        self._update_dependency_states()
+
+    def _attach_inline_widget(self, controller_widget, dependent_widget):
+        controller_layout = self._get_widget_layout(controller_widget)
+        if controller_layout is None:
+            return False
+
+        dependent_widget.set_inline_mode(getattr(dependent_widget, "unit", ""))
+        insert_index = controller_layout.count()
+        if insert_index > 0:
+            last_item = controller_layout.itemAt(insert_index - 1)
+            if last_item and last_item.spacerItem() is not None:
+                insert_index -= 1
+        controller_layout.insertWidget(insert_index, dependent_widget)
+        return True
+
+    @staticmethod
+    def _get_widget_layout(widget):
+        layout_obj = getattr(widget, "layout", None)
+        if isinstance(layout_obj, QtWidgets.QLayout):
+            return layout_obj
+        if callable(layout_obj):
+            return layout_obj()
+        return None
+
+    @staticmethod
+    def _connect_widget_change_signal(widget, callback):
+        if getattr(widget, "_depends_on_signal_connected", False):
+            return
+
+        if isinstance(widget, BooleanInput):
+            widget.checkbox.stateChanged.connect(callback)
+            widget._depends_on_signal_connected = True
+            return
+
+        if isinstance(widget, OptionsInput):
+            widget.combobox.currentIndexChanged.connect(callback)
+            widget._depends_on_signal_connected = True
+            return
+
+        if isinstance(widget, NumericInput):
+            if widget.data_input is not None:
+                widget.data_input.valueChanged.connect(callback)
+                widget._depends_on_signal_connected = True
+                return
+
+        if isinstance(widget, FileSelector):
+            widget.in_file.textChanged.connect(callback)
+            widget._depends_on_signal_connected = True
+
+    def _get_widget_value(self, variable):
+        widget = self.widgets_by_variable.get(variable)
+        if widget is None:
+            return None
+        value_dict = widget.get_value()
+        if isinstance(value_dict, dict):
+            return value_dict.get(variable)
+        return value_dict
+
+    @staticmethod
+    def _value_matches_condition(current_value, expected_value):
+        if isinstance(expected_value, bool) and isinstance(current_value, str):
+            return (current_value.lower() in ("true", "1", "yes", "on")) == expected_value
+        return current_value == expected_value
+
+    def _resolve_depends_on(self, widget, depends_on):
+        if "conditions" in depends_on:
+            logic = depends_on.get("logic", "or").lower()
+            conditions = depends_on.get("conditions", [])
+            results = []
+            for condition in conditions:
+                variable = condition.get("variable")
+                expected = condition.get("condition")
+                current = self._get_widget_value(variable)
+                results.append(self._value_matches_condition(current, expected))
+            if logic == "and":
+                return all(results)
+            return any(results)
+
+        variable = depends_on.get("variable")
+        expected = depends_on.get("condition")
+        current = self._get_widget_value(variable)
+        return self._value_matches_condition(current, expected)
+
+    def _update_dependency_states(self, *_):
+        visibility_changed = False
+        for variable, depends_on in self._depends_on_specs.items():
+            widget = self.widgets_by_variable.get(variable)
+            if widget is None:
+                continue
+
+            is_active = self._resolve_depends_on(widget, depends_on)
+            mode = depends_on.get("mode", "hide")
+            if mode == "inline":
+                widget.setEnabled(is_active)
+            else:
+                was_visible = widget.isVisible()
+                if not self.show_advanced and widget.optional:
+                    widget.setVisible(False)
+                else:
+                    widget.setVisible(is_active)
+                if was_visible != widget.isVisible():
+                    visibility_changed = True
+
+        if visibility_changed:
+            current_layout = self.layout()
+            if current_layout is not None:
+                current_layout.invalidate()
+            self.adjustSize()
+            self.updateGeometry()
+            self.update()
 
 
 def get_layers(gpkg_file):
@@ -327,6 +510,10 @@ class FileSelector(QtWidgets.QWidget):
         self.layer_combo = QtWidgets.QComboBox()
         self.layer_combo.setVisible(False)
         self.layer_combo.currentTextChanged.connect(self.set_layer)
+        self.label.setToolTip(self.description)
+        self.in_file.setToolTip(self.description)
+        self.btn_select.setToolTip(self.description)
+        self.layer_combo.setToolTip(self.description)
         self.layout.addWidget(self.label)
         self.layout.addWidget(self.in_file)
         self.layout.addWidget(self.layer_combo)
@@ -349,6 +536,9 @@ class FileSelector(QtWidgets.QWidget):
                 self.layer_combo.setVisible(False)
         self.in_file.textChanged.connect(self.file_name_edited)
         self.update_combo_visibility()
+
+    def set_inline_mode(self, unit=""):
+        self.label.setVisible(False)
 
     def _reset_layer_state(self, clear_cache=False, visible=False, editable=False):
         self.layer_combo.clear()
@@ -709,6 +899,8 @@ class OptionsInput(QtWidgets.QWidget):
         self.label.setMinimumWidth(BT_LABEL_MIN_WIDTH)
         self.combobox = QtWidgets.QComboBox()
         self.combobox.currentIndexChanged.connect(self.selection_change)
+        self.label.setToolTip(self.description)
+        self.combobox.setToolTip(self.description)
 
         i = 1
         default_index = -1
@@ -730,6 +922,9 @@ class OptionsInput(QtWidgets.QWidget):
         self.layout.addWidget(self.label)
         self.layout.addWidget(self.combobox)
         self.setLayout(self.layout)
+
+    def set_inline_mode(self, unit=""):
+        self.label.setVisible(False)
 
     def selection_change(self, i):
         self.value = self.option_list[i]
@@ -761,6 +956,7 @@ class NumericInput(QtWidgets.QWidget):
         self.variable = params["variable"]
         self.parameter_type = params["parameter_type"]
         self.optional = params["optional"]
+        self.unit = params.get("unit", "")
         self.default_value = params["default_value"]
         self.value = self.default_value
         if "saved_value" in params.keys():
@@ -768,6 +964,8 @@ class NumericInput(QtWidgets.QWidget):
         self.label = QtWidgets.QLabel(self.name)
         self.label.setMinimumWidth(BT_LABEL_MIN_WIDTH)
         self.data_input = None
+        self.unit_label = QtWidgets.QLabel(self.unit)
+        self.unit_label.setVisible(bool(self.unit))
         subtypes = []
         if isinstance(self.parameter_type, list):
             subtypes = self.parameter_type
@@ -802,7 +1000,18 @@ class NumericInput(QtWidgets.QWidget):
         self.layout = QtWidgets.QHBoxLayout()
         self.layout.addWidget(self.label)
         self.layout.addWidget(self.data_input)
+        self.layout.addWidget(self.unit_label)
+        self.label.setToolTip(self.description)
+        self.data_input.setToolTip(self.description)
+        self.unit_label.setToolTip(self.description)
         self.setLayout(self.layout)
+
+    def set_inline_mode(self, unit=""):
+        self.label.setVisible(False)
+        if unit:
+            self.unit = unit
+            self.unit_label.setText(unit)
+            self.unit_label.setVisible(True)
 
     def update_value(self):
         if self.data_input is not None:
@@ -854,14 +1063,18 @@ class BooleanInput(QtWidgets.QWidget):
         self.value = self._convert_to_bool(self.default_value)
         if "saved_value" in params.keys():
             self.value = self._convert_to_bool(params["saved_value"])
-        self.checkbox = QtWidgets.QCheckBox(f"{self.name} - {self.description}")
+        self.checkbox = QtWidgets.QCheckBox(self.name)
         self.checkbox.setChecked(self.value)
+        self.checkbox.setToolTip(self.description)
         self.checkbox.stateChanged.connect(self.update_value)
         self.label = self.checkbox  # Reference checkbox as label for styling
         self.layout = QtWidgets.QHBoxLayout()
         self.layout.addWidget(self.checkbox)
         self.layout.addStretch()
         self.setLayout(self.layout)
+
+    def set_inline_mode(self, unit=""):
+        return
 
     def _detect_boolean_source(self, params):
         """Determine if this is pure Boolean or OptionList boolean."""
