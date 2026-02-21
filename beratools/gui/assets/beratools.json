@@ -30,7 +30,7 @@
               "subtype": "raster",
               "default": "",
               "output": false,
-              "optional": false
+              "optional": true
             },
             {
               "variable": "chm_footprint_shrink",
@@ -39,6 +39,17 @@
               "type": "number",
               "subtype": "float",
               "default": 15.0,
+              "output": false,
+              "optional": true
+            },
+            {
+              "variable": "clip_to_chm_footprint",
+              "label": "Clip to CHM footprint",
+              "description": "Clip seed lines to CHM footprint after inward shrink.",
+              "type": "list",
+              "subtype": "bool",
+              "data": [true, false],
+              "default": true,
               "output": false,
               "optional": true
             },

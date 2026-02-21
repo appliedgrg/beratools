@@ -7,7 +7,7 @@
 - normalize multipart lines to `LineString`
 - remove invalid/empty/degenerate geometries
 - optionally remove short lines
-- clip lines to CHM valid-data footprint (with inward shrink)
+- optionally clip lines to CHM valid-data footprint (with inward shrink)
 - optionally snap close endpoints (endpoint-only, directed snap)
 - split lines at intersections
 - optionally group lines and merge by group
@@ -25,7 +25,8 @@
 
 - **Seed Line**: Input seed line file
 - **CHM Raster**: Input raster used to build a valid-data footprint for clipping
-- **CHM footprint shrink (m)**: Inward buffer distance in meters applied before clipping (default `15`). Geographic CRS inputs are converted to a local meter-based projection for this step.
+- **CHM footprint shrink (m)**: Inward buffer distance in meters applied before clipping (default `15`). Geographic CRS inputs are converted to a local meter-based projection for this step. See shrink-distance guide below.
+- **Clip to CHM footprint**: Enable/disable footprint clipping step (default `true`). If enabled and CHM raster is missing, clipping is skipped with an error message.
 - **Output Seed Line**: Output seed line file
 - **Remove short lines**: Enable removal of short segments
 - **Minimum line length (m)**: Threshold in meters for short-line removal (default `5`). Geographic CRS inputs are evaluated in a local meter-based projection for this step.
@@ -41,5 +42,15 @@
 - Input vector and CHM raster should use the same CRS.
 - Works with line data (not points or polygons).
 - If clipping removes all lines, the output may be empty.
+- CHM footprint is generated from raster valid-data cells at raster resolution, so edge boundaries are approximate and can be less accurate.
+- After clipping, visually inspect edge segments and verify that clipped seed lines still match expected line extents.
 - Optional numeric parameters remain visible in the GUI; toggle logic is enforced in backend processing.
 - If CHM footprint shrink is too large, processing fails with guidance to reduce the shrink distance.
+
+## CHM footprint shrink distance guide
+
+- Start with a shrink distance near `1x` to `2x` CHM pixel size (for example, with `1 m` CHM use `1-2 m`; with `5 m` CHM use `5-10 m`).
+- Increase shrink distance when noisy raster edges keep creating false edge segments.
+- Decrease shrink distance when valid lines near canopy boundaries are being clipped too aggressively.
+- For high-resolution CHM, prefer smaller values (`0.5-5 m`) and adjust gradually.
+- For coarser CHM, larger values may be needed, but always verify edge areas visually in the output.
