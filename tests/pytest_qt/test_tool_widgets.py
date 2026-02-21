@@ -93,6 +93,10 @@ class TestNumericInputFloat:
         w = make_numeric_input(self.PARAM)
         assert isinstance(w.data_input, QDoubleSpinBox)
 
+    def test_spinbox_decimals(self, make_numeric_input):
+        w = make_numeric_input(self.PARAM)
+        assert w.data_input.decimals() == 2
+
 
 # ---------------------------------------------------------------------------
 # BooleanInput

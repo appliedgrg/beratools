@@ -786,7 +786,7 @@ class NumericInput(QtWidgets.QWidget):
         elif main_subtype == "float":
             self.data_input = QtWidgets.QDoubleSpinBox()
             self.data_input.setRange(-1e12, 1e12)
-            self.data_input.setDecimals(6)
+            self.data_input.setDecimals(2)
         else:
             if main_subtype is not None:
                 raise ValueError(f"Unsupported parameter type: {main_subtype}")
