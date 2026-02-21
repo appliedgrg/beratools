@@ -28,7 +28,7 @@ import shapely.affinity as sh_aff
 import shapely.geometry as sh_geom
 import shapely.ops as sh_ops
 import skimage.graph as sk_graph
-from osgeo import gdal
+from osgeo import gdal, ogr
 from scipy import ndimage
 
 import beratools.core.algo_cost as algo_cost
@@ -115,6 +115,95 @@ def save_aux_layer(gdf, out_file, layer):
         gdf.to_file(aux_file, layer=layer)
     except Exception as exc:
         logger.warning("Failed saving aux layer '%s' to %s: %s", layer, aux_file, exc)
+
+
+def _infer_ogr_field_type(value):
+    if isinstance(value, bool):
+        return ogr.OFTInteger
+    if isinstance(value, int):
+        return ogr.OFTInteger64
+    if isinstance(value, float):
+        return ogr.OFTReal
+    return ogr.OFTString
+
+
+def save_aux_table(rows, out_file, table, overwrite=True):
+    if out_file is None or table is None:
+        return
+
+    if rows is None:
+        rows = []
+
+    if isinstance(rows, dict):
+        rows = [rows]
+
+    if not isinstance(rows, list):
+        logger.warning("Skipping aux table '%s': rows must be a list of dicts.", table)
+        return
+
+    normalized_rows = []
+    columns = []
+    for row in rows:
+        if not isinstance(row, dict):
+            logger.warning("Skipping aux table row for '%s': expected dict, got %s.", table, type(row))
+            continue
+        normalized_rows.append(row)
+        for key in row.keys():
+            if key not in columns:
+                columns.append(key)
+
+    aux_file = get_aux_path(out_file)
+    try:
+        driver = ogr.GetDriverByName("GPKG")
+        if driver is None:
+            raise RuntimeError("OGR GeoPackage driver is unavailable.")
+
+        ds = driver.Open(aux_file, 1)
+        if ds is None:
+            ds = driver.CreateDataSource(aux_file)
+        if ds is None:
+            raise RuntimeError(f"Unable to open or create GeoPackage: {aux_file}")
+
+        if overwrite and ds.GetLayerByName(table) is not None:
+            ds.DeleteLayer(table)
+
+        layer = ds.GetLayerByName(table)
+        if layer is None:
+            layer = ds.CreateLayer(table, geom_type=ogr.wkbNone)
+
+        layer_defn = layer.GetLayerDefn()
+        existing_fields = [layer_defn.GetFieldDefn(i).GetName() for i in range(layer_defn.GetFieldCount())]
+
+        for col in columns:
+            if col in existing_fields:
+                continue
+
+            sample_value = None
+            for row in normalized_rows:
+                if row.get(col) is not None:
+                    sample_value = row[col]
+                    break
+
+            field_type = _infer_ogr_field_type(sample_value)
+            field_defn = ogr.FieldDefn(col, field_type)
+            layer.CreateField(field_defn)
+
+        layer_defn = layer.GetLayerDefn()
+        for row in normalized_rows:
+            feature = ogr.Feature(layer_defn)
+            for col in columns:
+                value = row.get(col)
+                if isinstance(value, bool):
+                    value = int(value)
+                if value is None:
+                    continue
+                feature.SetField(col, value)
+            layer.CreateFeature(feature)
+            feature = None
+
+        ds = None
+    except Exception as exc:
+        logger.warning("Failed saving aux table '%s' to %s: %s", table, aux_file, exc)
 
 
 def clean_geometries(gdf, stage=None, out_file=None, layer=None):
