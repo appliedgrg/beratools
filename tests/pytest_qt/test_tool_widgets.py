@@ -460,6 +460,15 @@ class TestFileSelectorDialogInteraction:
 
 class TestFileSelectorLayerComboInteraction:
     VECTOR_PARAM = TestFileSelectorVector.PARAM
+    VECTOR_LINE_PARAM = {
+        "name": "Seed Line",
+        "description": "Input seed line file.",
+        "variable": "in_line",
+        "parameter_type": {"ExistingFile": ["vector", "line"]},
+        "optional": False,
+        "default_value": "",
+        "output": False,
+    }
 
     def test_vector_gpkg_populates_layer_combo_and_updates_layer(
         self, make_file_selector, patched_layers, qtbot, tmp_path
@@ -513,6 +522,78 @@ class TestFileSelectorLayerComboInteraction:
         w.in_file.setText("input.geojson")
 
         assert w.layer_combo.isHidden()
+
+    def test_gpkg_filters_layers_by_restricted_geometry(
+        self, make_file_selector, patched_layers, qtbot, tmp_path
+    ):
+        gpkg = str(tmp_path / "input.gpkg")
+        Path(gpkg).write_text("", encoding="utf-8")
+        patched_layers.return_value = {
+            "centerline": "MultiLineString",
+            "footprint": "Polygon",
+        }
+
+        w = make_file_selector(self.VECTOR_LINE_PARAM)
+        w.in_file.setText(gpkg)
+
+        qtbot.waitUntil(lambda: not w.layer_combo.isHidden(), timeout=SIGNAL_TIMEOUT)
+        assert w.layer_combo.count() == 1
+        assert "centerline" in w.layer_combo.itemText(0)
+        assert "footprint" not in w.layer_combo.itemText(0)
+
+    def test_gpkg_no_compatible_layers_blocks_required_input(
+        self, make_file_selector, patched_layers, qtbot, tmp_path
+    ):
+        gpkg = str(tmp_path / "input.gpkg")
+        Path(gpkg).write_text("", encoding="utf-8")
+        patched_layers.return_value = {"footprint": "Polygon"}
+
+        w = make_file_selector(self.VECTOR_LINE_PARAM)
+        w.in_file.setText(gpkg)
+
+        qtbot.waitUntil(lambda: not w.layer_combo.isHidden(), timeout=SIGNAL_TIMEOUT)
+        assert w.layer_combo.itemText(0) == "(No compatible layers)"
+        assert "No compatible layers" in w.input_geometry_error
+        assert w.get_value()["in_line"] == ""
+
+    def test_shapefile_geometry_mismatch_sets_warning_and_blocks(self, make_file_selector, tmp_path):
+        shp = str(tmp_path / "input.shp")
+        Path(shp).write_text("", encoding="utf-8")
+
+        w = make_file_selector(self.VECTOR_LINE_PARAM)
+        with patch("beratools.gui.tool_widgets.pyogrio.read_info") as mock_read_info:
+            mock_read_info.return_value = {"geometry_type": "Polygon"}
+            w.in_file.setText(shp)
+
+        assert "Geometry mismatch" in w.input_geometry_error
+        assert w.get_value()["in_line"] == ""
+
+    def test_layer_popup_width_updates_for_longer_names(
+        self, make_file_selector, patched_layers, qtbot, tmp_path
+    ):
+        short_gpkg = str(tmp_path / "short.gpkg")
+        long_gpkg = str(tmp_path / "long.gpkg")
+        Path(short_gpkg).write_text("", encoding="utf-8")
+        Path(long_gpkg).write_text("", encoding="utf-8")
+
+        w = make_file_selector(self.VECTOR_LINE_PARAM)
+
+        patched_layers.return_value = {"a": "LineString"}
+        w.in_file.setText(short_gpkg)
+        qtbot.waitUntil(lambda: w.layer_combo.count() > 0, timeout=SIGNAL_TIMEOUT)
+        short_width = w.layer_combo.view().minimumWidth()
+
+        patched_layers.return_value = {
+            "very_long_centerline_layer_name_for_testing_popup_width": "LineString"
+        }
+        w.in_file.setText(long_gpkg)
+        qtbot.waitUntil(
+            lambda: "very_long_centerline_layer_name" in w.layer_combo.itemText(0),
+            timeout=SIGNAL_TIMEOUT,
+        )
+        long_width = w.layer_combo.view().minimumWidth()
+
+        assert long_width > short_width
 
 
 # ---------------------------------------------------------------------------

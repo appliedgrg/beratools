@@ -17,7 +17,7 @@
               "label": "Seed Line",
               "description": "Input seed line file.",
               "type": "file",
-              "subtype": "vector",
+              "subtype": "vector|line",
               "default": "",
               "output": false,
               "optional": false
@@ -197,7 +197,7 @@
               "label": "Input Line",
               "description": "Input lines to optimize.",
               "type": "file",
-              "subtype": "vector",
+              "subtype": "vector|line",
               "default": "",
               "output": false,
               "optional": false
@@ -268,7 +268,7 @@
               "label": "Seed Line",
               "description": "Input seed lines.",
               "type": "file",
-              "subtype": "vector",
+              "subtype": "vector|line",
               "default": "",
               "output": false,
               "optional": false
@@ -329,7 +329,7 @@
               "label": "Centerline",
               "description": "Input centerline file.",
               "type": "file",
-              "subtype": "vector",
+              "subtype": "vector|line",
               "default": "",
               "output": false,
               "optional": false
@@ -399,7 +399,7 @@
               "label": "Centerline",
               "description": "Input line file.",
               "type": "file",
-              "subtype": "vector",
+              "subtype": "vector|line",
               "default": "",
               "output": false,
               "optional": false
@@ -540,7 +540,7 @@
               "label": "Centerline",
               "description": "Input centerline file.",
               "type": "file",
-              "subtype": "vector",
+              "subtype": "vector|line",
               "default": "",
               "output": false,
               "optional": false
@@ -550,7 +550,7 @@
               "label": "Input Footprint",
               "description": "Input footprint.",
               "type": "file",
-              "subtype": "vector",
+              "subtype": "vector|polygon",
               "default": "",
               "output": false,
               "optional": false
