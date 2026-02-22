@@ -568,6 +568,33 @@ class TestFileSelectorLayerComboInteraction:
         assert "Geometry mismatch" in w.input_geometry_error
         assert w.get_value()["in_line"] == ""
 
+    def test_layer_popup_width_updates_for_longer_names(
+        self, make_file_selector, patched_layers, qtbot, tmp_path
+    ):
+        short_gpkg = str(tmp_path / "short.gpkg")
+        long_gpkg = str(tmp_path / "long.gpkg")
+        Path(short_gpkg).write_text("", encoding="utf-8")
+        Path(long_gpkg).write_text("", encoding="utf-8")
+
+        w = make_file_selector(self.VECTOR_LINE_PARAM)
+
+        patched_layers.return_value = {"a": "LineString"}
+        w.in_file.setText(short_gpkg)
+        qtbot.waitUntil(lambda: w.layer_combo.count() > 0, timeout=SIGNAL_TIMEOUT)
+        short_width = w.layer_combo.view().minimumWidth()
+
+        patched_layers.return_value = {
+            "very_long_centerline_layer_name_for_testing_popup_width": "LineString"
+        }
+        w.in_file.setText(long_gpkg)
+        qtbot.waitUntil(
+            lambda: "very_long_centerline_layer_name" in w.layer_combo.itemText(0),
+            timeout=SIGNAL_TIMEOUT,
+        )
+        long_width = w.layer_combo.view().minimumWidth()
+
+        assert long_width > short_width
+
 
 # ---------------------------------------------------------------------------
 # ToolWidgets — construction and round-trip for all tools

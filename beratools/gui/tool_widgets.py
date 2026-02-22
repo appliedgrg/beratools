@@ -551,6 +551,8 @@ class FileSelector(QtWidgets.QWidget):
         self.btn_select = QtWidgets.QPushButton("...")
         self.btn_select.clicked.connect(self.select_file)
         self.layer_combo = QtWidgets.QComboBox()
+        self.layer_combo.setSizeAdjustPolicy(QtWidgets.QComboBox.AdjustToContents)
+        self.layer_combo.setSizePolicy(QtWidgets.QSizePolicy.Maximum, QtWidgets.QSizePolicy.Fixed)
         self.layer_combo.setVisible(False)
         self.layer_combo.currentTextChanged.connect(self.set_layer)
         self.label.setToolTip(self.description)
@@ -558,8 +560,8 @@ class FileSelector(QtWidgets.QWidget):
         self.btn_select.setToolTip(self.description)
         self.layer_combo.setToolTip(self.description)
         self.layout.addWidget(self.label)
-        self.layout.addWidget(self.in_file)
-        self.layout.addWidget(self.layer_combo)
+        self.layout.addWidget(self.in_file, 1)
+        self.layout.addWidget(self.layer_combo, 0)
         self.layout.addWidget(self.btn_select)
         self.setLayout(self.layout)
         # Populate combo box if vector and file exists
@@ -590,10 +592,28 @@ class FileSelector(QtWidgets.QWidget):
         self.layer_combo.setVisible(visible)
         self.layer_combo.setStyleSheet("")
         self.layer_combo.setToolTip("Select layer")
+        self.layer_combo.setMinimumWidth(0)
+        self.layer_combo.setMaximumWidth(16777215)
+        self.layer_combo.view().setMinimumWidth(0)
         QtWidgets.QToolTip.hideText()
         if clear_cache:
             self.gpkg_layers = None
             self.filtered_gpkg_layers = OrderedDict()
+
+    def _refresh_layer_combo_popup_width(self):
+        max_text_width = 0
+        metrics = self.layer_combo.fontMetrics()
+        for index in range(self.layer_combo.count()):
+            item_text = self.layer_combo.itemText(index)
+            max_text_width = max(max_text_width, metrics.horizontalAdvance(item_text))
+        if self.layer_combo.isEditable():
+            max_text_width = max(max_text_width, metrics.horizontalAdvance(self.layer_combo.currentText()))
+        widget_padding = 36
+        frame_and_scroll_padding = 48
+        combo_width = max(90, max_text_width + widget_padding)
+        popup_width = max(0, max_text_width + frame_and_scroll_padding)
+        self.layer_combo.setFixedWidth(combo_width)
+        self.layer_combo.view().setMinimumWidth(popup_width)
 
     def _set_input_geometry_warning(self, message):
         self.input_geometry_error = message
@@ -610,6 +630,7 @@ class FileSelector(QtWidgets.QWidget):
         self.layer_combo.setEditable(False)
         self.layer_combo.setVisible(True)
         self.layer_combo.addItem(self.NO_COMPATIBLE_LAYER_TEXT)
+        self._refresh_layer_combo_popup_width()
         model_item = self.layer_combo.model().item(0)
         if model_item is not None:
             model_item.setEnabled(False)
@@ -878,6 +899,7 @@ class FileSelector(QtWidgets.QWidget):
             else:
                 for layer_name, geometry_type in layers_for_combo.items():
                     self.layer_combo.addItem(f"{layer_name} ({geometry_type})")
+                self._refresh_layer_combo_popup_width()
 
             if self.selected_layer:
                 index = self.layer_combo.findText(self.selected_layer)
