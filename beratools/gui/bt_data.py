@@ -22,7 +22,15 @@ from collections import OrderedDict
 from importlib import metadata as importlib_metadata
 from pathlib import Path
 
+import pyogrio
+
 import beratools.core.constants as bt_const
+from beratools.gui.geometry_types import (
+    format_expected_families,
+    get_allowed_geometry_families,
+    is_geometry_compatible,
+    parse_subtype_tokens,
+)
 from beratools.utility.spatial_common import decode_file_layer
 from beratools.utility.tool_args import CallMode, determine_cpu_core_limit
 
@@ -767,6 +775,43 @@ class BTData(object):
             raise ValueError(f"File not found: {actual_file_path}")
         if not file_path.is_file():
             raise ValueError(f"Path is not a file: {actual_file_path}")
+
+        subtype_tokens = parse_subtype_tokens(param_def.get("subtype", []))
+        allowed_geometry_families = get_allowed_geometry_families(subtype_tokens)
+
+        if not allowed_geometry_families:
+            return value
+
+        expected_text = format_expected_families(allowed_geometry_families)
+        suffix = file_path.suffix.lower()
+
+        if suffix == ".gpkg":
+            if not layer_name:
+                raise ValueError(
+                    f"GeoPackage input for '{variable}' requires a layer when subtype expects {expected_text}"
+                )
+            try:
+                info = pyogrio.read_info(actual_file_path, layer=layer_name)
+                geometry_type = info.get("geometry_type")
+            except Exception:
+                raise ValueError(f"Layer '{layer_name}' not found in file: {actual_file_path}")
+
+            if not is_geometry_compatible(geometry_type, allowed_geometry_families):
+                detected = geometry_type if geometry_type else "Unknown"
+                raise ValueError(
+                    f"Geometry mismatch for layer '{layer_name}': expected {expected_text}, found {detected}"
+                )
+
+        elif suffix == ".shp":
+            try:
+                info = pyogrio.read_info(actual_file_path)
+                geometry_type = info.get("geometry_type")
+            except Exception as exc:
+                raise ValueError(f"Could not read shapefile geometry: {exc}")
+
+            if not is_geometry_compatible(geometry_type, allowed_geometry_families):
+                detected = geometry_type if geometry_type else "Unknown"
+                raise ValueError(f"Geometry mismatch: expected {expected_text}, found {detected}")
 
         return value
 

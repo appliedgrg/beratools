@@ -22,6 +22,13 @@ import pyogrio
 from numpy import ndarray
 from PyQt5 import QtCore, QtWidgets
 
+from beratools.gui.geometry_types import (
+    format_expected_families,
+    get_allowed_geometry_families,
+    is_geometry_compatible,
+    parse_subtype_tokens,
+)
+
 BT_LABEL_MIN_WIDTH = 130
 
 
@@ -434,12 +441,14 @@ class FileSelector(QtWidgets.QWidget):
     """FileSelector class for creating file selection widgets."""
 
     VECTOR_FORMATS = {"gpkg": ["vector"], "shp": ["vector"]}
+    NO_COMPATIBLE_LAYER_TEXT = "(No compatible layers)"
 
     @staticmethod
     def has_vector_subtype(param_type):
         if isinstance(param_type, dict):
             for v in param_type.values():
-                if isinstance(v, list) and "vector" in v:
+                tokens = parse_subtype_tokens(v)
+                if "vector" in tokens:
                     return True
         return False
 
@@ -470,11 +479,15 @@ class FileSelector(QtWidgets.QWidget):
             self.file_type = [self.file_type]
         elif not isinstance(self.file_type, list):
             self.file_type = list(self.file_type)
+        self.file_type = parse_subtype_tokens(self.file_type)
+        self.allowed_geometry_families = get_allowed_geometry_families(self.file_type)
 
         self.optional = params["optional"]
         self.default_value = params["default_value"]
         self.saved_value = params.get("saved_value", None)
         self.is_vector = self.has_vector_subtype(self.parameter_type)
+        self.input_geometry_error = ""
+        self.filtered_gpkg_layers = OrderedDict()
 
     def initialize_values(self):
         # Use dict for vector values
@@ -515,7 +528,7 @@ class FileSelector(QtWidgets.QWidget):
                 self.value = {"path": "", "layer": ""}
                 print(f"[Error] Invalid Input: Directory does not exist for file: {path}")
                 return
-            else:
+            elif ext == "gpkg":
                 try:
                     layers_dict = get_layers(path)
                     if layer:
@@ -580,6 +593,51 @@ class FileSelector(QtWidgets.QWidget):
         QtWidgets.QToolTip.hideText()
         if clear_cache:
             self.gpkg_layers = None
+            self.filtered_gpkg_layers = OrderedDict()
+
+    def _set_input_geometry_warning(self, message):
+        self.input_geometry_error = message
+        self.in_file.setStyleSheet("QLineEdit { background-color: #f8d7da; }")
+        self.in_file.setToolTip(message)
+
+    def _clear_input_geometry_warning(self):
+        self.input_geometry_error = ""
+        self.in_file.setStyleSheet("")
+        self.in_file.setToolTip(self.description)
+
+    def _set_no_compatible_layer_placeholder(self):
+        self.layer_combo.clear()
+        self.layer_combo.setEditable(False)
+        self.layer_combo.setVisible(True)
+        self.layer_combo.addItem(self.NO_COMPATIBLE_LAYER_TEXT)
+        model_item = self.layer_combo.model().item(0)
+        if model_item is not None:
+            model_item.setEnabled(False)
+
+    def _validate_shp_input_geometry(self, path):
+        if self.output or not self.allowed_geometry_families:
+            self._clear_input_geometry_warning()
+            return
+
+        file_path = Path(path)
+        if not file_path.exists():
+            self._clear_input_geometry_warning()
+            return
+
+        try:
+            info = pyogrio.read_info(str(file_path))
+            geometry_type = info.get("geometry_type")
+        except Exception as exc:
+            self._set_input_geometry_warning(f"Could not read shapefile geometry type: {exc}")
+            return
+
+        if is_geometry_compatible(geometry_type, self.allowed_geometry_families):
+            self._clear_input_geometry_warning()
+            return
+
+        expected = format_expected_families(self.allowed_geometry_families)
+        detected = geometry_type if geometry_type else "Unknown"
+        self._set_input_geometry_warning(f"Geometry mismatch: expected {expected}, found {detected}")
 
     def _set_default_output_layer(self):
         default_name = self._unique_layer_name("Result_layer")
@@ -589,6 +647,11 @@ class FileSelector(QtWidgets.QWidget):
         is_gpkg = bool(path) and path.lower().endswith(".gpkg")
         if not is_gpkg:
             self._reset_layer_state(clear_cache=True, visible=False, editable=False)
+            is_shp = bool(path) and path.lower().endswith(".shp")
+            if self.is_vector and not is_output and is_shp:
+                self._validate_shp_input_geometry(path)
+            else:
+                self._clear_input_geometry_warning()
             return
 
         if Path(path).exists():
@@ -602,6 +665,14 @@ class FileSelector(QtWidgets.QWidget):
                         self.layer_combo.setCurrentIndex(index)
             self.layer_combo.adjustSize()
             self._update_layer_overwrite_warning()
+            if self.is_vector and not is_output:
+                if self.layer_combo.currentText() == self.NO_COMPATIBLE_LAYER_TEXT:
+                    expected = format_expected_families(self.allowed_geometry_families)
+                    self._set_input_geometry_warning(
+                        f"No compatible layers found in GeoPackage (expected {expected})"
+                    )
+                else:
+                    self._clear_input_geometry_warning()
             return
 
         self._reset_layer_state(clear_cache=True, visible=bool(is_output), editable=bool(is_output))
@@ -611,6 +682,8 @@ class FileSelector(QtWidgets.QWidget):
                 self.layer_combo.setCurrentText(selected_layer)
             self.layer_combo.adjustSize()
             self._update_layer_overwrite_warning()
+        else:
+            self._clear_input_geometry_warning()
 
     def update_gpkg_combo(self, path, is_output, selected_layer):
         """Handle combo population and layer selection for vector paths."""
@@ -789,8 +862,22 @@ class FileSelector(QtWidgets.QWidget):
                     self.layer_combo.addItem(default_name)
                 self.layer_combo.setEditable(True)
 
-            for layer_name, geometry_type in self.gpkg_layers.items():
-                self.layer_combo.addItem(f"{layer_name} ({geometry_type})")
+            layers_for_combo = self.gpkg_layers
+            if not self.output and self.allowed_geometry_families:
+                self.filtered_gpkg_layers = OrderedDict(
+                    (layer_name, geometry_type)
+                    for layer_name, geometry_type in self.gpkg_layers.items()
+                    if is_geometry_compatible(geometry_type, self.allowed_geometry_families)
+                )
+                layers_for_combo = self.filtered_gpkg_layers
+            else:
+                self.filtered_gpkg_layers = self.gpkg_layers
+
+            if not self.output and not layers_for_combo and self.allowed_geometry_families:
+                self._set_no_compatible_layer_placeholder()
+            else:
+                for layer_name, geometry_type in layers_for_combo.items():
+                    self.layer_combo.addItem(f"{layer_name} ({geometry_type})")
 
             if self.selected_layer:
                 index = self.layer_combo.findText(self.selected_layer)
@@ -868,6 +955,9 @@ class FileSelector(QtWidgets.QWidget):
     def set_layer(self, layer):
         # For vector, update dict
         if self.is_vector:
+            if layer == self.NO_COMPATIBLE_LAYER_TEXT:
+                self.value["layer"] = ""
+                return
             # Remove geometry type if present
             if "(" in layer:
                 layer = layer.split(" (")[0]
@@ -881,9 +971,13 @@ class FileSelector(QtWidgets.QWidget):
         if self.is_vector:
             path = self.value.get("path", "")
             layer = self.value.get("layer", "")
+            if self.input_geometry_error and not self.output:
+                return {self.variable: ""}
             # If no layer selected but combo has items, use first layer
             if not layer and self.layer_combo.count() > 0:
                 first_layer = self.layer_combo.itemText(0)
+                if first_layer == self.NO_COMPATIBLE_LAYER_TEXT:
+                    return {self.variable: ""}
                 # Remove geometry type if present
                 if "(" in first_layer:
                     first_layer = first_layer.split(" (")[0]
