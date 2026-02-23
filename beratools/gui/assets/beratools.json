@@ -305,6 +305,17 @@
               "optional": false
             },
             {
+              "variable": "guided_strategy",
+              "label": "Centerline Mode",
+              "description": "Centerline extraction mode: main_route (default) or candidate endpoint guidance.",
+              "type": "list",
+              "subtype": "text",
+              "data": ["main_route", "candidate"],
+              "default": "main_route",
+              "output": false,
+              "optional": true
+            },
+            {
               "variable": "out_line",
               "label": "Output Centerline",
               "description": "Output centerline file.",

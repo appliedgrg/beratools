@@ -71,3 +71,33 @@ def test_validate_file_unrestricted_vector_allows_plain_path(tmp_path):
 
     value = bt._validate_file(str(gpkg), _param("vector"))
     assert value == str(gpkg)
+
+
+def test_validate_list_text_option_accepts_allowed_value():
+    bt = BTData()
+    param = {
+        "variable": "guided_strategy",
+        "type": "list",
+        "subtype": "text",
+        "data": ["main_route", "candidate"],
+        "optional": False,
+        "output": False,
+    }
+
+    value = bt.validate_tool_parameter("candidate", param)
+    assert value == "candidate"
+
+
+def test_validate_list_text_option_rejects_unknown_value():
+    bt = BTData()
+    param = {
+        "variable": "guided_strategy",
+        "type": "list",
+        "subtype": "text",
+        "data": ["main_route", "candidate"],
+        "optional": False,
+        "output": False,
+    }
+
+    with pytest.raises(ValueError, match="allowed options"):
+        bt.validate_tool_parameter("virtual", param)

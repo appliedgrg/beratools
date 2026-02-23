@@ -48,6 +48,8 @@ class CenterlineParams(float, enum.Enum):
     SIMPLIFY_LENGTH = 0.5
     SMOOTH_SIGMA = 0.8
     CLEANUP_POLYGON_BY_AREA = 1.0
+    ENDPOINT_ANCHOR_TOL = 1e-9
+    CANDIDATE_FALLBACK_MAX_SNAP = 2.0
 
 
 @enum.unique
@@ -93,7 +95,7 @@ def centerline_is_valid(centerline, input_line):
     return True
 
 
-def snap_end_to_end(in_line, line_reference):
+def snap_end_to_end(in_line, line_reference, max_snap_dist=None):
     if type(in_line) is sh_geom.MultiLineString:
         in_line = sh_ops.linemerge(in_line)
         if type(in_line) is sh_geom.MultiLineString:
@@ -112,6 +114,9 @@ def snap_end_to_end(in_line, line_reference):
     _, snap_start = sh_ops.nearest_points(line_start, ref_ends)
     _, snap_end = sh_ops.nearest_points(line_end, ref_ends)
 
+    start_dist = line_start.distance(snap_start)
+    end_dist = line_end.distance(snap_end)
+
     if in_line.has_z:
         snap_start = shapely.force_3d(snap_start)
         snap_end = shapely.force_3d(snap_end)
@@ -119,13 +124,81 @@ def snap_end_to_end(in_line, line_reference):
         snap_start = shapely.force_2d(snap_start)
         snap_end = shapely.force_2d(snap_end)
 
-    pts[0] = snap_start.coords[0]
-    pts[-1] = snap_end.coords[0]
+    if max_snap_dist is None or start_dist <= max_snap_dist:
+        pts[0] = snap_start.coords[0]
+    if max_snap_dist is None or end_dist <= max_snap_dist:
+        pts[-1] = snap_end.coords[0]
 
     return sh_geom.LineString(pts)
 
 
-def find_centerline(poly, input_line):
+def _is_endpoint_anchored(centerline, seed_line, tol=CenterlineParams.ENDPOINT_ANCHOR_TOL):
+    if centerline is None or seed_line is None:
+        return False
+
+    if not isinstance(centerline, sh_geom.LineString):
+        return False
+    if not isinstance(seed_line, sh_geom.LineString):
+        return False
+
+    cl_coords = list(centerline.coords)
+    seed_coords = list(seed_line.coords)
+    if len(cl_coords) < 2 or len(seed_coords) < 2:
+        return False
+
+    cl_start = sh_geom.Point(cl_coords[0])
+    cl_end = sh_geom.Point(cl_coords[-1])
+    seed_start = sh_geom.Point(seed_coords[0])
+    seed_end = sh_geom.Point(seed_coords[-1])
+
+    direct = cl_start.distance(seed_start) <= tol and cl_end.distance(seed_end) <= tol
+    reversed_match = cl_start.distance(seed_end) <= tol and cl_end.distance(seed_start) <= tol
+    return direct or reversed_match
+
+
+def _trim_and_snap_centerline(centerline, input_line, max_snap_dist=None):
+    cl_coords = list(centerline.coords)
+
+    head_buffer = sh_geom.Point(cl_coords[0]).buffer(CenterlineParams.BUFFER_CLIP)
+    centerline = centerline.difference(head_buffer)
+
+    end_buffer = sh_geom.Point(cl_coords[-1]).buffer(CenterlineParams.BUFFER_CLIP)
+    centerline = centerline.difference(end_buffer)
+
+    if not centerline:
+        return None
+
+    try:
+        if centerline.is_empty:
+            return None
+    except Exception as e:
+        print(f"find_centerline: {e}")
+
+    return snap_end_to_end(centerline, input_line, max_snap_dist=max_snap_dist)
+
+
+def _extract_centerline_from_polygon(
+    poly,
+    src_geom,
+    dst_geom,
+    guided_strategy,
+):
+    from beratools.external.polygon_centerline import get_centerline
+
+    return get_centerline(
+        poly,
+        segmentize_maxlen=1,
+        max_points=3000,
+        simplification=0.05,
+        smooth_sigma=CenterlineParams.SMOOTH_SIGMA,
+        max_paths=1,
+        src_geom=src_geom,
+        dst_geom=dst_geom,
+        guided_strategy=guided_strategy,
+    )
+
+
+def find_centerline(poly, input_line, guided_strategy="main_route"):
     """
     Find centerline from polygon and input line.
 
@@ -139,6 +212,10 @@ def find_centerline(poly, input_line):
 
     """
     default_return = input_line, CenterlineStatus.FAILED
+    valid_guided_strategies = {"main_route", "candidate"}
+    if guided_strategy not in valid_guided_strategies:
+        raise ValueError("guided_strategy must be one of {}".format(sorted(valid_guided_strategies)))
+
     if not poly:
         print("find_centerline: No polygon found")
         return default_return
@@ -160,28 +237,35 @@ def find_centerline(poly, input_line):
 
     line_coords = list(input_line.coords)
 
-    # TODO add more code to filter Voronoi vertices
-    src_geom = sh_geom.Point(line_coords[0]).buffer(CenterlineParams.BUFFER_CLIP * 3).intersection(poly)
-    dst_geom = sh_geom.Point(line_coords[-1]).buffer(CenterlineParams.BUFFER_CLIP * 3).intersection(poly)
     src_geom = None
     dst_geom = None
+    if guided_strategy == "candidate":
+        src_geom = sh_geom.Point(line_coords[0]).buffer(CenterlineParams.BUFFER_CLIP * 3).intersection(poly)
+        dst_geom = sh_geom.Point(line_coords[-1]).buffer(CenterlineParams.BUFFER_CLIP * 3).intersection(poly)
 
     try:
-        from beratools.external.polygon_centerline import get_centerline
-
-        centerline = get_centerline(
+        centerline = _extract_centerline_from_polygon(
             poly,
-            segmentize_maxlen=1,
-            max_points=3000,
-            simplification=0.05,
-            smooth_sigma=CenterlineParams.SMOOTH_SIGMA,
-            max_paths=1,
-            src_geom=src_geom,
-            dst_geom=dst_geom,
+            src_geom,
+            dst_geom,
+            guided_strategy,
         )
     except Exception as e:
         print(f"find_centerline: {e}")
-        return default_return
+        centerline = None
+
+    if not centerline and guided_strategy == "candidate":
+        print("find_centerline: candidate guidance failed, retrying main_route")
+        try:
+            centerline = _extract_centerline_from_polygon(
+                poly,
+                None,
+                None,
+                "main_route",
+            )
+        except Exception as e:
+            print(f"find_centerline: main_route retry failed: {e}")
+            return default_return
 
     if not centerline:
         return default_return
@@ -195,26 +279,25 @@ def find_centerline(poly, input_line):
         else:
             return default_return
 
-    cl_coords = list(centerline.coords)
+    needs_trim_snap = guided_strategy == "main_route"
+    if guided_strategy == "candidate":
+        needs_trim_snap = not _is_endpoint_anchored(
+            centerline,
+            input_line,
+            tol=CenterlineParams.ENDPOINT_ANCHOR_TOL,
+        )
 
-    # trim centerline at two ends
-    head_buffer = sh_geom.Point(cl_coords[0]).buffer(CenterlineParams.BUFFER_CLIP)
-    centerline = centerline.difference(head_buffer)
-
-    end_buffer = sh_geom.Point(cl_coords[-1]).buffer(CenterlineParams.BUFFER_CLIP)
-    centerline = centerline.difference(end_buffer)
-
-    # No centerline detected, use input line instead.
-    if not centerline:
-        return default_return
-    try:
-        # Empty centerline detected, use input line instead.
-        if centerline.is_empty:
+    if needs_trim_snap:
+        max_snap_dist = None
+        if guided_strategy == "candidate":
+            max_snap_dist = CenterlineParams.CANDIDATE_FALLBACK_MAX_SNAP
+        centerline = _trim_and_snap_centerline(
+            centerline,
+            input_line,
+            max_snap_dist=max_snap_dist,
+        )
+        if not centerline:
             return default_return
-    except Exception as e:
-        print(f"find_centerline: {e}")
-
-    centerline = snap_end_to_end(centerline, input_line)
 
     # Check centerline. If valid, regenerate by splitting polygon into two halves.
     if not centerline_is_valid(centerline, input_line):
@@ -401,10 +484,18 @@ def regenerate_centerline(poly, input_line):
 class SeedLine:
     """Class to store seed line and least cost path."""
 
-    def __init__(self, line_gdf, ras_file, proc_segments, line_radius):
+    def __init__(
+        self,
+        line_gdf,
+        ras_file,
+        proc_segments,
+        line_radius,
+        guided_strategy="main_route",
+    ):
         self.line = line_gdf
         self.raster = ras_file
         self.line_radius = line_radius
+        self.guided_strategy = guided_strategy
         self.lc_path = None
         self.centerline = None
         self.corridor_poly_gpd = None
@@ -466,7 +557,11 @@ class SeedLine:
         # find contiguous corridor polygon and extract centerline
         df = gpd.GeoDataFrame(geometry=[seed_line], crs=out_meta["crs"])
         corridor_poly_gpd = find_corridor_polygon(corridor_thresh_cl, out_transform, df)
-        center_line, status = find_centerline(corridor_poly_gpd.geometry.iloc[0], lc_path)
+        center_line, status = find_centerline(
+            corridor_poly_gpd.geometry.iloc[0],
+            lc_path,
+            guided_strategy=self.guided_strategy,
+        )
         self.line["cl_status"] = status.value
 
         self.lc_path = self.line.copy()

@@ -20,6 +20,7 @@
 - **Seed Line**: Path to your input line file
 - **CHM Raster**: Path to your input raster file
 - **Process Segments**: Process each segment between vertices (True/False, default: True)
+- **Centerline Mode**: Extraction mode (`main_route` or `candidate`, default: `main_route`)
 - **Output Centerline**: Path for the output file
 
 ## Tips
@@ -27,4 +28,5 @@
 - Input lines and raster must have the same spatial reference (CRS).
 - Output includes centerlines and auxiliary layers (least cost path, corridor polygons).
 - Works with GeoPackage or Shapefile formats.
-
+- `main_route` uses trim + endpoint snap recovery post-processing.
+- `candidate` uses endpoint-guided extraction and only falls back to trim + endpoint snap when endpoints are not already anchored.
