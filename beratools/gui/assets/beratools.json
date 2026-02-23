@@ -366,7 +366,7 @@
               "output": false,
               "optional": true,
               "depends_on": {
-                "variable": "footprint_mode",
+                "variable": "in_line",
                 "condition": "__hidden__",
                 "mode": "hide"
               }
@@ -379,12 +379,7 @@
               "subtype": "float",
               "default": 3.0,
               "output": false,
-              "optional": true,
-              "depends_on": {
-                "variable": "footprint_mode",
-                "condition": "absolute",
-                "mode": "hide"
-              }
+              "optional": true
             },
             {
               "variable": "max_ln_width",
@@ -404,12 +399,7 @@
               "subtype": "int",
               "default": 0,
               "output": false,
-              "optional": true,
-              "depends_on": {
-                "variable": "footprint_mode",
-                "condition": "absolute",
-                "mode": "hide"
-              }
+              "optional": true
             },
             {
               "variable": "tree_radius",
@@ -421,8 +411,8 @@
               "output": false,
               "optional": true,
               "depends_on": {
-                "variable": "footprint_mode",
-                "condition": "adaptive",
+                "variable": "in_line",
+                "condition": "__hidden__",
                 "mode": "hide"
               }
             },
@@ -436,8 +426,8 @@
               "output": false,
               "optional": true,
               "depends_on": {
-                "variable": "footprint_mode",
-                "condition": "adaptive",
+                "variable": "in_line",
+                "condition": "__hidden__",
                 "mode": "hide"
               }
             },
@@ -451,8 +441,8 @@
               "output": false,
               "optional": true,
               "depends_on": {
-                "variable": "footprint_mode",
-                "condition": "adaptive",
+                "variable": "in_line",
+                "condition": "__hidden__",
                 "mode": "hide"
               }
             },
@@ -466,8 +456,8 @@
               "output": false,
               "optional": true,
               "depends_on": {
-                "variable": "footprint_mode",
-                "condition": "adaptive",
+                "variable": "in_line",
+                "condition": "__hidden__",
                 "mode": "hide"
               }
             },
@@ -481,8 +471,8 @@
               "output": false,
               "optional": true,
               "depends_on": {
-                "variable": "footprint_mode",
-                "condition": "adaptive",
+                "variable": "in_line",
+                "condition": "__hidden__",
                 "mode": "hide"
               }
             },
