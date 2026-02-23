@@ -12,7 +12,6 @@ main = "python ./beratools/gui/main.py"
 
 [dependencies]
 python = "3.11.*"
-bera_centerlines = { channel = "appliedgrg" }
 dask = "*"
 gdal = "3.9.3.*"
 geopandas = "*"

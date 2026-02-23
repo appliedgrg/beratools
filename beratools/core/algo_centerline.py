@@ -25,7 +25,7 @@ import shapely
 import shapely.geometry as sh_geom
 import shapely.ops as sh_ops
 # Lazy-imported in find_centerline() to avoid ~5s startup cost
-# from label_centerlines import get_centerline
+# from beratools.external.polygon_centerline import get_centerline
 
 import beratools.core.algo_common as algo_common
 import beratools.core.algo_cost as algo_cost
@@ -167,7 +167,7 @@ def find_centerline(poly, input_line):
     dst_geom = None
 
     try:
-        from label_centerlines import get_centerline
+        from beratools.external.polygon_centerline import get_centerline
 
         centerline = get_centerline(
             poly,

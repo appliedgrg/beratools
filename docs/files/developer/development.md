@@ -40,8 +40,7 @@ A manual conda environment setup for local development (without using environmen
 1. Install dependencies individually:
 
    ```bash
-   conda install -c appliedgrg bera_centerlines
-   conda install -c conda-forge dask gdal=3.9.3 geopandas pyogrio>=0.9.0 pyqt rasterio scikit-image>=0.24.0 tqdm xarray-spatial
+   conda install -c conda-forge dask gdal=3.9.3 geopandas networkit pyogrio>=0.9.0 pyqt rasterio scikit-image>=0.24.0 tqdm xarray-spatial
    ```
 
 This approach avoids installing the released beratools package and uses only the dependencies listed in [`environment.yml`](https://github.com/appliedgrg/beratools/blob/main/environment.yml).

@@ -24,7 +24,7 @@ def pytest_configure(config):
     logging.getLogger("pyogrio").setLevel(logging.ERROR)
     logging.getLogger("rasterio").setLevel(logging.ERROR)
     logging.getLogger("rasterio.env").setLevel(logging.ERROR)
-    logging.getLogger("label_centerlines._src").setLevel(logging.ERROR)
+    logging.getLogger("beratools.external.polygon_centerline._src").setLevel(logging.ERROR)
     logging.getLogger("pyproj").setLevel(logging.WARNING)
 
 

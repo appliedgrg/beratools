@@ -2,7 +2,7 @@
 
 import geopandas as gpd
 import pytest
-from label_centerlines import get_centerline
+from beratools.external.polygon_centerline import get_centerline
 
 
 # Fixture to load the 'alps.geojson' shape using geopandas
