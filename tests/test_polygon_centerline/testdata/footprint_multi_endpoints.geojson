@@ -1,0 +1,11 @@
+{
+"type": "FeatureCollection",
+"name": "footprint_multi_endpoints",
+"crs": { "type": "name", "properties": { "name": "urn:ogc:def:crs:EPSG::26912" } },
+"features": [
+{ "type": "Feature", "properties": { "polygon_idx": 0, "role": "src" }, "geometry": { "type": "Point", "coordinates": [ 519789.161925778258592, 6226269.251470153219998 ] } },
+{ "type": "Feature", "properties": { "polygon_idx": 0, "role": "dst" }, "geometry": { "type": "Point", "coordinates": [ 520225.633227339654695, 6226262.436043193563819 ] } },
+{ "type": "Feature", "properties": { "polygon_idx": 1, "role": "src" }, "geometry": { "type": "Point", "coordinates": [ 520270.0, 6226265.0 ] } },
+{ "type": "Feature", "properties": { "polygon_idx": 1, "role": "dst" }, "geometry": { "type": "Point", "coordinates": [ 520410.0, 6226265.0 ] } }
+]
+}
