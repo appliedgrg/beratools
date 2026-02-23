@@ -43,7 +43,17 @@ class Side(Enum):
 class FootprintCanopy:
     """Relative canopy footprint class."""
 
-    def __init__(self, in_geom, in_chm):
+    def __init__(
+        self,
+        in_geom,
+        in_chm,
+        max_line_width=32,
+        tree_radius=1.5,
+        max_line_dist=1.5,
+        canopy_avoidance=0.0,
+        exponent=1.0,
+        canopy_thresh_percentage=50,
+    ):
         in_file, in_layer = sp_common.decode_file_layer(in_geom)
         data = algo_common.read_geospatial_file(in_file, layer=in_layer)
         if data is None:
@@ -51,7 +61,16 @@ class FootprintCanopy:
         self.lines = []
 
         for idx in data.index:
-            line = LineInfo(data.loc[[idx]], in_chm)
+            line = LineInfo(
+                data.loc[[idx]],
+                in_chm,
+                max_line_width=max_line_width,
+                tree_radius=tree_radius,
+                max_line_dist=max_line_dist,
+                canopy_avoidance=canopy_avoidance,
+                exponent=exponent,
+                canopy_thresh_percentage=canopy_thresh_percentage,
+            )
             self.lines.append(line)
 
     def compute(self, processes):
@@ -62,34 +81,27 @@ class FootprintCanopy:
             processes,
         )
 
-        fp = []
+        footprint_list = []
         percentile = []
         try:
             for item in result:
                 if item.footprint is not None:
-                    fp.append(item.footprint)
+                    footprint_list.append(item.footprint)
                 else:
                     print("Footprint is None for one of the lines.")
-                    continue  # Skip failed line
 
-            if fp:
-                self.footprints = pd.concat(fp)
-            else:
-                print("No valid footprints to save.")
-                self.footprints = None
-
-            for item in result:
                 if item.lines_percentile is not None:
                     percentile.append(item.lines_percentile)
                 else:
                     print("lines_percentile is None for one of the lines.")
-                    continue  # Skip failed line
 
-            if percentile:
-                self.lines_percentile = pd.concat(percentile)
-            else:
+            self.footprints = pd.concat(footprint_list) if footprint_list else None
+            self.lines_percentile = pd.concat(percentile) if percentile else None
+
+            if self.footprints is None:
+                print("No valid footprints to save.")
+            if self.lines_percentile is None:
                 print("No valid lines_percentile to save.")
-                self.lines_percentile = None
         except Exception as e:
             print(f"Error during processing: {e}")
 
@@ -119,7 +131,7 @@ class BufferRing:
         self.geometry = ring_poly
         self.side = side
         self.percentile = 0.5
-        self.Dyn_Canopy_Threshold = 0.05
+        self.dyn_canopy_thresh = 0.05
 
 
 class LineInfo:
@@ -129,7 +141,7 @@ class LineInfo:
         self,
         line_gdf,
         in_chm,
-        max_ln_width=32,
+        max_line_width=32,
         tree_radius=1.5,
         max_line_dist=1.5,
         canopy_avoidance=0.0,
@@ -138,22 +150,22 @@ class LineInfo:
     ):
         self.line = line_gdf
         self.in_chm = in_chm
-        self.line_simp = self.line.geometry.simplify(tolerance=0.5, preserve_topology=True)
+        self.line_simplified = self.line.geometry.simplify(tolerance=0.5, preserve_topology=True)
 
         self.canopy_percentile = 50
-        self.DynCanTh = np.nan
+        self.dyn_canopy_thresh = np.nan
 
         self.buffer_rings = []
 
-        self.CL_CutHt = np.nan
-        self.CR_CutHt = np.nan
-        self.RDist_Cut = np.nan
-        self.LDist_Cut = np.nan
+        self.left_cut_height = np.nan
+        self.right_cut_height = np.nan
+        self.right_cut_dist = np.nan
+        self.left_cut_dist = np.nan
 
         self.canopy_thresh_percentage = canopy_thresh_percentage
         self.canopy_avoidance = canopy_avoidance
         self.exponent = exponent
-        self.max_ln_width = max_ln_width
+        self.max_line_width = max_line_width
         self.max_line_dist = max_line_dist
         self.tree_radius = tree_radius
 
@@ -173,11 +185,10 @@ class LineInfo:
 
         ring_list = []
         for item in self.buffer_rings:
-            ring = self.cal_percentileRing(item)
+            ring = self.calc_ring_percentile(item)
             if ring is not None:
                 ring_list.append(ring)
             else:
-                # print("Skipping invalid ring.")
                 # TODO: handle None rings appropriately
                 pass
 
@@ -201,13 +212,13 @@ class LineInfo:
         self.rate_of_change(self.get_percentile_array(Side.left), Side.left)
         self.rate_of_change(self.get_percentile_array(Side.right), Side.right)
 
-        self.line["CL_CutHt"] = self.CL_CutHt
-        self.line["CR_CutHt"] = self.CR_CutHt
-        self.line["RDist_Cut"] = self.RDist_Cut
-        self.line["LDist_Cut"] = self.LDist_Cut
+        self.line["left_cut_height"] = self.left_cut_height
+        self.line["right_cut_height"] = self.right_cut_height
+        self.line["right_cut_dist"] = self.right_cut_dist
+        self.line["left_cut_dist"] = self.left_cut_dist
 
-        self.DynCanTh = (self.CL_CutHt + self.CR_CutHt) / 2
-        self.line["DynCanTh"] = self.DynCanTh
+        self.dyn_canopy_thresh = (self.left_cut_height + self.right_cut_height) / 2
+        self.line["dyn_canopy_thresh"] = self.dyn_canopy_thresh
 
         self.prepare_line_buffer()
 
@@ -246,25 +257,12 @@ class LineInfo:
             self.footprint[bt_const.BT_GROUP] = self.line[bt_const.BT_GROUP].iloc[0]
 
     def prepare_ring_buffer(self):
-        nrings = 1
-        ringdist = 15
-        ring_list = self.multi_ring_buffer(self.line_simp, nrings, ringdist)
-        for i in ring_list:
-            if BufferRing(i, Side.left):
-                self.buffer_rings.append(BufferRing(i, Side.left))
-            else:
-                print("Empty buffer ring")
+        for ring_step, ring_max_dist, side in [(1, 15, Side.left), (-1, -15, Side.right)]:
+            ring_list = self.multi_ring_buffer(self.line_simplified, ring_step, ring_max_dist)
+            for ring_poly in ring_list:
+                self.buffer_rings.append(BufferRing(ring_poly, side))
 
-        nrings = -1
-        ringdist = -15
-        ring_list = self.multi_ring_buffer(self.line_simp, nrings, ringdist)
-        for i in ring_list:
-            if BufferRing(i, Side.right):
-                self.buffer_rings.append(BufferRing(i, Side.right))
-            else:
-                print("Empty buffer ring")
-
-    def cal_percentileRing(self, ring):
+    def calc_ring_percentile(self, ring):
         line_buffer = None
         try:
             line_buffer = ring.geometry
@@ -274,7 +272,7 @@ class LineInfo:
                 line_buffer = sh_ops.transform(lambda x, y, z=None: (x, y), line_buffer)
 
         except Exception as e:
-            print(f"cal_percentileRing: {e}")
+            print(f"calc_ring_percentile: {e}")
             return None
 
         # TODO: temporary workaround for exception causing not percentile defined
@@ -290,9 +288,9 @@ class LineInfo:
             percentile = np.nanpercentile(filled_raster, 50)
 
             if percentile > 1:
-                ring.Dyn_Canopy_Threshold = percentile * (0.3)
+                ring.dyn_canopy_thresh = percentile * (0.3)
             else:
-                ring.Dyn_Canopy_Threshold = 1
+                ring.dyn_canopy_thresh = 1
 
             ring.percentile = percentile
         except Exception as e:
@@ -302,15 +300,15 @@ class LineInfo:
         return ring
 
     def get_percentile_array(self, side):
-        per_array = []
+        percentile_array = []
         for item in self.buffer_rings:
             try:
                 if item.side == side:
-                    per_array.append(item.percentile)
+                    percentile_array.append(item.percentile)
             except Exception as e:
                 print(e)
 
-        return per_array
+        return percentile_array
 
     def rate_of_change(self, percentile_array, side):
         # Since the x interval is 1 unit, the array 'diff' is the rate of change (slope)
@@ -325,18 +323,18 @@ class LineInfo:
 
         found = False
         changes = 1.50
-        Change = np.insert(diff, 0, 0)
+        rate_change = np.insert(diff, 0, 0)
         scale_down = 1.0
 
         # test the rate of change is > than 150% (1.5), if it is
         # no result found then lower to 140% (1.4) until 110% (1.1)
         try:
             while not found and changes >= 1.1:
-                for ii in range(0, len(Change) - 1):
-                    if percentile_array[ii] >= 0.5:
-                        if (Change[ii]) >= changes:
-                            cut_dist = (ii + 1) * scale_down
-                            cut_percentile = math.floor(percentile_array[ii])
+                for idx in range(0, len(rate_change) - 1):
+                    if percentile_array[idx] >= 0.5:
+                        if (rate_change[idx]) >= changes:
+                            cut_dist = (idx + 1) * scale_down
+                            cut_percentile = math.floor(percentile_array[idx])
 
                             if 0.5 >= cut_percentile:
                                 if cut_dist > 5:
@@ -388,48 +386,45 @@ class LineInfo:
                 cut_percentile = 15.5
 
         if side == Side.right:
-            self.RDist_Cut = cut_dist
-            self.CR_CutHt = float(cut_percentile)
+            self.right_cut_dist = cut_dist
+            self.right_cut_height = float(cut_percentile)
         elif side == Side.left:
-            self.LDist_Cut = cut_dist
-            self.CL_CutHt = float(cut_percentile)
+            self.left_cut_dist = cut_dist
+            self.left_cut_height = float(cut_percentile)
 
-    def multi_ring_buffer(self, df, nrings, ringdist):
+    def multi_ring_buffer(self, df, ring_step, ring_max_dist):
         """
-        Buffers an input DataFrames geometry nring (number of rings) times.
+        Buffers an input DataFrames geometry with concentric rings.
 
-        Compute with a distance between rings of ringdist and returns
+        Compute with a distance between rings of ring_step and returns
         a list of non overlapping buffers
         """
-        rings = []  # A list to hold the individual buffers
+        rings = []
         line = df.geometry.iloc[0]
-        # For each ring (1, 2, 3, ..., nrings)
-        for ring in np.arange(0, ringdist, nrings):
+        for ring in np.arange(0, ring_max_dist, ring_step):
             big_ring = line.buffer(
-                nrings + ring, single_sided=True, cap_style="flat"
-            )  # Create one big buffer
-            small_ring = line.buffer(ring, single_sided=True, cap_style="flat")  # Create one smaller one
-            the_ring = big_ring.difference(small_ring)  # Difference the big with the small to create a ring
+                ring_step + ring, single_sided=True, cap_style="flat"
+            )
+            small_ring = line.buffer(ring, single_sided=True, cap_style="flat")
+            the_ring = big_ring.difference(small_ring)
             if (
-                ~shapely.is_empty(the_ring)
-                or ~shapely.is_missing(the_ring)
-                or not None
-                or ~the_ring.area == 0
+                not shapely.is_empty(the_ring)
+                and not shapely.is_missing(the_ring)
+                and the_ring.area > 0
             ):
-                if isinstance(the_ring, sh_geom.MultiPolygon) or isinstance(the_ring, shapely.Polygon):
-                    rings.append(the_ring)  # Append the ring to the rings list
-                else:
-                    if isinstance(the_ring, shapely.GeometryCollection):
-                        for i in range(0, len(the_ring.geoms)):
-                            if not isinstance(the_ring.geoms[i], shapely.LineString):
-                                rings.append(the_ring.geoms[i])
+                if isinstance(the_ring, (sh_geom.MultiPolygon, shapely.Polygon)):
+                    rings.append(the_ring)
+                elif isinstance(the_ring, shapely.GeometryCollection):
+                    for geom in the_ring.geoms:
+                        if not isinstance(geom, shapely.LineString):
+                            rings.append(geom)
 
-        return rings  # return the list
+        return rings
 
     def prepare_line_buffer(self):
         line = self.line.geometry.iloc[0]
         buffer_left_1 = line.buffer(
-            distance=self.max_ln_width + 1,
+            distance=self.max_line_width + 1,
             cap_style=3,
             single_sided=True,
         )
@@ -443,7 +438,7 @@ class LineInfo:
         self.buffer_left = sh_ops.unary_union([buffer_left_1, buffer_left_2])
 
         buffer_right_1 = line.buffer(
-            distance=-self.max_ln_width - 1,
+            distance=-self.max_line_width - 1,
             cap_style=3,
             single_sided=True,
         )
@@ -452,135 +447,125 @@ class LineInfo:
         self.buffer_right = sh_ops.unary_union([buffer_right_1, buffer_right_2])
 
     def dyn_canopy_cost_raster(self, side):
-        in_chm_raster = self.in_chm
-        line_df = self.line
-        out_meta = self.out_meta
+        canopy_thresh_ratio = self.canopy_thresh_percentage / 100
 
-        canopy_thresh_percentage = self.canopy_thresh_percentage / 100
-
-        Cut_Dist = None
+        cut_dist = None
         line_buffer = None
         if side == Side.left:
-            canopy_ht_threshold = line_df.CL_CutHt.iloc[0] * canopy_thresh_percentage
-            Cut_Dist = self.LDist_Cut
+            canopy_height_thresh = self.line.left_cut_height.iloc[0] * canopy_thresh_ratio
+            cut_dist = self.left_cut_dist
             line_buffer = self.buffer_left
         elif side == Side.right:
-            canopy_ht_threshold = line_df.CR_CutHt.iloc[0] * canopy_thresh_percentage
-            Cut_Dist = self.RDist_Cut
+            canopy_height_thresh = self.line.right_cut_height.iloc[0] * canopy_thresh_ratio
+            cut_dist = self.right_cut_dist
             line_buffer = self.buffer_right
         else:
-            canopy_ht_threshold = 0.5
-            Cut_Dist = 1.0
+            canopy_height_thresh = 0.5
+            cut_dist = 1.0
             line_buffer = None
 
-        canopy_ht_threshold = float(canopy_ht_threshold)
-        if canopy_ht_threshold <= 0:
-            canopy_ht_threshold = 0.5
+        canopy_height_thresh = float(canopy_height_thresh)
+        if canopy_height_thresh <= 0:
+            canopy_height_thresh = 0.5
 
         try:
-            clipped_rasterC, out_meta = sp_common.clip_raster(in_chm_raster, line_buffer, 0)
+            clipped_raster, out_meta = sp_common.clip_raster(self.in_chm, line_buffer, 0)
             negative_cost_clip, dyn_canopy_ndarray = algo_cost.cost_raster(
-                clipped_rasterC,
+                clipped_raster,
                 out_meta,
                 self.tree_radius,
-                canopy_ht_threshold,
+                canopy_height_thresh,
                 self.max_line_dist,
                 self.canopy_avoidance,
                 self.exponent,
             )
 
-            return dyn_canopy_ndarray, negative_cost_clip, out_meta, Cut_Dist
+            return dyn_canopy_ndarray, negative_cost_clip, out_meta, cut_dist
 
         except Exception as e:
             print(f"dyn_canopy_cost_raster: {e}")
             return None
 
+    def _extract_coords(self, feat):
+        """Extract coordinate list from a geometry (single or multi)."""
+        coords = []
+        if hasattr(feat, "geoms"):
+            for geom in feat.geoms:
+                coords.extend(geom.coords)
+        else:
+            coords.extend(feat.coords)
+        return coords
+
     def process_single_footprint(self, side):
-        # this will change segment content, and parameters will be changed
         result = self.dyn_canopy_cost_raster(side)
         if result is None:
             return None
-        in_canopy_r, in_cost_r, in_meta, Cut_Dist = result
+        canopy_raster, cost_raster, in_meta, cut_dist = result
 
-        if in_canopy_r is None or in_cost_r is None or in_meta is None or Cut_Dist is None:
+        if canopy_raster is None or cost_raster is None or in_meta is None or cut_dist is None:
             return None
 
-        if np.isnan(in_canopy_r).all():
+        if np.isnan(canopy_raster).all():
             print("Canopy raster empty")
             return None
 
-        if np.isnan(in_cost_r).all():
+        if np.isnan(cost_raster).all():
             print("Cost raster empty")
             return None
 
-        exp_shk_cell = self.exponent  # TODO: duplicate vars
-        no_data = self.nodata
-
-        shapefile_proj = self.line.crs
         in_transform = in_meta["transform"]
-
-        segment_list = []
-
-        feat = self.line.geometry.iloc[0]
-        if hasattr(feat, "geoms"):
-            for geom in feat.geoms:
-                for coord in geom.coords:
-                    segment_list.append(coord)
-        else:
-            for coord in feat.coords:
-                segment_list.append(coord)
-
         cell_size_x = in_transform[0]
         cell_size_y = -in_transform[4]
 
+        feat = self.line.geometry.iloc[0]
+        segment_list = self._extract_coords(feat)
+
         # Work out the corridor from both end of the centerline
         try:
-            if len(in_cost_r.shape) > 2:
-                in_cost_r = np.squeeze(in_cost_r, axis=0)
+            if len(cost_raster.shape) > 2:
+                cost_raster = np.squeeze(cost_raster, axis=0)
 
-            algo_cost.remove_nan_from_array_refactor(in_cost_r)
-            in_cost_r[in_cost_r == no_data] = np.inf
+            algo_cost.remove_nan_from_array_refactor(cost_raster)
+            cost_raster[cost_raster == self.nodata] = np.inf
 
             # generate 1m interval points along line
-            distance_delta = 1
-            distances = np.arange(0, feat.length, distance_delta)
-            multipoint_along_line = [feat.interpolate(distance) for distance in distances]
+            distances = np.arange(0, feat.length, 1)
+            multipoint_along_line = [feat.interpolate(d) for d in distances]
             multipoint_along_line.append(sh_geom.Point(segment_list[-1]))
+
             # Rasterize points along line
-            rasterized_points_Alongln = ras_feat.rasterize(
+            rasterized_points = ras_feat.rasterize(
                 multipoint_along_line,
-                out_shape=in_cost_r.shape,
+                out_shape=cost_raster.shape,
                 transform=in_transform,
                 fill=0,
                 all_touched=True,
                 default_value=1,
             )
-            points_Alongln = np.transpose(np.nonzero(rasterized_points_Alongln))
+            points_along_line = np.transpose(np.nonzero(rasterized_points))
 
             # Find minimum cost paths through an N-d costs array.
-            mcp_flexible1 = MCP_Flexible(in_cost_r, sampling=(cell_size_x, cell_size_y), fully_connected=True)
-            flex_cost_alongLn, flex_back_alongLn = mcp_flexible1.find_costs(starts=points_Alongln)
+            mcp = MCP_Flexible(cost_raster, sampling=(cell_size_x, cell_size_y), fully_connected=True)
+            mcp_cost_surface, _ = mcp.find_costs(starts=points_along_line)
 
             # Generate corridor
-            corridor = flex_cost_alongLn
-            corridor = np.ma.masked_invalid(corridor)
+            corridor = np.ma.masked_invalid(mcp_cost_surface)
 
             # Calculate minimum value of corridor raster
-            if np.ma.min(corridor) is not None:
-                corr_min = float(np.ma.min(corridor))
-            else:
-                corr_min = 0.5
+            corridor_min = float(np.ma.min(corridor)) if np.ma.min(corridor) is not None else 0.5
 
-            # normalize corridor raster by deducting corr_min
-            corridor_norm = corridor - corr_min
+            # normalize corridor raster by deducting corridor_min
+            corridor_norm = corridor - corridor_min
 
             # Set minimum as zero and save minimum file
-            corridor_th_value = Cut_Dist / cell_size_x
-            if corridor_th_value < 0:  # if no threshold found, use default value
-                corridor_th_value = bt_const.FP_CORRIDOR_THRESHOLD / cell_size_x
+            corridor_threshold = cut_dist / cell_size_x
+            if corridor_threshold < 0:  # if no threshold found, use default value
+                corridor_threshold = bt_const.FP_CORRIDOR_THRESHOLD / cell_size_x
 
-            corridor_thresh = np.ma.where(corridor_norm >= corridor_th_value, 1.0, 0.0)
-            clean_raster = algo_common.morph_raster(corridor_thresh, in_canopy_r, exp_shk_cell, cell_size_x)
+            corridor_thresh = np.ma.where(corridor_norm >= corridor_threshold, 1.0, 0.0)
+            clean_raster = algo_common.morph_raster(
+                corridor_thresh, canopy_raster, self.exponent, cell_size_x
+            )
 
             # create mask for non-polygon area
             mask = np.where(clean_raster == 1, True, False)
@@ -603,19 +588,21 @@ class LineInfo:
                 print("No polygons generated from raster. Returning None.")
                 return None
 
-            poly = sh_geom.MultiPolygon(multi_polygon) if multi_polygon else None
+            poly = sh_geom.MultiPolygon(multi_polygon)
 
             # create GeoDataFrame directly from dictionary
-            out_gdata = gpd.GeoDataFrame({"CorriThresh": [corridor_th_value], "geometry": [poly]})
-            out_gdata.set_geometry("geometry", inplace=True)
-            if shapefile_proj:
-                out_gdata = out_gdata.set_crs(shapefile_proj, allow_override=True)
+            footprint_gdf = gpd.GeoDataFrame(
+                {"corridor_thresh": [corridor_threshold], "geometry": [poly]}
+            )
+            footprint_gdf.set_geometry("geometry", inplace=True)
+            if self.line.crs:
+                footprint_gdf = footprint_gdf.set_crs(self.line.crs, allow_override=True)
 
-            if out_gdata is None or out_gdata.empty or out_gdata.geometry.isnull().all():
+            if footprint_gdf.empty or footprint_gdf.geometry.isnull().all():
                 print("Empty GeoDataFrame from process_single_footprint.")
                 return None
 
-            return out_gdata
+            return footprint_gdf
 
         except Exception as e:
             print("Exception: {}".format(e))

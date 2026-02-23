@@ -1,18 +1,22 @@
 """Canopy footprint tool with exception handling."""
 
-from tabnanny import verbose
-
 import beratools.core.algo_common as algo_common
 import beratools.utility.spatial_common as sp_common
 from beratools.core.algo_canopy_footprint_exp import FootprintCanopy
 from beratools.utility.tool_args import CallMode
 
 
+def _is_valid_gdf(obj, attr):
+    """Check if obj has a non-empty GeoDataFrame attribute."""
+    gdf = getattr(obj, attr, None)
+    return gdf is not None and hasattr(gdf, "empty") and not gdf.empty
+
+
 def line_footprint_exp(
     in_line,
     in_chm,
     out_footprint,
-    max_ln_width=32,
+    max_line_width=32,
     tree_radius=1.5,
     max_line_dist=1.5,
     canopy_avoidance=0.0,
@@ -24,7 +28,16 @@ def line_footprint_exp(
 ):
     """Safe version of relative canopy footprint tool."""
     try:
-        footprint = FootprintCanopy(in_line, in_chm)
+        footprint = FootprintCanopy(
+            in_line,
+            in_chm,
+            max_line_width=max_line_width,
+            tree_radius=tree_radius,
+            max_line_dist=max_line_dist,
+            canopy_avoidance=canopy_avoidance,
+            exponent=exponent,
+            canopy_thresh_percentage=canopy_thresh_percentage,
+        )
     except Exception as e:
         print(f"Failed to initialize FootprintCanopy: {e}")
         return
@@ -40,12 +53,7 @@ def line_footprint_exp(
 
     # Save only if footprints were actually generated
     out_file, out_layer = sp_common.decode_file_layer(out_footprint)
-    if (
-        hasattr(footprint, "footprints")
-        and footprint.footprints is not None
-        and hasattr(footprint.footprints, "empty")
-        and not footprint.footprints.empty
-    ):
+    if _is_valid_gdf(footprint, "footprints"):
         try:
             footprint.save_footprint(out_file, out_layer)
             print(f"Footprint saved to {out_footprint}")
@@ -55,17 +63,10 @@ def line_footprint_exp(
         print("No valid footprints to save.")
 
     # Optionally save percentile lines (if needed)
-    if (
-        hasattr(footprint, "lines_percentile")
-        and footprint.lines_percentile is not None
-        and hasattr(footprint.lines_percentile, "empty")
-        and not footprint.lines_percentile.empty
-    ):
+    if _is_valid_gdf(footprint, "lines_percentile"):
         out_file_aux = algo_common.get_aux_path(out_file)
         try:
             footprint.save_line_percentile(out_file_aux)
-            if verbose:
-                print(f"Line percentile saved to {out_file_aux}")
         except Exception as e:
             print(f"Failed to save line percentile: {e}")
 
@@ -80,7 +81,7 @@ def parse_cli_args():
     parser.add_argument("in_line", help="Input line file")
     parser.add_argument("in_chm", help="Input CHM file")
     parser.add_argument("out_footprint", help="Output footprint file")
-    parser.add_argument("--max-ln-width", type=float, default=32, help="Maximum line width (default: 32)")
+    parser.add_argument("--max-line-width", type=float, default=32, help="Maximum line width (default: 32)")
     parser.add_argument("--tree-radius", type=float, default=1.5, help="Tree radius (default: 1.5)")
     parser.add_argument(
         "--max-line-dist", type=float, default=1.5, help="Maximum line distance (default: 1.5)"
@@ -98,7 +99,7 @@ def parse_cli_args():
         "in_line": args.in_line,
         "in_chm": args.in_chm,
         "out_footprint": args.out_footprint,
-        "max_ln_width": args.max_ln_width,
+        "max_line_width": args.max_line_width,
         "tree_radius": args.tree_radius,
         "max_line_dist": args.max_line_dist,
         "canopy_avoidance": args.canopy_avoidance,
