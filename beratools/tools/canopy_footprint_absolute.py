@@ -26,6 +26,12 @@ from shapely.geometry import MultiPolygon, Polygon, shape
 
 import beratools.core.algo_centerline as algo_cl
 import beratools.core.algo_common as algo_common
+from beratools.core.algo_canopy_footprint_common import (
+    CanopyFootprintRequest,
+    CanopyFootprintResult,
+    cast_request_types,
+    save_main_footprint,
+)
 import beratools.core.algo_cost as algo_cost
 import beratools.core.tool_base as bt_base
 import beratools.utility.spatial_common as sp_common
@@ -203,44 +209,74 @@ def canopy_footprint_abs(
     call_mode=CallMode.CLI,
     log_level="INFO",
 ):
-    in_file, in_layer = sp_common.decode_file_layer(in_line)
-    out_file, out_layer = sp_common.decode_file_layer(out_footprint)
+    request = cast_request_types(
+        CanopyFootprintRequest(
+            in_line=in_line,
+            in_chm=in_chm,
+            out_footprint=out_footprint,
+            max_ln_width=max_ln_width,
+            corridor_thresh=corridor_thresh,
+            exp_shk_cell=exp_shk_cell,
+            processes=processes,
+            call_mode=call_mode,
+            log_level=log_level,
+        )
+    )
 
-    max_ln_width = float(max_ln_width)
-    exp_shk_cell = int(exp_shk_cell)
+    result = _run_absolute_request(request)
+    save_main_footprint(
+        result,
+        request.out_footprint,
+        rejected_layer_name="rejected_output_canopy_footprint_absolute",
+        printer=print,
+    )
+
+
+def _run_absolute_request(req: CanopyFootprintRequest) -> CanopyFootprintResult:
+    """Run absolute footprint workflow using shared request/result contracts."""
+
+    in_file, in_layer = sp_common.decode_file_layer(req.in_line)
+
+    corridor_thresh = req.corridor_thresh if req.corridor_thresh is not None else 3.0
+    exp_shk_cell = req.exp_shk_cell if req.exp_shk_cell is not None else 0
 
     footprint_list = []
-    poly_list = []
-
     line_class_list = generate_line_class_list(
-        in_file, in_chm, corridor_thresh, max_ln_width, exp_shk_cell, in_layer
+        in_file,
+        req.in_chm,
+        corridor_thresh,
+        req.max_ln_width,
+        exp_shk_cell,
+        in_layer,
     )
 
     feat_list = bt_base.execute_multiprocessing(
-        process_single_line, line_class_list, "Line footprint", processes, call_mode
+        process_single_line,
+        line_class_list,
+        "Line footprint",
+        req.processes,
+        req.call_mode,
     )
 
     if feat_list:
-        for i in feat_list:
-            if i.footprint is not None:
-                footprint_list.append(i.footprint)
-            if i.corridor_poly_gpd is not None:
-                poly_list.append(i.corridor_poly_gpd)
+        for item in feat_list:
+            if item.footprint is not None:
+                footprint_list.append(item.footprint)
+
+    result = CanopyFootprintResult(
+        stats={
+            "line_count": len(line_class_list),
+            "success_count": len(footprint_list),
+            "fail_count": max(len(line_class_list) - len(footprint_list), 0),
+        }
+    )
 
     if footprint_list:
-        results = gpd.GeoDataFrame(pd.concat(footprint_list))
-        results = results.reset_index(drop=True)
-        layer_name = out_layer if out_layer else "canopy_footprint"
-        results = algo_common.clean_geometries(
-            results,
-            stage="output",
-            out_file=out_file,
-            layer="rejected_output_canopy_footprint_absolute",
-        )
-        results.to_file(out_file, layer=layer_name)
-        print(f"Saved footprint to {out_file}, layer: {layer_name}")
+        result.footprints_gdf = gpd.GeoDataFrame(pd.concat(footprint_list)).reset_index(drop=True)
     else:
-        print("Warning: No footprints generated. Output file not written.")
+        result.messages.append("No footprints generated.")
+
+    return result
 
 
 if __name__ == "__main__":

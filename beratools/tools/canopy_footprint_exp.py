@@ -1,7 +1,16 @@
 """Adaptive relative canopy footprint tool with exception handling."""
 
-import beratools.core.algo_common as algo_common
-import beratools.utility.spatial_common as sp_common
+from typing import cast
+
+import geopandas as gpd
+
+from beratools.core.algo_canopy_footprint_common import (
+    CanopyFootprintRequest,
+    CanopyFootprintResult,
+    cast_request_types,
+    save_aux_layers,
+    save_main_footprint,
+)
 from beratools.core.algo_canopy_footprint_exp import FootprintCanopyAdaptive
 from beratools.utility.tool_args import CallMode
 
@@ -27,48 +36,80 @@ def line_footprint_adaptive(
     log_level="INFO",
 ):
     """Safe version of adaptive relative canopy footprint tool."""
-    try:
-        footprint = FootprintCanopyAdaptive(
-            in_line,
-            in_chm,
-            max_line_width=max_line_width,
+    request = cast_request_types(
+        CanopyFootprintRequest(
+            in_line=in_line,
+            in_chm=in_chm,
+            out_footprint=out_footprint,
+            max_ln_width=max_line_width,
             tree_radius=tree_radius,
             max_line_dist=max_line_dist,
             canopy_avoidance=canopy_avoidance,
             exponent=exponent,
             canopy_thresh_percentage=canopy_thresh_percentage,
+            processes=processes,
+            call_mode=call_mode,
+            log_level=log_level,
         )
-    except Exception as e:
-        print(f"Failed to initialize FootprintCanopyAdaptive: {e}")
-        return
+    )
+
+    result = _run_adaptive_request(request)
+    for message in result.messages:
+        print(message)
+
+    save_main_footprint(
+        result,
+        request.out_footprint,
+        rejected_layer_name="rejected_output_canopy_footprint_adaptive",
+        printer=print,
+    )
+    save_aux_layers(result, request.out_footprint, printer=print)
+
+
+def _run_adaptive_request(req: CanopyFootprintRequest) -> CanopyFootprintResult:
+    """Run adaptive footprint workflow using shared request/result contracts."""
+
+    result = CanopyFootprintResult()
+    try:
+        footprint = FootprintCanopyAdaptive(
+            req.in_line,
+            req.in_chm,
+            max_line_width=int(float(req.max_ln_width)),
+            tree_radius=req.tree_radius if req.tree_radius is not None else 1.5,
+            max_line_dist=req.max_line_dist if req.max_line_dist is not None else 1.5,
+            canopy_avoidance=req.canopy_avoidance if req.canopy_avoidance is not None else 0.0,
+            exponent=req.exponent if req.exponent is not None else 1.0,
+            canopy_thresh_percentage=(
+                int(float(req.canopy_thresh_percentage)) if req.canopy_thresh_percentage is not None else 50
+            ),
+        )
+    except Exception as err:
+        result.messages.append(f"Failed to initialize FootprintCanopyAdaptive: {err}")
+        return result
 
     try:
-        footprint.compute(processes)
-    except Exception as e:
-        print(f"Error in compute(): {e}")
+        footprint.compute(req.processes)
+    except Exception as err:
+        result.messages.append(f"Error in compute(): {err}")
         import traceback
 
         traceback.print_exc()
-        return
+        return result
 
-    # Save only if footprints were actually generated
-    out_file, out_layer = sp_common.decode_file_layer(out_footprint)
     if _is_valid_gdf(footprint, "footprints"):
-        try:
-            footprint.save_footprint(out_file, out_layer)
-            print(f"Footprint saved to {out_footprint}")
-        except Exception as e:
-            print(f"Failed to save footprint: {e}")
+        result.footprints_gdf = footprint.footprints
     else:
-        print("No valid footprints to save.")
+        result.messages.append("No valid footprints to save.")
 
-    # Optionally save percentile lines (if needed)
     if _is_valid_gdf(footprint, "lines_percentile"):
-        out_file_aux = algo_common.get_aux_path(out_file)
-        try:
-            footprint.save_line_percentile(out_file_aux)
-        except Exception as e:
-            print(f"Failed to save line percentile: {e}")
+        result.aux_layers["lines_percentile"] = cast(gpd.GeoDataFrame, footprint.lines_percentile)
+
+    result.stats = {
+        "line_count": len(footprint.lines),
+        "success_count": 0 if result.footprints_gdf is None else int(len(result.footprints_gdf)),
+        "fail_count": 0,
+    }
+    return result
 
 
 def parse_cli_args():
