@@ -215,6 +215,7 @@ def find_centerline(poly, input_line, guided_strategy="main_route"):
     valid_guided_strategies = {"main_route", "candidate"}
     if guided_strategy not in valid_guided_strategies:
         raise ValueError("guided_strategy must be one of {}".format(sorted(valid_guided_strategies)))
+    effective_strategy = guided_strategy
 
     if not poly:
         print("find_centerline: No polygon found")
@@ -263,6 +264,8 @@ def find_centerline(poly, input_line, guided_strategy="main_route"):
                 None,
                 "main_route",
             )
+            if centerline:
+                effective_strategy = "main_route"
         except Exception as e:
             print(f"find_centerline: main_route retry failed: {e}")
             return default_return
@@ -279,8 +282,8 @@ def find_centerline(poly, input_line, guided_strategy="main_route"):
         else:
             return default_return
 
-    needs_trim_snap = guided_strategy == "main_route"
-    if guided_strategy == "candidate":
+    needs_trim_snap = effective_strategy == "main_route"
+    if effective_strategy == "candidate":
         needs_trim_snap = not _is_endpoint_anchored(
             centerline,
             input_line,
@@ -289,7 +292,7 @@ def find_centerline(poly, input_line, guided_strategy="main_route"):
 
     if needs_trim_snap:
         max_snap_dist = None
-        if guided_strategy == "candidate":
+        if effective_strategy == "candidate":
             max_snap_dist = CenterlineParams.CANDIDATE_FALLBACK_MAX_SNAP
         centerline = _trim_and_snap_centerline(
             centerline,

@@ -115,8 +115,15 @@ def test_candidate_retries_main_route_when_guided_extract_fails(monkeypatch):
             return None
         return LineString([(0, 0), (20, 0), (40, 0)])
 
+    trim_snap_args = {"max_snap_dist": "unset", "count": 0}
+
+    def fake_trim(_centerline, _seed, max_snap_dist=None):
+        trim_snap_args["count"] += 1
+        trim_snap_args["max_snap_dist"] = max_snap_dist
+        return _centerline
+
     monkeypatch.setattr(algo_centerline, "_extract_centerline_from_polygon", fake_extract)
-    monkeypatch.setattr(algo_centerline, "_trim_and_snap_centerline", lambda c, _s, max_snap_dist=None: c)
+    monkeypatch.setattr(algo_centerline, "_trim_and_snap_centerline", fake_trim)
     monkeypatch.setattr(algo_centerline, "centerline_is_valid", lambda *_args, **_kwargs: True)
 
     centerline, status = algo_centerline.find_centerline(poly, seed, guided_strategy="candidate")
@@ -124,6 +131,8 @@ def test_candidate_retries_main_route_when_guided_extract_fails(monkeypatch):
     assert centerline.is_valid
     assert status == algo_centerline.CenterlineStatus.SUCCESS
     assert calls == ["candidate", "main_route"]
+    assert trim_snap_args["count"] == 1
+    assert trim_snap_args["max_snap_dist"] is None
 
 
 def test_snap_end_to_end_respects_max_snap_distance():
