@@ -88,6 +88,9 @@ def canopy_footprint_abs(
     )
 
     mode = str(footprint_mode).strip().lower()
+    if mode not in {"absolute", "adaptive"}:
+        raise ValueError("footprint_mode must be 'absolute' or 'adaptive'")
+
     if mode == "adaptive":
         result = _run_adaptive_request(request)
         rejected_layer_name = "rejected_output_canopy_footprint_adaptive"
@@ -163,25 +166,29 @@ def _run_adaptive_request(req: CanopyFootprintRequest) -> CanopyFootprintResult:
     """Run adaptive footprint workflow using shared request/result contracts."""
 
     result = CanopyFootprintResult()
+    run_call_mode = req.call_mode
+    if isinstance(run_call_mode, str):
+        run_call_mode = CallMode(run_call_mode)
+
     try:
         footprint = FootprintCanopyAdaptive(
             req.in_line,
             req.in_chm,
-            max_line_width=int(float(req.max_ln_width)),
+            max_line_width=req.max_ln_width if req.max_ln_width is not None else 32.0,
             tree_radius=req.tree_radius if req.tree_radius is not None else 1.5,
             max_line_dist=req.max_line_dist if req.max_line_dist is not None else 1.5,
             canopy_avoidance=req.canopy_avoidance if req.canopy_avoidance is not None else 0.0,
             exponent=req.exponent if req.exponent is not None else 1.0,
-            canopy_thresh_percentage=(
-                int(float(req.canopy_thresh_percentage)) if req.canopy_thresh_percentage is not None else 50
-            ),
+            canopy_thresh_percentage=req.canopy_thresh_percentage
+            if req.canopy_thresh_percentage is not None
+            else 50.0,
         )
     except Exception as err:
         result.messages.append(f"Failed to initialize FootprintCanopyAdaptive: {err}")
         return result
 
     try:
-        footprint.compute(req.processes)
+        footprint.compute(req.processes, run_call_mode)
     except Exception as err:
         result.messages.append(f"Error in compute(): {err}")
         import traceback

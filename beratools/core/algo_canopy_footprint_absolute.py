@@ -182,12 +182,12 @@ class FootprintCanopyAdaptive:
         self,
         in_geom,
         in_chm,
-        max_line_width=32,
+        max_line_width=32.0,
         tree_radius=1.5,
         max_line_dist=1.5,
         canopy_avoidance=0.0,
         exponent=1.0,
-        canopy_thresh_percentage=50,
+        canopy_thresh_percentage=50.0,
     ):
         in_file, in_layer = sp_common.decode_file_layer(in_geom)
         data = algo_common.read_geospatial_file(in_file, layer=in_layer)
@@ -209,12 +209,13 @@ class FootprintCanopyAdaptive:
             )
             self.lines.append(line)
 
-    def compute(self, processes):
+    def compute(self, processes, call_mode=CallMode.CLI):
         result = bt_base.execute_multiprocessing(
             algo_common.process_single_item,
             self.lines,
             "Canopy Footprint",
             processes,
+            call_mode,
         )
 
         footprint_list = []
@@ -287,12 +288,12 @@ class LineInfo:
         self,
         line_gdf,
         in_chm,
-        max_line_width=32,
+        max_line_width=32.0,
         tree_radius=1.5,
         max_line_dist=1.5,
         canopy_avoidance=0.0,
         exponent=1.0,
-        canopy_thresh_percentage=50,
+        canopy_thresh_percentage=50.0,
     ):
         self.line = line_gdf
         self.in_chm = in_chm
