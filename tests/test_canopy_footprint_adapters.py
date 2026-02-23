@@ -58,7 +58,11 @@ def test_run_absolute_request_returns_contract_shape(monkeypatch):
 def test_run_adaptive_request_returns_contract_shape(monkeypatch):
     class FakeAdaptive:
         def __init__(self, *args, **kwargs):
-            self.lines = [1, 2, 3]
+            self.lines = [
+                SimpleNamespace(footprint=_single_poly_gdf()),
+                SimpleNamespace(footprint=None),
+                SimpleNamespace(footprint=None),
+            ]
             self.footprints = _single_poly_gdf()
             self.lines_percentile = gpd.GeoDataFrame(
                 {
@@ -95,6 +99,7 @@ def test_run_adaptive_request_returns_contract_shape(monkeypatch):
     assert "lines_percentile" in result.aux_layers
     assert result.stats["line_count"] == 3
     assert result.stats["success_count"] == 1
+    assert result.stats["fail_count"] == 2
 
 
 def test_canopy_footprint_abs_rejects_invalid_mode():
