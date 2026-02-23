@@ -162,10 +162,6 @@ class FootprintCanopyAdaptive:
             print("No lines_percentile to save (None or not a GeoDataFrame).")
 
 
-# Backward-compatible alias
-FootprintCanopy = FootprintCanopyAdaptive
-
-
 class BufferRing:
     """Buffer ring class."""
 

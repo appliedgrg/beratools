@@ -7,7 +7,7 @@ from utils import check_file_exists
 from beratools.core.canopy_threshold_relative import main_canopy_threshold_relative
 from beratools.core.line_footprint_functions import main_line_footprint_relative
 from beratools.tools.canopy_footprint_absolute import canopy_footprint_abs
-from beratools.tools.canopy_footprint_exp import line_footprint_exp
+from beratools.tools.canopy_footprint_exp import line_footprint_adaptive
 from beratools.tools.centerline import centerline
 from beratools.tools.check_seed_line import check_seed_line
 from beratools.tools.ground_footprint import ground_footprint
@@ -86,14 +86,25 @@ def test_rel_footprint_tool(tool_arguments_integration):
 
 
 def test_footprint_exp_tool(tool_arguments_integration):
-    """Test for the FootprintCanopy tool."""
+    """Test for the adaptive footprint tool."""
     args_footprint_exp = tool_arguments_integration["args_footprint_exp"]
     pprint(args_footprint_exp)
 
-    line_footprint_exp(**args_footprint_exp)
+    line_footprint_adaptive(**args_footprint_exp)
 
     out_file, layer = decode_file_layer(args_footprint_exp["out_footprint"])
     assert check_file_exists(out_file, layer), "Footprint Rel no output!"
+
+
+def test_footprint_adaptive_via_absolute_tool(tool_arguments_integration):
+    """Test adaptive mode routed through canopy_footprint_abs."""
+    args = tool_arguments_integration["args_footprint_adaptive_via_absolute"]
+    pprint(args)
+
+    canopy_footprint_abs(**args)
+
+    out_file, layer = decode_file_layer(args["out_footprint"])
+    assert check_file_exists(out_file, layer), "Adaptive via absolute mode no output!"
 
 
 def test_ground_footprint_tool(tool_arguments_integration):

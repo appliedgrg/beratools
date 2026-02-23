@@ -158,7 +158,3 @@ if __name__ == "__main__":
     kwargs = parse_cli_args()
     line_footprint_adaptive(**kwargs)
     print("Elapsed time: {}".format(time.time() - start_time))
-
-
-# Backward-compatible alias
-line_footprint_exp = line_footprint_adaptive

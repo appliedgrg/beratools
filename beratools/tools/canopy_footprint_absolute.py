@@ -30,6 +30,7 @@ from beratools.core.algo_canopy_footprint_common import (
     CanopyFootprintRequest,
     CanopyFootprintResult,
     cast_request_types,
+    save_aux_layers,
     save_main_footprint,
 )
 import beratools.core.algo_cost as algo_cost
@@ -201,10 +202,16 @@ def generate_line_class_list(
 def canopy_footprint_abs(
     in_line,
     in_chm,
-    corridor_thresh,
-    max_ln_width,
-    exp_shk_cell,
     out_footprint,
+    corridor_thresh=3.0,
+    max_ln_width=32.0,
+    exp_shk_cell=0,
+    footprint_mode="absolute",
+    tree_radius=1.5,
+    max_line_dist=1.5,
+    canopy_avoidance=0.0,
+    exponent=1.0,
+    canopy_thresh_percentage=50,
     processes=0,
     call_mode=CallMode.CLI,
     log_level="INFO",
@@ -217,19 +224,38 @@ def canopy_footprint_abs(
             max_ln_width=max_ln_width,
             corridor_thresh=corridor_thresh,
             exp_shk_cell=exp_shk_cell,
+            tree_radius=tree_radius,
+            max_line_dist=max_line_dist,
+            canopy_avoidance=canopy_avoidance,
+            exponent=exponent,
+            canopy_thresh_percentage=canopy_thresh_percentage,
             processes=processes,
             call_mode=call_mode,
             log_level=log_level,
         )
     )
 
-    result = _run_absolute_request(request)
+    mode = str(footprint_mode).strip().lower()
+    if mode == "adaptive":
+        from beratools.tools.canopy_footprint_exp import _run_adaptive_request
+
+        result = _run_adaptive_request(request)
+        rejected_layer_name = "rejected_output_canopy_footprint_adaptive"
+    else:
+        result = _run_absolute_request(request)
+        rejected_layer_name = "rejected_output_canopy_footprint_absolute"
+
+    for message in result.messages:
+        print(message)
+
     save_main_footprint(
         result,
         request.out_footprint,
-        rejected_layer_name="rejected_output_canopy_footprint_absolute",
+        rejected_layer_name=rejected_layer_name,
         printer=print,
     )
+    if mode == "adaptive":
+        save_aux_layers(result, request.out_footprint, printer=print)
 
 
 def _run_absolute_request(req: CanopyFootprintRequest) -> CanopyFootprintResult:
@@ -250,12 +276,16 @@ def _run_absolute_request(req: CanopyFootprintRequest) -> CanopyFootprintResult:
         in_layer,
     )
 
+    call_mode = req.call_mode
+    if isinstance(call_mode, str):
+        call_mode = CallMode(call_mode)
+
     feat_list = bt_base.execute_multiprocessing(
         process_single_line,
         line_class_list,
         "Line footprint",
         req.processes,
-        req.call_mode,
+        call_mode,
     )
 
     if feat_list:

@@ -5,7 +5,7 @@ import shapely.geometry as sh_geom
 
 import beratools.core.algo_common as algo_common
 import beratools.core.algo_vertex_optimization as algo_vertex_optimization
-from beratools.core.algo_canopy_footprint_exp import FootprintCanopy
+from beratools.core.algo_canopy_footprint_exp import FootprintCanopyAdaptive
 from beratools.core.algo_vertex_preclean import preclean_vertices
 
 
@@ -233,7 +233,7 @@ def test_footprint_canopy_init_handles_rejected_geometry(monkeypatch):
 
     monkeypatch.setattr(algo_common.gpd, "read_file", lambda *args, **kwargs: input_gdf)
 
-    canopy = FootprintCanopy("dummy.gpkg|lines", "dummy.tif")
+    canopy = FootprintCanopyAdaptive("dummy.gpkg|lines", "dummy.tif")
 
     assert len(canopy.lines) == 2
 
