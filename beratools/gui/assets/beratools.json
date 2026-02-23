@@ -356,6 +356,22 @@
               "optional": false
             },
             {
+              "variable": "footprint_mode",
+              "label": "Footprint Mode",
+              "description": "Choose absolute threshold or adaptive threshold canopy footprint.",
+              "type": "list",
+              "subtype": "text",
+              "data": ["absolute", "adaptive"],
+              "default": "absolute",
+              "output": false,
+              "optional": true,
+              "depends_on": {
+                "variable": "in_line",
+                "condition": "__hidden__",
+                "mode": "hide"
+              }
+            },
+            {
               "variable": "corridor_thresh",
               "label": "Corridor Threshold",
               "description": "The least cost corridor thresholds.",
@@ -384,6 +400,81 @@
               "default": 0,
               "output": false,
               "optional": true
+            },
+            {
+              "variable": "tree_radius",
+              "label": "Tree Search Radius",
+              "description": "Radius of canopy influence in the cost raster for adaptive mode.",
+              "type": "number",
+              "subtype": "float",
+              "default": 1.5,
+              "output": false,
+              "optional": true,
+              "depends_on": {
+                "variable": "in_line",
+                "condition": "__hidden__",
+                "mode": "hide"
+              }
+            },
+            {
+              "variable": "max_line_dist",
+              "label": "Maximum Line Distance",
+              "description": "Maximum euclidean distance from canopy in adaptive mode.",
+              "type": "number",
+              "subtype": "float",
+              "default": 1.5,
+              "output": false,
+              "optional": true,
+              "depends_on": {
+                "variable": "in_line",
+                "condition": "__hidden__",
+                "mode": "hide"
+              }
+            },
+            {
+              "variable": "canopy_avoidance",
+              "label": "Canopy Avoidance",
+              "description": "Ratio of importance between canopy search radius and euclidean distance in adaptive mode.",
+              "type": "number",
+              "subtype": "float",
+              "default": 0.0,
+              "output": false,
+              "optional": true,
+              "depends_on": {
+                "variable": "in_line",
+                "condition": "__hidden__",
+                "mode": "hide"
+              }
+            },
+            {
+              "variable": "exponent",
+              "label": "Cost Raster Exponent",
+              "description": "Exponential weight for cost in adaptive mode.",
+              "type": "number",
+              "subtype": "float",
+              "default": 1.0,
+              "output": false,
+              "optional": true,
+              "depends_on": {
+                "variable": "in_line",
+                "condition": "__hidden__",
+                "mode": "hide"
+              }
+            },
+            {
+              "variable": "canopy_thresh_percentage",
+              "label": "Canopy Threshold Percentage",
+              "description": "Apply percent on calculated canopy threshold height in adaptive mode.",
+              "type": "number",
+              "subtype": "float",
+              "default": 50,
+              "output": false,
+              "optional": true,
+              "depends_on": {
+                "variable": "in_line",
+                "condition": "__hidden__",
+                "mode": "hide"
+              }
             },
             {
               "variable": "out_footprint",

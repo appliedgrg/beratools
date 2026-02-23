@@ -11,22 +11,24 @@ Description:
     Webpage: https://github.com/appliedgrg/beratools
 
     The purpose of this script is to provide main interface for canopy footprint tool.
-    The tool is used to generate the footprint of a line based on absolute threshold.
 """
 
 import logging
 import time
 
 import geopandas as gpd
-import numpy as np
 import pandas as pd
-from rasterio import features
-from rasterio.transform import rowcol
-from shapely.geometry import MultiPolygon, Polygon, shape
 
-import beratools.core.algo_centerline as algo_cl
-import beratools.core.algo_common as algo_common
-import beratools.core.algo_cost as algo_cost
+from beratools.core.algo_canopy_footprint_absolute import (
+    CanopyFootprintRequest,
+    CanopyFootprintResult,
+    FootprintCanopyAdaptive,
+    cast_request_types,
+    generate_absolute_line_class_list,
+    process_single_absolute_line,
+    save_aux_layers,
+    save_main_footprint,
+)
 import beratools.core.tool_base as bt_base
 import beratools.utility.spatial_common as sp_common
 from beratools.core.logger import Logger
@@ -37,206 +39,188 @@ logger = log.get_logger()
 print = log.print
 
 
-class FootprintAbsolute:
-    """Class to compute the footprint of a line based on absolute threshold."""
+def _is_valid_gdf(obj, attr):
+    """Check if obj has a non-empty GeoDataFrame attribute."""
 
-    def __init__(
-        self,
-        line_seg,
-        in_chm,
-        corridor_thresh,
-        max_ln_width,
-        exp_shk_cell,
-    ):
-        self.line_seg = line_seg
-        self.in_chm = in_chm
-        self.corridor_thresh = corridor_thresh
-        self.max_ln_width = max_ln_width
-        self.exp_shk_cell = exp_shk_cell
-
-        self.footprint = None
-        self.corridor_poly_gpd = None
-        self.centerline = None
-
-    def compute(self):
-        """Generate line footprint."""
-        in_chm = self.in_chm
-        corridor_thresh = self.corridor_thresh
-        line_gpd = self.line_seg
-        max_ln_width = self.max_ln_width
-        exp_shk_cell = self.exp_shk_cell
-
-        try:
-            corridor_thresh = float(corridor_thresh)
-            if corridor_thresh < 0.0:
-                corridor_thresh = 3.0
-        except ValueError as e:
-            print(f"FootprintAbsolute.compute: ValueError {e}")
-            corridor_thresh = 3.0
-        except Exception as e:
-            print(f"FootprintAbsolute.compute: exception {e}")
-
-        segment_list = []
-        feat = self.line_seg.geometry[0]
-        for coord in feat.coords:
-            segment_list.append(coord)
-
-        # Find origin and destination coordinates
-        x1, y1 = segment_list[0][0], segment_list[0][1]
-        x2, y2 = segment_list[-1][0], segment_list[-1][1]
-
-        # Buffer around line and clip cost raster and canopy raster
-        # TODO: deal with NODATA
-        clip_cost, out_meta = sp_common.clip_raster(in_chm, feat, max_ln_width)
-        out_transform = out_meta["transform"]
-        cell_size_x = out_transform[0]
-        cell_size_y = -out_transform[4]
-
-        clip_cost, clip_canopy = algo_cost.cost_raster(clip_cost, out_meta)
-
-        # Work out the corridor from both end of the centerline
-        if len(clip_canopy.shape) > 2:
-            clip_canopy = np.squeeze(clip_canopy, axis=0)
-
-        source = [rowcol(out_transform, x1, y1)]
-        destination = [rowcol(out_transform, x2, y2)]
-
-        corridor_thresh = algo_common.corridor_raster(
-            clip_cost,
-            out_meta,
-            source,
-            destination,
-            (cell_size_x, cell_size_y),
-            corridor_thresh,
-        )
-
-        clean_raster = algo_common.morph_raster(corridor_thresh, clip_canopy, exp_shk_cell, cell_size_x)
-
-        # create mask for non-polygon area
-        msk = np.where(clean_raster == 1, True, False)
-        if clean_raster.dtype == np.int64:
-            clean_raster = clean_raster.astype(np.int32)
-
-        # Process: ndarray to shapely Polygon
-        out_polygon = features.shapes(clean_raster, mask=msk, transform=out_transform)
-
-        # create a shapely multipolygon
-        multi_polygon = []
-        for shp, value in out_polygon:
-            multi_polygon.append(shape(shp))
-        poly = MultiPolygon(multi_polygon)
-
-        # create a pandas dataframe for the footprint
-        # Ensure CRS is a string
-        crs_str = None
-        if hasattr(self.line_seg, "crs") and self.line_seg.crs:
-            if hasattr(self.line_seg.crs, "to_string"):
-                crs_str = self.line_seg.crs.to_string()
-            else:
-                crs_str = str(self.line_seg.crs)
-        else:
-            crs_str = "EPSG:4326"
-        # Ensure poly is a valid shapely geometry
-        if not isinstance(poly, (Polygon, MultiPolygon)):
-            poly = MultiPolygon([poly]) if poly else None
-
-        # Fallback CRS if invalid
-        if not crs_str or not isinstance(crs_str, str) or not crs_str.startswith("EPSG"):
-            crs_str = "EPSG:4326"
-
-        # Only create GeoDataFrame if poly is not None
-        if poly is not None and isinstance(poly, (Polygon, MultiPolygon)):
-            geometry_list = [poly]
-        else:
-            geometry_list = []
-
-        import pandas as pd
-
-        self.footprint = gpd.GeoDataFrame({"geometry": geometry_list})
-        self.footprint.set_crs(crs_str, inplace=True)
-
-        # find contiguous corridor polygon for centerline
-        corridor_poly_gpd = algo_cl.find_corridor_polygon(corridor_thresh, out_transform, line_gpd)
-        centerline, status = algo_cl.find_centerline(corridor_poly_gpd.geometry.iloc[0], feat)
-
-        self.corridor_poly_gpd = corridor_poly_gpd
-        self.centerline = centerline
-
-
-def process_single_line(line_footprint):
-    try:
-        line_footprint.compute()
-    except Exception as e:
-        print(f"process_single_line: exception {e}")
-    return line_footprint
-
-
-def generate_line_class_list(
-    in_line,
-    in_chm,
-    corridor_thresh,
-    max_ln_width,
-    exp_shk_cell,
-    in_layer=None,
-):
-    line_classes = []
-    line_list = algo_common.prepare_lines_gdf(in_line, in_layer, proc_segments=False)
-
-    for line in line_list:
-        line_classes.append(FootprintAbsolute(line, in_chm, corridor_thresh, max_ln_width, exp_shk_cell))
-
-    return line_classes
+    gdf = getattr(obj, attr, None)
+    return gdf is not None and hasattr(gdf, "empty") and not gdf.empty
 
 
 def canopy_footprint_abs(
     in_line,
     in_chm,
-    corridor_thresh,
-    max_ln_width,
-    exp_shk_cell,
-    out_footprint,
+    corridor_thresh=3.0,
+    max_ln_width=32.0,
+    exp_shk_cell=0,
+    out_footprint=None,
+    footprint_mode="absolute",
+    tree_radius=1.5,
+    max_line_dist=1.5,
+    canopy_avoidance=0.0,
+    exponent=1.0,
+    canopy_thresh_percentage=50,
     processes=0,
     call_mode=CallMode.CLI,
     log_level="INFO",
 ):
-    in_file, in_layer = sp_common.decode_file_layer(in_line)
-    out_file, out_layer = sp_common.decode_file_layer(out_footprint)
+    """Run canopy footprint in absolute or adaptive mode."""
 
-    max_ln_width = float(max_ln_width)
-    exp_shk_cell = int(exp_shk_cell)
+    if not out_footprint:
+        raise ValueError("out_footprint is required")
 
-    footprint_list = []
-    poly_list = []
-
-    line_class_list = generate_line_class_list(
-        in_file, in_chm, corridor_thresh, max_ln_width, exp_shk_cell, in_layer
+    request = cast_request_types(
+        CanopyFootprintRequest(
+            in_line=in_line,
+            in_chm=in_chm,
+            out_footprint=out_footprint,
+            max_ln_width=max_ln_width,
+            corridor_thresh=corridor_thresh,
+            exp_shk_cell=exp_shk_cell,
+            tree_radius=tree_radius,
+            max_line_dist=max_line_dist,
+            canopy_avoidance=canopy_avoidance,
+            exponent=exponent,
+            canopy_thresh_percentage=canopy_thresh_percentage,
+            processes=processes,
+            call_mode=call_mode,
+            log_level=log_level,
+        )
     )
 
+    mode = str(footprint_mode).strip().lower()
+    if mode not in {"absolute", "adaptive"}:
+        raise ValueError("footprint_mode must be 'absolute' or 'adaptive'")
+
+    if mode == "adaptive":
+        result = _run_adaptive_request(request)
+        rejected_layer_name = "rejected_output_canopy_footprint_adaptive"
+    else:
+        result = _run_absolute_request(request)
+        rejected_layer_name = "rejected_output_canopy_footprint_absolute"
+
+    for message in result.messages:
+        print(message)
+
+    save_main_footprint(
+        result,
+        request.out_footprint,
+        rejected_layer_name=rejected_layer_name,
+        printer=print,
+    )
+    if mode == "adaptive":
+        save_aux_layers(result, request.out_footprint, printer=print)
+
+
+def _run_absolute_request(req: CanopyFootprintRequest) -> CanopyFootprintResult:
+    """Run absolute footprint workflow using shared request/result contracts."""
+
+    in_file, in_layer = sp_common.decode_file_layer(req.in_line)
+
+    corridor_thresh = req.corridor_thresh if req.corridor_thresh is not None else 3.0
+    exp_shk_cell = req.exp_shk_cell if req.exp_shk_cell is not None else 0
+
+    footprint_list = []
+    line_class_list = generate_absolute_line_class_list(
+        in_file,
+        req.in_chm,
+        corridor_thresh,
+        req.max_ln_width,
+        exp_shk_cell,
+        in_layer,
+    )
+
+    run_call_mode = req.call_mode
+    if isinstance(run_call_mode, str):
+        run_call_mode = CallMode(run_call_mode)
+
     feat_list = bt_base.execute_multiprocessing(
-        process_single_line, line_class_list, "Line footprint", processes, call_mode
+        process_single_absolute_line,
+        line_class_list,
+        "Line footprint",
+        req.processes,
+        run_call_mode,
     )
 
     if feat_list:
-        for i in feat_list:
-            if i.footprint is not None:
-                footprint_list.append(i.footprint)
-            if i.corridor_poly_gpd is not None:
-                poly_list.append(i.corridor_poly_gpd)
+        for item in feat_list:
+            if item.footprint is not None:
+                footprint_list.append(item.footprint)
+
+    result = CanopyFootprintResult(
+        stats={
+            "line_count": len(line_class_list),
+            "success_count": len(footprint_list),
+            "fail_count": max(len(line_class_list) - len(footprint_list), 0),
+        }
+    )
 
     if footprint_list:
-        results = gpd.GeoDataFrame(pd.concat(footprint_list))
-        results = results.reset_index(drop=True)
-        layer_name = out_layer if out_layer else "canopy_footprint"
-        results = algo_common.clean_geometries(
-            results,
-            stage="output",
-            out_file=out_file,
-            layer="rejected_output_canopy_footprint_absolute",
-        )
-        results.to_file(out_file, layer=layer_name)
-        print(f"Saved footprint to {out_file}, layer: {layer_name}")
+        result.footprints_gdf = gpd.GeoDataFrame(pd.concat(footprint_list)).reset_index(drop=True)
     else:
-        print("Warning: No footprints generated. Output file not written.")
+        result.messages.append("No footprints generated.")
+
+    return result
+
+
+def _run_adaptive_request(req: CanopyFootprintRequest) -> CanopyFootprintResult:
+    """Run adaptive footprint workflow using shared request/result contracts."""
+
+    result = CanopyFootprintResult()
+    run_call_mode = req.call_mode
+    if isinstance(run_call_mode, str):
+        run_call_mode = CallMode(run_call_mode)
+
+    try:
+        footprint = FootprintCanopyAdaptive(
+            req.in_line,
+            req.in_chm,
+            max_line_width=req.max_ln_width if req.max_ln_width is not None else 32.0,
+            tree_radius=req.tree_radius if req.tree_radius is not None else 1.5,
+            max_line_dist=req.max_line_dist if req.max_line_dist is not None else 1.5,
+            canopy_avoidance=req.canopy_avoidance if req.canopy_avoidance is not None else 0.0,
+            exponent=req.exponent if req.exponent is not None else 1.0,
+            canopy_thresh_percentage=req.canopy_thresh_percentage
+            if req.canopy_thresh_percentage is not None
+            else 50.0,
+        )
+    except Exception as err:
+        result.messages.append(f"Failed to initialize FootprintCanopyAdaptive: {err}")
+        return result
+
+    try:
+        footprint.compute(req.processes, run_call_mode)
+    except Exception as err:
+        result.messages.append(f"Error in compute(): {err}")
+        import traceback
+
+        traceback.print_exc()
+        return result
+
+    if _is_valid_gdf(footprint, "footprints"):
+        result.footprints_gdf = footprint.footprints
+    else:
+        result.messages.append("No valid footprints to save.")
+
+    if _is_valid_gdf(footprint, "lines_percentile"):
+        result.aux_layers["lines_percentile"] = gpd.GeoDataFrame(footprint.lines_percentile)
+
+    lines = getattr(footprint, "lines", []) or []
+    line_count = len(lines)
+
+    if line_count > 0:
+        success_count = sum(
+            1 for line in lines if hasattr(line, "footprint") and getattr(line, "footprint") is not None
+        )
+    else:
+        success_count = 0 if result.footprints_gdf is None else int(len(result.footprints_gdf))
+
+    result.stats = {
+        "line_count": int(line_count),
+        "success_count": int(success_count),
+        "fail_count": int(max(line_count - success_count, 0)),
+    }
+
+    return result
 
 
 if __name__ == "__main__":
