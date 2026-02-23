@@ -14,20 +14,30 @@ jobs:
     steps:
       - name: Checkout Code
         uses: actions/checkout@v3
-      - name: Verify tag is on main branch
+      - name: Check if tagged commit is on main
+        id: tag_guard
         run: |
+          set -euo pipefail
+          commit_sha="${GITHUB_SHA:-$(git rev-parse HEAD)}"
           git fetch origin main
-          if ! git branch --contains $GITHUB_SHA | grep -q 'main'; then
-            echo "Tag is not from main branch. Skipping publish."
-            exit 0
+          if git branch -r --contains "$commit_sha" | grep -q 'origin/main'; then
+            echo "on_main=true" >> "$GITHUB_OUTPUT"
+            echo "✅ Tag commit is on main. Proceeding with publish steps."
+          else
+            echo "on_main=false" >> "$GITHUB_OUTPUT"
+            echo "⏭️ Tag commit is not on main. All publish steps will be skipped."
           fi
       - name: Set up Python
+        if: steps.tag_guard.outputs.on_main == 'true'
         uses: actions/setup-python@v4
         with:
           python-version: '3.11'
       - name: Install build tools
+        if: steps.tag_guard.outputs.on_main == 'true'
         run: pip install build twine hatch-vcs
       - name: Build package
+        if: steps.tag_guard.outputs.on_main == 'true'
         run: python -m build
       - name: Publish to PyPI
+        if: steps.tag_guard.outputs.on_main == 'true'
         uses: pypa/gh-action-pypi-publish@release/v1

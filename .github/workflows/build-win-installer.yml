@@ -18,12 +18,31 @@ jobs:
         with:
           fetch-depth: 0
 
+      - name: Check if tagged commit is on main
+        id: tag_guard
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = "Stop"
+          $commitSha = if ($env:GITHUB_SHA) { $env:GITHUB_SHA } else { (git rev-parse HEAD).Trim() }
+          git fetch origin main
+          $containsMain = git branch -r --contains "$commitSha" | Select-String 'origin/main'
+
+          if ($containsMain) {
+            "on_main=true" | Out-File -FilePath $env:GITHUB_OUTPUT -Encoding utf8 -Append
+            Write-Host "✅ Tag commit is on main. Proceeding with build/release steps."
+          } else {
+            "on_main=false" | Out-File -FilePath $env:GITHUB_OUTPUT -Encoding utf8 -Append
+            Write-Host "⏭️ Tag commit is not on main. All build/release steps will be skipped."
+          }
+
       - name: Setup Go
+        if: steps.tag_guard.outputs.on_main == 'true'
         uses: actions/setup-go@v5
         with:
           go-version: "1.21"
 
       - name: Cache Go modules
+        if: steps.tag_guard.outputs.on_main == 'true'
         uses: actions/cache@v4
         with:
           path: ~\go\pkg\mod
@@ -32,17 +51,20 @@ jobs:
             ${{ runner.os }}-go-
 
       - name: Install Inno Setup
+        if: steps.tag_guard.outputs.on_main == 'true'
         run: |
           choco install innosetup -y
         shell: pwsh
 
       - name: Build installer
+        if: steps.tag_guard.outputs.on_main == 'true'
         run: |
           powershell -ExecutionPolicy Bypass -File packaging/build.ps1
         shell: pwsh
         working-directory: ${{ github.workspace }}
 
       - name: Upload installer artifact
+        if: steps.tag_guard.outputs.on_main == 'true'
         uses: actions/upload-artifact@v4
         with:
           name: beratools-installer
@@ -50,7 +72,7 @@ jobs:
           if-no-files-found: error
 
       - name: Upload to release
-        if: ${{ startsWith(github.ref, 'refs/tags/') }}
+        if: steps.tag_guard.outputs.on_main == 'true'
         uses: softprops/action-gh-release@v2
         with:
           tag_name: ${{ github.ref_name }}
