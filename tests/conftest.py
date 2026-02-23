@@ -62,13 +62,13 @@ def tool_arguments_integration(testdata_dir, available_cpu_cores):
             "proc_segments": True,
             "out_line": f"{testdata_dir.joinpath('integration_inter.gpkg').as_posix()}|centerline",
         },
-        "args_centerline_candidate": {
+        "args_centerline_pairwise": {
             "in_line": f"{testdata_dir.joinpath('integration_aoi.gpkg').as_posix()}|seed_lines_vo",
             "in_raster": testdata_dir.joinpath("chm_aoi.tif").as_posix(),
             "line_radius": 15,
             "proc_segments": True,
-            "guided_strategy": "candidate",
-            "out_line": f"{testdata_dir.joinpath('integration_inter.gpkg').as_posix()}|centerline_candidate",
+            "guided_strategy": "pairwise",
+            "out_line": f"{testdata_dir.joinpath('integration_inter.gpkg').as_posix()}|centerline_pairwise",
         },
         "args_footprint_abs": {
             "in_line": f"{testdata_dir.joinpath('integration_aoi.gpkg').as_posix()}|centerline",
@@ -150,13 +150,13 @@ def tool_arguments_workflow(testdata_dir, available_cpu_cores):
             "proc_segments": True,
             "out_line": f"{testdata_dir.joinpath('workflow.gpkg').as_posix()}|centerline",
         },
-        "args_centerline_candidate": {
+        "args_centerline_pairwise": {
             "in_line": f"{testdata_dir.joinpath('workflow.gpkg').as_posix()}|seed_lines_vo",
             "in_raster": testdata_dir.joinpath("chm_aoi.tif").as_posix(),
             "line_radius": 15,
             "proc_segments": True,
-            "guided_strategy": "candidate",
-            "out_line": f"{testdata_dir.joinpath('workflow.gpkg').as_posix()}|centerline_candidate",
+            "guided_strategy": "pairwise",
+            "out_line": f"{testdata_dir.joinpath('workflow.gpkg').as_posix()}|centerline_pairwise",
         },
         "args_footprint_abs": {
             "in_line": f"{testdata_dir.joinpath('workflow.gpkg').as_posix()}|centerline",

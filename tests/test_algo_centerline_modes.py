@@ -15,7 +15,7 @@ def test_is_endpoint_anchored_detects_direct_and_reverse():
     assert not algo_centerline._is_endpoint_anchored(not_anchored, seed)
 
 
-def test_find_centerline_candidate_forwards_guidance_and_skips_trim_snap(monkeypatch):
+def test_find_centerline_pairwise_forwards_guidance_and_skips_trim_snap(monkeypatch):
     poly = Polygon([(-10, -10), (50, -10), (50, 10), (-10, 10), (-10, -10)])
     seed = LineString([(0, 0), (40, 0)])
     captured = {}
@@ -36,17 +36,17 @@ def test_find_centerline_candidate_forwards_guidance_and_skips_trim_snap(monkeyp
     monkeypatch.setattr(algo_centerline, "_trim_and_snap_centerline", fake_trim_and_snap)
     monkeypatch.setattr(algo_centerline, "centerline_is_valid", lambda *_args, **_kwargs: True)
 
-    centerline, status = algo_centerline.find_centerline(poly, seed, guided_strategy="candidate")
+    centerline, status = algo_centerline.find_centerline(poly, seed, guided_strategy="pairwise")
 
     assert centerline.is_valid
     assert status == algo_centerline.CenterlineStatus.SUCCESS
-    assert captured["guided_strategy"] == "candidate"
+    assert captured["guided_strategy"] == "pairwise"
     assert captured["src_geom"] is not None
     assert captured["dst_geom"] is not None
     assert trim_snap_calls["count"] == 0
 
 
-def test_find_centerline_candidate_uses_trim_snap_fallback_when_not_anchored(monkeypatch):
+def test_find_centerline_pairwise_uses_trim_snap_fallback_when_not_anchored(monkeypatch):
     poly = Polygon([(-10, -10), (50, -10), (50, 10), (-10, 10), (-10, -10)])
     seed = LineString([(0, 0), (40, 0)])
 
@@ -64,7 +64,7 @@ def test_find_centerline_candidate_uses_trim_snap_fallback_when_not_anchored(mon
     monkeypatch.setattr(algo_centerline, "_trim_and_snap_centerline", fake_trim_and_snap)
     monkeypatch.setattr(algo_centerline, "centerline_is_valid", lambda *_args, **_kwargs: True)
 
-    centerline, status = algo_centerline.find_centerline(poly, seed, guided_strategy="candidate")
+    centerline, status = algo_centerline.find_centerline(poly, seed, guided_strategy="pairwise")
 
     assert centerline.is_valid
     assert status == algo_centerline.CenterlineStatus.SUCCESS
@@ -104,14 +104,14 @@ def test_find_centerline_main_route_always_uses_trim_snap(monkeypatch):
     assert trim_snap_calls["count"] == 1
 
 
-def test_candidate_retries_main_route_when_guided_extract_fails(monkeypatch):
+def test_pairwise_retries_main_route_when_guided_extract_fails(monkeypatch):
     poly = Polygon([(-10, -10), (50, -10), (50, 10), (-10, 10), (-10, -10)])
     seed = LineString([(0, 0), (40, 0)])
     calls = []
 
     def fake_extract(_poly, _src_geom, _dst_geom, guided_strategy):
         calls.append(guided_strategy)
-        if guided_strategy == "candidate":
+        if guided_strategy == "pairwise":
             return None
         return LineString([(0, 0), (20, 0), (40, 0)])
 
@@ -126,11 +126,11 @@ def test_candidate_retries_main_route_when_guided_extract_fails(monkeypatch):
     monkeypatch.setattr(algo_centerline, "_trim_and_snap_centerline", fake_trim)
     monkeypatch.setattr(algo_centerline, "centerline_is_valid", lambda *_args, **_kwargs: True)
 
-    centerline, status = algo_centerline.find_centerline(poly, seed, guided_strategy="candidate")
+    centerline, status = algo_centerline.find_centerline(poly, seed, guided_strategy="pairwise")
     assert centerline is not None
     assert centerline.is_valid
     assert status == algo_centerline.CenterlineStatus.SUCCESS
-    assert calls == ["candidate", "main_route"]
+    assert calls == ["pairwise", "main_route"]
     assert trim_snap_args["count"] == 1
     assert trim_snap_args["max_snap_dist"] is None
 
@@ -174,10 +174,10 @@ def test_find_centerline_virtual_forwards_guidance(monkeypatch):
     monkeypatch.setattr(algo_centerline, "_trim_and_snap_centerline", lambda c, _s, max_snap_dist=None: c)
     monkeypatch.setattr(algo_centerline, "centerline_is_valid", lambda *_args, **_kwargs: True)
 
-    centerline, status = algo_centerline.find_centerline(poly, seed, guided_strategy="virtual")
+    centerline, status = algo_centerline.find_centerline(poly, seed, guided_strategy="virtual_nodes")
     assert centerline is not None
     assert centerline.is_valid
     assert status == algo_centerline.CenterlineStatus.SUCCESS
-    assert captured["guided_strategy"] == "virtual"
+    assert captured["guided_strategy"] == "virtual_nodes"
     assert isinstance(captured["src_geom"], Point)
     assert isinstance(captured["dst_geom"], Point)

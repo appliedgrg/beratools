@@ -44,7 +44,7 @@ def get_centerline(
     max_paths=5,
     src_geom=None,
     dst_geom=None,
-    guided_strategy="virtual",
+    guided_strategy="virtual_nodes",
     endpoint_mode="strict",
     snap_tolerance=None,
     endpoint_candidate_k=5,
@@ -68,7 +68,7 @@ def get_centerline(
     max_paths : Number of longest paths used to create the centerlines.
         (default: 5)
     src_geom, dst_geom : Optional endpoint guidance geometries.
-    guided_strategy : "candidate", "virtual", or "main_route".
+    guided_strategy : "pairwise", "virtual_nodes", or "main_route".
     endpoint_mode : "strict" or "soft".
     snap_tolerance : Maximum endpoint snap distance for soft mode.
     endpoint_candidate_k : Number of endpoint graph candidates.
@@ -91,7 +91,7 @@ def get_centerline(
     if endpoint_mode not in valid_endpoint_modes:
         raise ValueError("endpoint_mode must be one of %s" % sorted(valid_endpoint_modes))
 
-    valid_guided_strategies = {"candidate", "virtual", "main_route"}
+    valid_guided_strategies = {"pairwise", "virtual_nodes", "main_route"}
     if guided_strategy not in valid_guided_strategies:
         raise ValueError("guided_strategy must be one of %s" % sorted(valid_guided_strategies))
 
@@ -131,7 +131,11 @@ def get_centerline(
             snap_tolerance = 2 * segmentize_maxlen
 
         guided_attempted = False
-        if guided_strategy in {"candidate", "virtual"} and src_point is not None and dst_point is not None:
+        if (
+            guided_strategy in {"pairwise", "virtual_nodes"}
+            and src_point is not None
+            and dst_point is not None
+        ):
             guided_attempted = True
             src_nodes = filter_nodes(src_geom, graph, vor, end_nodes)
             dst_nodes = filter_nodes(dst_geom, graph, vor, end_nodes)
@@ -152,7 +156,7 @@ def get_centerline(
                 preferred_nodes=dst_nodes,
             )
 
-            if guided_strategy == "virtual":
+            if guided_strategy == "virtual_nodes":
                 guided = _get_guided_path_virtual(
                     graph,
                     vor,
@@ -181,7 +185,7 @@ def get_centerline(
 
             if guided is None and endpoint_mode == "strict":
                 logger.debug("strict endpoint guidance exceeded angle guard, retrying without guard")
-                if guided_strategy == "virtual":
+                if guided_strategy == "virtual_nodes":
                     guided = _get_guided_path_virtual(
                         graph,
                         vor,

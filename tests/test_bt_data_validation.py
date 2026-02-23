@@ -79,13 +79,13 @@ def test_validate_list_text_option_accepts_allowed_value():
         "variable": "guided_strategy",
         "type": "list",
         "subtype": "text",
-        "data": ["main_route", "candidate", "virtual"],
+        "data": ["main_route", "pairwise", "virtual_nodes"],
         "optional": False,
         "output": False,
     }
 
-    value = bt.validate_tool_parameter("candidate", param)
-    assert value == "candidate"
+    value = bt.validate_tool_parameter("pairwise", param)
+    assert value == "pairwise"
 
 
 def test_validate_list_text_option_rejects_unknown_value():
@@ -94,10 +94,10 @@ def test_validate_list_text_option_rejects_unknown_value():
         "variable": "guided_strategy",
         "type": "list",
         "subtype": "text",
-        "data": ["main_route", "candidate", "virtual"],
+        "data": ["main_route", "pairwise", "virtual_nodes"],
         "optional": False,
         "output": False,
     }
 
     with pytest.raises(ValueError, match="allowed options"):
-        bt.validate_tool_parameter("virtual", param)
+        bt.validate_tool_parameter("legacy_mode", param)

@@ -212,7 +212,7 @@ def find_centerline(poly, input_line, guided_strategy="main_route"):
 
     """
     default_return = input_line, CenterlineStatus.FAILED
-    valid_guided_strategies = {"main_route", "candidate", "virtual"}
+    valid_guided_strategies = {"main_route", "pairwise", "virtual_nodes"}
     if guided_strategy not in valid_guided_strategies:
         raise ValueError("guided_strategy must be one of {}".format(sorted(valid_guided_strategies)))
     effective_strategy = guided_strategy
@@ -240,7 +240,7 @@ def find_centerline(poly, input_line, guided_strategy="main_route"):
 
     src_geom = None
     dst_geom = None
-    if guided_strategy in {"candidate", "virtual"}:
+    if guided_strategy in {"pairwise", "virtual_nodes"}:
         src_geom = sh_geom.Point(line_coords[0])
         dst_geom = sh_geom.Point(line_coords[-1])
 
@@ -255,7 +255,7 @@ def find_centerline(poly, input_line, guided_strategy="main_route"):
         print(f"find_centerline: {e}")
         centerline = None
 
-    if not centerline and guided_strategy in {"candidate", "virtual"}:
+    if not centerline and guided_strategy in {"pairwise", "virtual_nodes"}:
         print(f"find_centerline: {guided_strategy} guidance failed, retrying main_route")
         try:
             centerline = _extract_centerline_from_polygon(
@@ -283,7 +283,7 @@ def find_centerline(poly, input_line, guided_strategy="main_route"):
             return default_return
 
     needs_trim_snap = effective_strategy == "main_route"
-    if effective_strategy in {"candidate", "virtual"}:
+    if effective_strategy in {"pairwise", "virtual_nodes"}:
         needs_trim_snap = not _is_endpoint_anchored(
             centerline,
             input_line,
@@ -292,7 +292,7 @@ def find_centerline(poly, input_line, guided_strategy="main_route"):
 
     if needs_trim_snap:
         max_snap_dist = None
-        if effective_strategy in {"candidate", "virtual"}:
+        if effective_strategy in {"pairwise", "virtual_nodes"}:
             max_snap_dist = CenterlineParams.GUIDED_FALLBACK_MAX_SNAP
         centerline = _trim_and_snap_centerline(
             centerline,

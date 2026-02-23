@@ -47,15 +47,15 @@ def test_centerline_tool(tool_arguments_integration):
     assert check_file_exists(in_file, layer), "Centerline no output!"
 
 
-def test_centerline_tool_candidate_mode(tool_arguments_integration):
-    """Test centerline tool with candidate guided strategy."""
-    args_centerline = tool_arguments_integration["args_centerline_candidate"]
+def test_centerline_tool_pairwise_mode(tool_arguments_integration):
+    """Test centerline tool with pairwise guided strategy."""
+    args_centerline = tool_arguments_integration["args_centerline_pairwise"]
     pprint(args_centerline)
 
     centerline(**args_centerline)
 
     out_file, layer = decode_file_layer(args_centerline["out_line"])
-    assert check_file_exists(out_file, layer), "Centerline candidate mode no output!"
+    assert check_file_exists(out_file, layer), "Centerline pairwise mode no output!"
 
 
 def test_canopy_footprint_abs_tool(tool_arguments_integration):
