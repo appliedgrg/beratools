@@ -1,5 +1,5 @@
 import pytest
-from shapely.geometry import LineString, Polygon
+from shapely.geometry import LineString, Point, Polygon
 
 import beratools.core.algo_centerline as algo_centerline
 
@@ -57,7 +57,7 @@ def test_find_centerline_candidate_uses_trim_snap_fallback_when_not_anchored(mon
 
     def fake_trim_and_snap(_centerline, _seed, max_snap_dist=None):
         trim_snap_calls["count"] += 1
-        assert max_snap_dist == algo_centerline.CenterlineParams.CANDIDATE_FALLBACK_MAX_SNAP
+        assert max_snap_dist == algo_centerline.CenterlineParams.GUIDED_FALLBACK_MAX_SNAP
         return LineString([(0, 0), (20, 0), (40, 0)])
 
     monkeypatch.setattr(algo_centerline, "_extract_centerline_from_polygon", fake_extract)
@@ -155,5 +155,29 @@ def test_centerline_tool_rejects_unknown_guided_strategy():
             line_radius=15,
             proc_segments=True,
             out_line="out.gpkg|centerline",
-            guided_strategy="virtual",
+            guided_strategy="unknown",
         )
+
+
+def test_find_centerline_virtual_forwards_guidance(monkeypatch):
+    poly = Polygon([(-10, -10), (50, -10), (50, 10), (-10, 10), (-10, -10)])
+    seed = LineString([(0, 0), (40, 0)])
+    captured = {}
+
+    def fake_extract(_poly, src_geom, dst_geom, guided_strategy):
+        captured["guided_strategy"] = guided_strategy
+        captured["src_geom"] = src_geom
+        captured["dst_geom"] = dst_geom
+        return LineString([(0, 0), (20, 0), (40, 0)])
+
+    monkeypatch.setattr(algo_centerline, "_extract_centerline_from_polygon", fake_extract)
+    monkeypatch.setattr(algo_centerline, "_trim_and_snap_centerline", lambda c, _s, max_snap_dist=None: c)
+    monkeypatch.setattr(algo_centerline, "centerline_is_valid", lambda *_args, **_kwargs: True)
+
+    centerline, status = algo_centerline.find_centerline(poly, seed, guided_strategy="virtual")
+    assert centerline is not None
+    assert centerline.is_valid
+    assert status == algo_centerline.CenterlineStatus.SUCCESS
+    assert captured["guided_strategy"] == "virtual"
+    assert isinstance(captured["src_geom"], Point)
+    assert isinstance(captured["dst_geom"], Point)

@@ -71,7 +71,7 @@ def centerline(
     call_mode=CallMode.CLI,
     log_level="INFO",
 ):
-    valid_guided_strategies = {"main_route", "candidate"}
+    valid_guided_strategies = {"main_route", "candidate", "virtual"}
     if guided_strategy not in valid_guided_strategies:
         raise ValueError("guided_strategy must be one of {}".format(sorted(valid_guided_strategies)))
 

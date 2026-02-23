@@ -79,7 +79,7 @@ def test_validate_list_text_option_accepts_allowed_value():
         "variable": "guided_strategy",
         "type": "list",
         "subtype": "text",
-        "data": ["main_route", "candidate"],
+        "data": ["main_route", "candidate", "virtual"],
         "optional": False,
         "output": False,
     }
@@ -94,7 +94,7 @@ def test_validate_list_text_option_rejects_unknown_value():
         "variable": "guided_strategy",
         "type": "list",
         "subtype": "text",
-        "data": ["main_route", "candidate"],
+        "data": ["main_route", "candidate", "virtual"],
         "optional": False,
         "output": False,
     }

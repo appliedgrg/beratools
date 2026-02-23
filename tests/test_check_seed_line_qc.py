@@ -603,5 +603,5 @@ def test_schema_centerline_guided_strategy_parameter():
     assert "guided_strategy" in params
     assert params["guided_strategy"]["type"] == "list"
     assert params["guided_strategy"]["subtype"] == "text"
-    assert params["guided_strategy"]["data"] == ["main_route", "candidate"]
+    assert params["guided_strategy"]["data"] == ["main_route", "candidate", "virtual"]
     assert params["guided_strategy"]["default"] == "main_route"

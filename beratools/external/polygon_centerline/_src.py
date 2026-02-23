@@ -93,9 +93,7 @@ def get_centerline(
 
     valid_guided_strategies = {"candidate", "virtual", "main_route"}
     if guided_strategy not in valid_guided_strategies:
-        raise ValueError(
-            "guided_strategy must be one of %s" % sorted(valid_guided_strategies)
-        )
+        raise ValueError("guided_strategy must be one of %s" % sorted(valid_guided_strategies))
 
     if geom.geom_type == "Polygon":
         # segmentized Polygon outline
@@ -133,11 +131,7 @@ def get_centerline(
             snap_tolerance = 2 * segmentize_maxlen
 
         guided_attempted = False
-        if (
-            guided_strategy in {"candidate", "virtual"}
-            and src_point is not None
-            and dst_point is not None
-        ):
+        if guided_strategy in {"candidate", "virtual"} and src_point is not None and dst_point is not None:
             guided_attempted = True
             src_nodes = filter_nodes(src_geom, graph, vor, end_nodes)
             dst_nodes = filter_nodes(dst_geom, graph, vor, end_nodes)
@@ -186,9 +180,7 @@ def get_centerline(
                 )
 
             if guided is None and endpoint_mode == "strict":
-                logger.debug(
-                    "strict endpoint guidance exceeded angle guard, retrying without guard"
-                )
+                logger.debug("strict endpoint guidance exceeded angle guard, retrying without guard")
                 if guided_strategy == "virtual":
                     guided = _get_guided_path_virtual(
                         graph,
@@ -219,9 +211,7 @@ def get_centerline(
             if guided is not None:
                 path_nodes = guided["path"]
                 if endpoint_mode == "strict":
-                    centerline = _line_from_nodes_with_anchors(
-                        path_nodes, vor, src_point, dst_point
-                    )
+                    centerline = _line_from_nodes_with_anchors(path_nodes, vor, src_point, dst_point)
                     centerline = _smooth_linestring_fixed_ends(centerline, smooth_sigma)
                 else:
                     centerline = LineString(vor.vertices[path_nodes])
@@ -231,9 +221,7 @@ def get_centerline(
                     )
 
         if centerline is None and guided_attempted and endpoint_mode == "strict":
-            raise CenterlineError(
-                "endpoint-guided extraction failed for provided endpoints"
-            )
+            raise CenterlineError("endpoint-guided extraction failed for provided endpoints")
 
         if centerline is None and guided_attempted:
             logger.warning(
@@ -253,9 +241,7 @@ def get_centerline(
                     logger.debug(LineString(vor.vertices[path]))
 
             centerline = _smooth_linestring(
-                LineString(
-                    vor.vertices[_get_least_curved_path(longest_paths, vor.vertices)]
-                ),
+                LineString(vor.vertices[_get_least_curved_path(longest_paths, vor.vertices)]),
                 smooth_sigma,
             )
         logger.debug("centerline: %s", centerline)
@@ -294,9 +280,7 @@ def get_centerline(
             raise CenterlineError("all subgeometries failed")
 
     else:
-        raise TypeError(
-            "Geometry type must be Polygon or MultiPolygon, not %s" % geom.geom_type
-        )
+        raise TypeError("Geometry type must be Polygon or MultiPolygon, not %s" % geom.geom_type)
 
 
 # helper functions #
@@ -353,9 +337,7 @@ def _as_endpoint_point(geom):
     return None
 
 
-def _pick_endpoint_candidates(
-    point, graph, vor, geometry, candidate_k, preferred_nodes=None
-):
+def _pick_endpoint_candidates(point, graph, vor, geometry, candidate_k, preferred_nodes=None):
     """Pick endpoint candidate graph nodes with distance/clearance score."""
     available_nodes = list(graph.nodes())
     if not available_nodes:
@@ -560,16 +542,14 @@ def _get_guided_path(
                 continue
             path, score = solved
 
-            src_dist = src_point.distance(Point(vor.vertices[src_node]))
-            dst_dist = dst_point.distance(Point(vor.vertices[dst_node]))
-            terminal_angle = _terminal_deflection_angle(
-                path, vor.vertices, src_point, dst_point
-            )
+            src_connector_cost = _endpoint_connector_cost(src_point, src_node, vor, geometry)
+            dst_connector_cost = _endpoint_connector_cost(dst_point, dst_node, vor, geometry)
+            terminal_angle = _terminal_deflection_angle(path, vor.vertices, src_point, dst_point)
             if enforce_angle and terminal_angle > max_terminal_angle:
                 continue
 
             total_score = (
-                score + src_dist + dst_dist + ANGLE_PENALTY_WEIGHT * terminal_angle
+                score + src_connector_cost + dst_connector_cost + ANGLE_PENALTY_WEIGHT * terminal_angle
             )
             candidate = {
                 "path": path,
@@ -651,9 +631,7 @@ def _get_guided_path_virtual(
             if len(path) < 2:
                 continue
 
-            terminal_angle = _terminal_deflection_angle(
-                path, vor.vertices, src_point, dst_point
-            )
+            terminal_angle = _terminal_deflection_angle(path, vor.vertices, src_point, dst_point)
             if enforce_angle and terminal_angle > max_terminal_angle:
                 continue
 
@@ -712,9 +690,7 @@ def _get_path_angles_sum(path, vertices):
     """Return all angles between edges from path."""
     return sum(
         [
-            _get_absolute_angle(
-                (vertices[pre], vertices[cur]), (vertices[cur], vertices[nex])
-            )
+            _get_absolute_angle((vertices[pre], vertices[cur]), (vertices[cur], vertices[nex]))
             for pre, cur, nex in zip(path[:-1], path[1:], path[2:])
         ]
     )

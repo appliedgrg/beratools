@@ -49,7 +49,7 @@ class CenterlineParams(float, enum.Enum):
     SMOOTH_SIGMA = 0.8
     CLEANUP_POLYGON_BY_AREA = 1.0
     ENDPOINT_ANCHOR_TOL = 1e-9
-    CANDIDATE_FALLBACK_MAX_SNAP = 2.0
+    GUIDED_FALLBACK_MAX_SNAP = 2.0
 
 
 @enum.unique
@@ -212,7 +212,7 @@ def find_centerline(poly, input_line, guided_strategy="main_route"):
 
     """
     default_return = input_line, CenterlineStatus.FAILED
-    valid_guided_strategies = {"main_route", "candidate"}
+    valid_guided_strategies = {"main_route", "candidate", "virtual"}
     if guided_strategy not in valid_guided_strategies:
         raise ValueError("guided_strategy must be one of {}".format(sorted(valid_guided_strategies)))
     effective_strategy = guided_strategy
@@ -240,9 +240,9 @@ def find_centerline(poly, input_line, guided_strategy="main_route"):
 
     src_geom = None
     dst_geom = None
-    if guided_strategy == "candidate":
-        src_geom = sh_geom.Point(line_coords[0]).buffer(CenterlineParams.BUFFER_CLIP * 3).intersection(poly)
-        dst_geom = sh_geom.Point(line_coords[-1]).buffer(CenterlineParams.BUFFER_CLIP * 3).intersection(poly)
+    if guided_strategy in {"candidate", "virtual"}:
+        src_geom = sh_geom.Point(line_coords[0])
+        dst_geom = sh_geom.Point(line_coords[-1])
 
     try:
         centerline = _extract_centerline_from_polygon(
@@ -255,8 +255,8 @@ def find_centerline(poly, input_line, guided_strategy="main_route"):
         print(f"find_centerline: {e}")
         centerline = None
 
-    if not centerline and guided_strategy == "candidate":
-        print("find_centerline: candidate guidance failed, retrying main_route")
+    if not centerline and guided_strategy in {"candidate", "virtual"}:
+        print(f"find_centerline: {guided_strategy} guidance failed, retrying main_route")
         try:
             centerline = _extract_centerline_from_polygon(
                 poly,
@@ -283,7 +283,7 @@ def find_centerline(poly, input_line, guided_strategy="main_route"):
             return default_return
 
     needs_trim_snap = effective_strategy == "main_route"
-    if effective_strategy == "candidate":
+    if effective_strategy in {"candidate", "virtual"}:
         needs_trim_snap = not _is_endpoint_anchored(
             centerline,
             input_line,
@@ -292,8 +292,8 @@ def find_centerline(poly, input_line, guided_strategy="main_route"):
 
     if needs_trim_snap:
         max_snap_dist = None
-        if effective_strategy == "candidate":
-            max_snap_dist = CenterlineParams.CANDIDATE_FALLBACK_MAX_SNAP
+        if effective_strategy in {"candidate", "virtual"}:
+            max_snap_dist = CenterlineParams.GUIDED_FALLBACK_MAX_SNAP
         centerline = _trim_and_snap_centerline(
             centerline,
             input_line,

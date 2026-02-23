@@ -307,10 +307,10 @@
             {
               "variable": "guided_strategy",
               "label": "Centerline Mode",
-              "description": "Centerline extraction mode: main_route (default) or candidate endpoint guidance.",
+              "description": "Centerline extraction mode: main_route (default), candidate guidance, or virtual guidance.",
               "type": "list",
               "subtype": "text",
-              "data": ["main_route", "candidate"],
+              "data": ["main_route", "candidate", "virtual"],
               "default": "main_route",
               "output": false,
               "optional": true
