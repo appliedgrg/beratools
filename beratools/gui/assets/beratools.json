@@ -364,7 +364,12 @@
               "data": ["absolute", "adaptive"],
               "default": "absolute",
               "output": false,
-              "optional": true
+              "optional": true,
+              "depends_on": {
+                "variable": "footprint_mode",
+                "condition": "__hidden__",
+                "mode": "hide"
+              }
             },
             {
               "variable": "corridor_thresh",
