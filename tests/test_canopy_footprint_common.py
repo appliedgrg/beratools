@@ -2,7 +2,7 @@
 
 import geopandas as gpd
 
-from beratools.core.algo_canopy_footprint_common import (
+from beratools.core.algo_canopy_footprint_absolute import (
     CanopyFootprintRequest,
     CanopyFootprintResult,
     cast_request_types,

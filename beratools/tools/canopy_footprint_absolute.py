@@ -20,14 +20,12 @@ import geopandas as gpd
 import pandas as pd
 
 from beratools.core.algo_canopy_footprint_absolute import (
-    FootprintCanopyAdaptive,
-    generate_absolute_line_class_list,
-    process_single_absolute_line,
-)
-from beratools.core.algo_canopy_footprint_common import (
     CanopyFootprintRequest,
     CanopyFootprintResult,
+    FootprintCanopyAdaptive,
     cast_request_types,
+    generate_absolute_line_class_list,
+    process_single_absolute_line,
     save_aux_layers,
     save_main_footprint,
 )

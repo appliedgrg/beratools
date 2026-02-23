@@ -5,7 +5,7 @@ from types import SimpleNamespace
 import geopandas as gpd
 import shapely.geometry as sh_geom
 
-from beratools.core.algo_canopy_footprint_common import CanopyFootprintRequest, cast_request_types
+from beratools.core.algo_canopy_footprint_absolute import CanopyFootprintRequest, cast_request_types
 from beratools.tools.canopy_footprint_absolute import _run_absolute_request, _run_adaptive_request
 
 
