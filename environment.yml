@@ -7,11 +7,11 @@ channels:
   - conda-forge
 dependencies:
   - python=3.11
-  - appliedgrg::bera_centerlines
   - appliedgrg::beratools
   - dask
   - gdal=3.9.3
   - geopandas
+  - networkit
   - pandas
   - pyogrio>=0.9.0
   - pyqt

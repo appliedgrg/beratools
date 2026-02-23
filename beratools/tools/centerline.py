@@ -29,12 +29,27 @@ logger = log.get_logger()
 print = log.print
 
 
-def generate_line_class_list(in_vector, in_raster, line_radius, layer=None, proc_segments=True) -> list:
+def generate_line_class_list(
+    in_vector,
+    in_raster,
+    line_radius,
+    layer=None,
+    proc_segments=True,
+    guided_strategy="main_route",
+) -> list:
     line_classes = []
     line_list = algo_common.prepare_lines_gdf(in_vector, layer, proc_segments)
 
     for item in line_list:
-        line_classes.append(algo_centerline.SeedLine(item, in_raster, proc_segments, line_radius))
+        line_classes.append(
+            algo_centerline.SeedLine(
+                item,
+                in_raster,
+                proc_segments,
+                line_radius,
+                guided_strategy=guided_strategy,
+            )
+        )
 
     return line_classes
 
@@ -50,11 +65,23 @@ def centerline(
     line_radius,
     proc_segments,
     out_line,
+    guided_strategy="main_route",
     use_angle_grouping=True,
     processes=0,
     call_mode=CallMode.CLI,
     log_level="INFO",
 ):
+    """Run centerline extraction.
+
+    guided_strategy modes:
+    - main_route: unguided main-route extraction.
+    - pairwise: endpoint-guided search over endpoint node pairs.
+    - virtual_nodes: endpoint-guided search using virtual source/destination graph nodes.
+    """
+    valid_guided_strategies = {"main_route", "pairwise", "virtual_nodes"}
+    if guided_strategy not in valid_guided_strategies:
+        raise ValueError("guided_strategy must be one of {}".format(sorted(valid_guided_strategies)))
+
     in_file, in_layer = sp_common.decode_file_layer(in_line)
     out_file, out_layer = sp_common.decode_file_layer(out_line)
 
@@ -68,6 +95,7 @@ def centerline(
         line_radius=float(line_radius),
         layer=in_layer,
         proc_segments=proc_segments,
+        guided_strategy=guided_strategy,
     )
 
     print("{} lines to be processed.".format(len(line_class_list)))

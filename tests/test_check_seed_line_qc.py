@@ -583,3 +583,25 @@ def test_schema_marks_chm_shrink_as_optional():
     assert params["chm_footprint_shrink"]["optional"] is True
     assert params["clip_to_chm_footprint"]["default"] is True
     assert params["clip_to_chm_footprint"]["optional"] is True
+
+
+def test_schema_centerline_guided_strategy_parameter():
+    schema_path = Path(__file__).resolve().parents[1] / "beratools" / "gui" / "assets" / "beratools.json"
+    data = json.loads(schema_path.read_text(encoding="utf-8"))
+
+    centerline_tool = None
+    for category in data.get("toolbox", []):
+        for tool in category.get("tools", []):
+            if tool.get("name") == "Centerline":
+                centerline_tool = tool
+                break
+        if centerline_tool:
+            break
+
+    assert centerline_tool is not None
+    params = {param["variable"]: param for param in centerline_tool.get("parameters", [])}
+    assert "guided_strategy" in params
+    assert params["guided_strategy"]["type"] == "list"
+    assert params["guided_strategy"]["subtype"] == "text"
+    assert params["guided_strategy"]["data"] == ["main_route", "pairwise", "virtual_nodes"]
+    assert params["guided_strategy"]["default"] == "main_route"

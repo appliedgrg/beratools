@@ -1055,6 +1055,7 @@ class OptionsInput(QtWidgets.QWidget):
         if self.option_list:
             # convert to strings
             self.option_list = [str(item) for item in self.option_list]
+
         values = ()
         for v in self.option_list:
             values += (v,)

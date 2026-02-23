@@ -29,7 +29,6 @@ classifiers = [
 ]
 
 dependencies = [
-    "bera_centerlines",
     "gdal; platform_system != 'Windows'",
     "geopandas",
     "networkit",
