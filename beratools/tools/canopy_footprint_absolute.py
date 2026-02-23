@@ -204,10 +204,20 @@ def _run_adaptive_request(req: CanopyFootprintRequest) -> CanopyFootprintResult:
     if _is_valid_gdf(footprint, "lines_percentile"):
         result.aux_layers["lines_percentile"] = gpd.GeoDataFrame(footprint.lines_percentile)
 
+    lines = getattr(footprint, "lines", []) or []
+    line_count = len(lines)
+
+    if line_count > 0:
+        success_count = sum(
+            1 for line in lines if hasattr(line, "footprint") and getattr(line, "footprint") is not None
+        )
+    else:
+        success_count = 0 if result.footprints_gdf is None else int(len(result.footprints_gdf))
+
     result.stats = {
-        "line_count": len(footprint.lines),
-        "success_count": 0 if result.footprints_gdf is None else int(len(result.footprints_gdf)),
-        "fail_count": 0,
+        "line_count": int(line_count),
+        "success_count": int(success_count),
+        "fail_count": int(max(line_count - success_count, 0)),
     }
 
     return result
