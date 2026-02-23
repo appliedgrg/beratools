@@ -131,7 +131,6 @@ class BufferRing:
         self.geometry = ring_poly
         self.side = side
         self.percentile = 0.5
-        self.dyn_canopy_thresh = 0.05
 
 
 class LineInfo:
@@ -152,9 +151,6 @@ class LineInfo:
         self.in_chm = in_chm
         self.line_simplified = self.line.geometry.simplify(tolerance=0.5, preserve_topology=True)
 
-        self.canopy_percentile = 50
-        self.dyn_canopy_thresh = np.nan
-
         self.buffer_rings = []
 
         self.left_cut_height = np.nan
@@ -168,11 +164,6 @@ class LineInfo:
         self.max_line_width = max_line_width
         self.max_line_dist = max_line_dist
         self.tree_radius = tree_radius
-
-        self.nodata = -9999
-        self.dyn_canopy_ndarray = None
-        self.negative_cost_clip = None
-        self.out_meta = None
 
         self.buffer_left = None
         self.buffer_right = None
@@ -197,10 +188,9 @@ class LineInfo:
         # Aggregate percentiles and geometries for lines_percentile
         percentile_records = []
         for ring in self.buffer_rings:
-            if ring is not None and hasattr(ring, "geometry") and hasattr(ring, "percentile"):
-                percentile_records.append(
-                    {"geometry": ring.geometry, "percentile": ring.percentile, "side": ring.side.value}
-                )
+            percentile_records.append(
+                {"geometry": ring.geometry, "percentile": ring.percentile, "side": ring.side.value}
+            )
         if percentile_records:
             self.lines_percentile = gpd.GeoDataFrame(percentile_records, geometry="geometry")
             if self.line.crs:
@@ -210,8 +200,6 @@ class LineInfo:
 
         self.rate_of_change(self.get_percentile_array(Side.left), Side.left)
         self.rate_of_change(self.get_percentile_array(Side.right), Side.right)
-
-        self.dyn_canopy_thresh = (self.left_cut_height + self.right_cut_height) / 2
 
         self.prepare_line_buffer()
 
@@ -278,14 +266,7 @@ class LineInfo:
             filled_raster = np.ma.filled(masked_raster, np.nan)
 
             # Calculate the percentile
-            percentile = np.nanpercentile(filled_raster, 50)
-
-            if percentile > 1:
-                ring.dyn_canopy_thresh = percentile * (0.3)
-            else:
-                ring.dyn_canopy_thresh = 1
-
-            ring.percentile = percentile
+            ring.percentile = np.nanpercentile(filled_raster, 50)
         except Exception as e:
             print(e)
             print("Default values are used.")
@@ -293,15 +274,7 @@ class LineInfo:
         return ring
 
     def get_percentile_array(self, side):
-        percentile_array = []
-        for item in self.buffer_rings:
-            try:
-                if item.side == side:
-                    percentile_array.append(item.percentile)
-            except Exception as e:
-                print(e)
-
-        return percentile_array
+        return [ring.percentile for ring in self.buffer_rings if ring.side == side]
 
     def rate_of_change(self, percentile_array, side):
         # Since the x interval is 1 unit, the array 'diff' is the rate of change (slope)
@@ -317,8 +290,6 @@ class LineInfo:
         found = False
         changes = 1.50
         rate_change = np.insert(diff, 0, 0)
-        scale_down = 1.0
-
         # test the rate of change is > than 150% (1.5), if it is
         # no result found then lower to 140% (1.4) until 110% (1.1)
         try:
@@ -326,31 +297,16 @@ class LineInfo:
                 for idx in range(0, len(rate_change) - 1):
                     if percentile_array[idx] >= 0.5:
                         if (rate_change[idx]) >= changes:
-                            cut_dist = (idx + 1) * scale_down
+                            cut_dist = idx + 1
                             cut_percentile = math.floor(percentile_array[idx])
 
                             if 0.5 >= cut_percentile:
                                 if cut_dist > 5:
                                     cut_percentile = 2
-                                    cut_dist = cut_dist * scale_down**3
                                     # @<0.5  found and modified
-                            elif 0.5 < cut_percentile <= 5.0:
-                                if cut_dist > 6:
-                                    cut_dist = cut_dist * scale_down**3  # 4.0
-                                    # @0.5-5.0  found and modified
-                            elif 5.0 < cut_percentile <= 10.0:
-                                if cut_dist > 8:  # 5
-                                    cut_dist = cut_dist * scale_down**3
-                                    # @5-10  found and modified
-                            elif 10.0 < cut_percentile <= 15:
-                                if cut_dist > 5:
-                                    cut_dist = cut_dist * scale_down**3  # 5.5
-                                    #  @10-15  found and modified
                             elif 15 < cut_percentile:
                                 if cut_dist > 4:
-                                    cut_dist = cut_dist * scale_down**2
                                     cut_percentile = 15.5
-                                    #  @>15  found and modified
                             found = True
                             # rate of change found
                             break
@@ -363,19 +319,19 @@ class LineInfo:
         # if no result found then default is used
         if not found:
             if 0.5 >= median_percentile:
-                cut_dist = 4 * scale_down  # 3
+                cut_dist = 4
                 cut_percentile = 0.5
             elif 0.5 < median_percentile <= 5.0:
-                cut_dist = 4.5 * scale_down  # 4.0
+                cut_dist = 4.5
                 cut_percentile = math.floor(median_percentile)
             elif 5.0 < median_percentile <= 10.0:
-                cut_dist = 5.5 * scale_down  # 5
+                cut_dist = 5.5
                 cut_percentile = math.floor(median_percentile)
             elif 10.0 < median_percentile <= 15:
-                cut_dist = 6 * scale_down  # 5.5
+                cut_dist = 6
                 cut_percentile = math.floor(median_percentile)
             elif 15 < median_percentile:
-                cut_dist = 5 * scale_down  # 5
+                cut_dist = 5
                 cut_percentile = 15.5
 
         if side == Side.right:
@@ -395,16 +351,10 @@ class LineInfo:
         rings = []
         line = df.geometry.iloc[0]
         for ring in np.arange(0, ring_max_dist, ring_step):
-            big_ring = line.buffer(
-                ring_step + ring, single_sided=True, cap_style="flat"
-            )
+            big_ring = line.buffer(ring_step + ring, single_sided=True, cap_style="flat")
             small_ring = line.buffer(ring, single_sided=True, cap_style="flat")
             the_ring = big_ring.difference(small_ring)
-            if (
-                not shapely.is_empty(the_ring)
-                and not shapely.is_missing(the_ring)
-                and the_ring.area > 0
-            ):
+            if not shapely.is_empty(the_ring) and not shapely.is_missing(the_ring) and the_ring.area > 0:
                 if isinstance(the_ring, (sh_geom.MultiPolygon, shapely.Polygon)):
                     rings.append(the_ring)
                 elif isinstance(the_ring, shapely.GeometryCollection):
@@ -442,8 +392,6 @@ class LineInfo:
     def dyn_canopy_cost_raster(self, side):
         canopy_thresh_ratio = self.canopy_thresh_percentage / 100
 
-        cut_dist = None
-        line_buffer = None
         if side == Side.left:
             canopy_height_thresh = self.left_cut_height * canopy_thresh_ratio
             cut_dist = self.left_cut_dist
@@ -453,9 +401,7 @@ class LineInfo:
             cut_dist = self.right_cut_dist
             line_buffer = self.buffer_right
         else:
-            canopy_height_thresh = 0.5
-            cut_dist = 1.0
-            line_buffer = None
+            raise ValueError(f"Unsupported side: {side}")
 
         canopy_height_thresh = float(canopy_height_thresh)
         if canopy_height_thresh <= 0:
@@ -519,7 +465,7 @@ class LineInfo:
                 cost_raster = np.squeeze(cost_raster, axis=0)
 
             algo_cost.remove_nan_from_array_refactor(cost_raster)
-            cost_raster[cost_raster == self.nodata] = np.inf
+            cost_raster[cost_raster == bt_const.BT_NODATA] = np.inf
 
             # generate 1m interval points along line
             distances = np.arange(0, feat.length, 1)
