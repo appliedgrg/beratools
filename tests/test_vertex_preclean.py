@@ -5,7 +5,7 @@ import shapely.geometry as sh_geom
 
 import beratools.core.algo_common as algo_common
 import beratools.core.algo_vertex_optimization as algo_vertex_optimization
-from beratools.core.algo_canopy_footprint_exp import FootprintCanopyAdaptive
+from beratools.core.algo_canopy_footprint_absolute import FootprintCanopyAdaptive
 from beratools.core.algo_vertex_preclean import preclean_vertices
 
 

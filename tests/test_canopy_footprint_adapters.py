@@ -6,8 +6,7 @@ import geopandas as gpd
 import shapely.geometry as sh_geom
 
 from beratools.core.algo_canopy_footprint_common import CanopyFootprintRequest, cast_request_types
-from beratools.tools.canopy_footprint_absolute import _run_absolute_request
-from beratools.tools.canopy_footprint_exp import _run_adaptive_request
+from beratools.tools.canopy_footprint_absolute import _run_absolute_request, _run_adaptive_request
 
 
 def _single_poly_gdf():
@@ -23,7 +22,7 @@ def test_run_absolute_request_returns_contract_shape(monkeypatch):
     fake_items = [SimpleNamespace(footprint=_single_poly_gdf()), SimpleNamespace(footprint=None)]
 
     monkeypatch.setattr(
-        "beratools.tools.canopy_footprint_absolute.generate_line_class_list",
+        "beratools.tools.canopy_footprint_absolute.generate_absolute_line_class_list",
         lambda *args, **kwargs: fake_line_classes,
     )
     monkeypatch.setattr(
@@ -68,7 +67,7 @@ def test_run_adaptive_request_returns_contract_shape(monkeypatch):
         def compute(self, processes):
             return None
 
-    monkeypatch.setattr("beratools.tools.canopy_footprint_exp.FootprintCanopyAdaptive", FakeAdaptive)
+    monkeypatch.setattr("beratools.tools.canopy_footprint_absolute.FootprintCanopyAdaptive", FakeAdaptive)
 
     req = cast_request_types(
         CanopyFootprintRequest(

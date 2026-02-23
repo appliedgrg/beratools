@@ -22,6 +22,7 @@ import geopandas as gpd
 import numpy as np
 import pandas as pd
 import rasterio.features as ras_feat
+from rasterio.transform import rowcol
 import shapely
 import shapely.geometry as sh_geom
 import shapely.ops as sh_ops
@@ -597,3 +598,167 @@ class LineInfo:
 
         except Exception as e:
             return SideFootprintResult(None, "Exception: {}".format(e))
+
+
+class FootprintCanopyAbsolute:
+    """Class to compute the footprint of a line based on absolute threshold."""
+
+    def __init__(
+        self,
+        line_seg,
+        in_chm,
+        corridor_thresh,
+        max_ln_width,
+        exp_shk_cell,
+    ):
+        self.line_seg = line_seg
+        self.in_chm = in_chm
+        self.corridor_thresh = corridor_thresh
+        self.max_ln_width = max_ln_width
+        self.exp_shk_cell = exp_shk_cell
+
+        self.footprint = None
+        self.corridor_poly_gpd = None
+        self.centerline = None
+
+    def compute(self):
+        """Generate line footprint."""
+
+        prep = self.prepare_inputs()
+        raster = self.compute_cost_surface(prep["feat"])
+
+        corridor_thresh = algo_common.corridor_raster(
+            raster["clip_cost"],
+            raster["out_meta"],
+            raster["source"],
+            raster["destination"],
+            (raster["cell_size_x"], raster["cell_size_y"]),
+            prep["corridor_thresh"],
+        )
+
+        clean_raster = algo_common.morph_raster(
+            corridor_thresh,
+            raster["clip_canopy"],
+            self.exp_shk_cell,
+            raster["cell_size_x"],
+        )
+        self.footprint = self.build_candidate_polygon(clean_raster, raster["out_transform"])
+        self.postprocess_output(corridor_thresh, raster["out_transform"], prep["line_gpd"], prep["feat"])
+
+    def prepare_inputs(self):
+        corridor_thresh = self.corridor_thresh
+        try:
+            corridor_thresh = float(corridor_thresh)
+            if corridor_thresh < 0.0:
+                corridor_thresh = 3.0
+        except ValueError:
+            corridor_thresh = 3.0
+        except Exception:
+            corridor_thresh = 3.0
+
+        feat = self.line_seg.geometry[0]
+        return {
+            "line_gpd": self.line_seg,
+            "corridor_thresh": corridor_thresh,
+            "feat": feat,
+        }
+
+    def compute_cost_surface(self, feat):
+        clip_cost, out_meta = sp_common.clip_raster(self.in_chm, feat, self.max_ln_width)
+        out_transform = out_meta["transform"]
+        cell_size_x = out_transform[0]
+        cell_size_y = -out_transform[4]
+
+        clip_cost, clip_canopy = algo_cost.cost_raster(clip_cost, out_meta)
+        if len(clip_canopy.shape) > 2:
+            clip_canopy = np.squeeze(clip_canopy, axis=0)
+
+        source = [rowcol(out_transform, feat.coords[0][0], feat.coords[0][1])]
+        destination = [rowcol(out_transform, feat.coords[-1][0], feat.coords[-1][1])]
+
+        return {
+            "clip_cost": clip_cost,
+            "clip_canopy": clip_canopy,
+            "out_meta": out_meta,
+            "out_transform": out_transform,
+            "cell_size_x": cell_size_x,
+            "cell_size_y": cell_size_y,
+            "source": source,
+            "destination": destination,
+        }
+
+    def build_candidate_polygon(self, clean_raster, out_transform):
+        mask = np.where(clean_raster == 1, True, False)
+        if clean_raster.dtype == np.int64:
+            clean_raster = clean_raster.astype(np.int32)
+
+        out_polygon = ras_feat.shapes(clean_raster, mask=mask, transform=out_transform)
+
+        multi_polygon = []
+        for shp, _value in out_polygon:
+            multi_polygon.append(sh_geom.shape(shp))
+        poly = sh_geom.MultiPolygon(multi_polygon)
+
+        crs_str = None
+        if hasattr(self.line_seg, "crs") and self.line_seg.crs:
+            if hasattr(self.line_seg.crs, "to_string"):
+                crs_str = self.line_seg.crs.to_string()
+            else:
+                crs_str = str(self.line_seg.crs)
+        else:
+            crs_str = "EPSG:4326"
+
+        if not isinstance(poly, (sh_geom.Polygon, sh_geom.MultiPolygon)):
+            poly = sh_geom.MultiPolygon([poly]) if poly else None
+
+        if not crs_str or not isinstance(crs_str, str) or not crs_str.startswith("EPSG"):
+            crs_str = "EPSG:4326"
+
+        if poly is not None and isinstance(poly, (sh_geom.Polygon, sh_geom.MultiPolygon)):
+            geometry_list = [poly]
+        else:
+            geometry_list = []
+
+        footprint = gpd.GeoDataFrame({"geometry": geometry_list})
+        footprint.set_crs(crs_str, inplace=True)
+        return footprint
+
+    def postprocess_output(self, corridor_thresh, out_transform, line_gpd, feat):
+        import beratools.core.algo_centerline as algo_cl
+
+        corridor_poly_gpd = algo_cl.find_corridor_polygon(corridor_thresh, out_transform, line_gpd)
+        centerline, _status = algo_cl.find_centerline(corridor_poly_gpd.geometry.iloc[0], feat)
+
+        self.corridor_poly_gpd = corridor_poly_gpd
+        self.centerline = centerline
+
+
+def process_single_absolute_line(line_footprint):
+    """Compute one absolute line footprint."""
+
+    try:
+        line_footprint.compute()
+    except Exception as err:
+        print(f"process_single_absolute_line: exception {err}")
+    return line_footprint
+
+
+def generate_absolute_line_class_list(
+    in_line,
+    in_chm,
+    corridor_thresh,
+    max_ln_width,
+    exp_shk_cell,
+    in_layer=None,
+):
+    """Build absolute footprint work list."""
+
+    line_classes = []
+    line_list = algo_common.prepare_lines_gdf(in_line, in_layer, proc_segments=False)
+
+    for line in line_list:
+        line_classes.append(
+            FootprintCanopyAbsolute(line, in_chm, corridor_thresh, max_ln_width, exp_shk_cell)
+        )
+
+    return line_classes
