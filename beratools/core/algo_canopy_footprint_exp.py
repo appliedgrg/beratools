@@ -10,11 +10,12 @@ Description:
     This script is part of the BERA Tools.
     Webpage: https://github.com/appliedgrg/beratools
 
-    The purpose of this script is to provide main interface for experimental canopy footprint tool.
-    The tool is used to generate the canopy footprint of a line based on relative threshold.
+    The purpose of this script is to provide main interface for adaptive relative canopy footprint tool.
+    The tool is used to generate the canopy footprint of a line based on adaptive relative threshold.
 """
 
 import math
+from dataclasses import dataclass
 from enum import Enum
 
 import geopandas as gpd
@@ -40,8 +41,33 @@ class Side(Enum):
     right = "right"
 
 
-class FootprintCanopy:
-    """Relative canopy footprint class."""
+@dataclass(frozen=True)
+class CutParams:
+    """Cut distance and cut height for one side."""
+
+    cut_dist: float
+    cut_height: float
+
+
+@dataclass(frozen=True)
+class SideRasterInputs:
+    """Inputs required to compute side-specific canopy cost raster."""
+
+    line_buffer: object
+    cut_dist: float
+    canopy_height_thresh: float
+
+
+@dataclass(frozen=True)
+class SideFootprintResult:
+    """Result wrapper for side footprint generation."""
+
+    footprint_gdf: gpd.GeoDataFrame | None
+    reason: str | None = None
+
+
+class FootprintCanopyAdaptive:
+    """Adaptive relative canopy footprint class."""
 
     def __init__(
         self,
@@ -59,6 +85,7 @@ class FootprintCanopy:
         if data is None:
             data = gpd.GeoDataFrame()
         self.lines = []
+        self.cut_params = []
 
         for idx in data.index:
             line = LineInfo(
@@ -83,6 +110,7 @@ class FootprintCanopy:
 
         footprint_list = []
         percentile = []
+        cut_params = []
         try:
             for item in result:
                 if item.footprint is not None:
@@ -95,8 +123,18 @@ class FootprintCanopy:
                 else:
                     print("lines_percentile is None for one of the lines.")
 
+                cut_params.append(
+                    {
+                        "left_cut_dist": float(item.left_cut_dist),
+                        "left_cut_height": float(item.left_cut_height),
+                        "right_cut_dist": float(item.right_cut_dist),
+                        "right_cut_height": float(item.right_cut_height),
+                    }
+                )
+
             self.footprints = pd.concat(footprint_list, ignore_index=True) if footprint_list else None
             self.lines_percentile = pd.concat(percentile, ignore_index=True) if percentile else None
+            self.cut_params = cut_params
 
             if self.footprints is None:
                 print("No valid footprints to save.")
@@ -111,7 +149,7 @@ class FootprintCanopy:
                 self.footprints,
                 stage="output",
                 out_file=out_footprint,
-                layer="rejected_output_canopy_footprint_exp",
+                layer="rejected_output_canopy_footprint_adaptive",
             )
             self.footprints.to_file(out_footprint, layer=layer)
         else:
@@ -122,6 +160,10 @@ class FootprintCanopy:
             self.lines_percentile.to_file(out_percentile)
         else:
             print("No lines_percentile to save (None or not a GeoDataFrame).")
+
+
+# Backward-compatible alias
+FootprintCanopy = FootprintCanopyAdaptive
 
 
 class BufferRing:
@@ -172,31 +214,8 @@ class LineInfo:
         self.lines_percentile = None
 
     def compute(self):
-        self.prepare_ring_buffer()
-
-        ring_list = []
-        for item in self.buffer_rings:
-            ring = self.calc_ring_percentile(item)
-            if ring is not None:
-                ring_list.append(ring)
-            else:
-                # TODO: handle None rings appropriately
-                pass
-
-        self.buffer_rings = ring_list
-
-        # Aggregate percentiles and geometries for lines_percentile
-        percentile_records = []
-        for ring in self.buffer_rings:
-            percentile_records.append(
-                {"geometry": ring.geometry, "percentile": ring.percentile, "side": ring.side.value}
-            )
-        if percentile_records:
-            self.lines_percentile = gpd.GeoDataFrame(percentile_records, geometry="geometry")
-            if self.line.crs:
-                self.lines_percentile = self.lines_percentile.set_crs(self.line.crs, allow_override=True)
-        else:
-            self.lines_percentile = None
+        self.buffer_rings = self._build_rings_with_percentiles()
+        self.lines_percentile = self._build_lines_percentile()
 
         self.rate_of_change(self.get_percentile_array(Side.left), Side.left)
         self.rate_of_change(self.get_percentile_array(Side.right), Side.right)
@@ -206,36 +225,58 @@ class LineInfo:
         fp_left = self.process_single_footprint(Side.left)
         fp_right = self.process_single_footprint(Side.right)
 
-        # Check if footprints are valid
-        if fp_left is None or fp_right is None:
-            print("One or both footprints are None in LineInfo.")
+        merged = self.merge_side_footprints(fp_left, fp_right)
+        if merged is None:
             self.footprint = None
             return
-
-        try:
-            # Buffer cleanup for validity
-            fp_left.geometry = fp_left.geometry.buffer(0)
-            fp_right.geometry = fp_right.geometry.buffer(0)
-
-            fp_combined = pd.concat([fp_left, fp_right], ignore_index=True)
-
-            if fp_combined.empty or not isinstance(fp_combined, gpd.GeoDataFrame):
-                print("Combined footprint is invalid or empty.")
-                self.footprint = None
-                return
-
-            fp_combined = fp_combined.dissolve()
-            fp_combined.geometry = fp_combined.geometry.buffer(-0.005)
-
-            self.footprint = fp_combined
-        except Exception as e:
-            print(f"Error combining footprints: {e}")
-            self.footprint = None
-            return
+        self.footprint = merged
 
         # Transfer group value to footprint if present
         if bt_const.BT_GROUP in self.line.columns:
             self.footprint[bt_const.BT_GROUP] = self.line[bt_const.BT_GROUP].iloc[0]
+
+    def _build_rings_with_percentiles(self):
+        self.prepare_ring_buffer()
+        ring_list = []
+        for item in self.buffer_rings:
+            ring = self.calc_ring_percentile(item)
+            if ring is not None:
+                ring_list.append(ring)
+        return ring_list
+
+    def _build_lines_percentile(self):
+        percentile_records = [
+            {"geometry": ring.geometry, "percentile": ring.percentile, "side": ring.side.value}
+            for ring in self.buffer_rings
+        ]
+        if not percentile_records:
+            return None
+
+        lines_percentile = gpd.GeoDataFrame(percentile_records, geometry="geometry")
+        if self.line.crs:
+            lines_percentile = lines_percentile.set_crs(self.line.crs, allow_override=True)
+        return lines_percentile
+
+    def merge_side_footprints(self, fp_left, fp_right):
+        if fp_left is None or fp_right is None:
+            print("One or both footprints are None in LineInfo.")
+            return None
+
+        try:
+            fp_left.geometry = fp_left.geometry.buffer(0)
+            fp_right.geometry = fp_right.geometry.buffer(0)
+
+            fp_combined = pd.concat([fp_left, fp_right], ignore_index=True)
+            if fp_combined.empty or not isinstance(fp_combined, gpd.GeoDataFrame):
+                print("Combined footprint is invalid or empty.")
+                return None
+
+            fp_combined = fp_combined.dissolve()
+            fp_combined.geometry = fp_combined.geometry.buffer(-0.005)
+            return fp_combined
+        except Exception as e:
+            print(f"Error combining footprints: {e}")
+            return None
 
     def prepare_ring_buffer(self):
         for ring_step, ring_max_dist, side in [(1, 15, Side.left), (-1, -15, Side.right)]:
@@ -244,7 +285,6 @@ class LineInfo:
                 self.buffer_rings.append(BufferRing(ring_poly, side))
 
     def calc_ring_percentile(self, ring):
-        line_buffer = None
         try:
             line_buffer = ring.geometry
             if line_buffer.is_empty or shapely.is_missing(line_buffer):
@@ -256,7 +296,6 @@ class LineInfo:
             print(f"calc_ring_percentile: {e}")
             return None
 
-        # TODO: temporary workaround for exception causing not percentile defined
         try:
             clipped_raster, _ = sp_common.clip_raster(self.in_chm, line_buffer, 0)
             clipped_raster = np.squeeze(clipped_raster, axis=0)
@@ -276,7 +315,7 @@ class LineInfo:
     def get_percentile_array(self, side):
         return [ring.percentile for ring in self.buffer_rings if ring.side == side]
 
-    def rate_of_change(self, percentile_array, side):
+    def derive_cut_params(self, percentile_array):
         # Since the x interval is 1 unit, the array 'diff' is the rate of change (slope)
         diff = np.ediff1d(percentile_array)
         cut_dist = len(percentile_array) / 5
@@ -292,28 +331,24 @@ class LineInfo:
         rate_change = np.insert(diff, 0, 0)
         # test the rate of change is > than 150% (1.5), if it is
         # no result found then lower to 140% (1.4) until 110% (1.1)
-        try:
-            while not found and changes >= 1.1:
-                for idx in range(0, len(rate_change) - 1):
-                    if percentile_array[idx] >= 0.5:
-                        if (rate_change[idx]) >= changes:
-                            cut_dist = idx + 1
-                            cut_percentile = math.floor(percentile_array[idx])
+        while not found and changes >= 1.1:
+            for idx in range(0, len(rate_change) - 1):
+                if percentile_array[idx] >= 0.5:
+                    if rate_change[idx] >= changes:
+                        cut_dist = idx + 1
+                        cut_percentile = math.floor(percentile_array[idx])
 
-                            if 0.5 >= cut_percentile:
-                                if cut_dist > 5:
-                                    cut_percentile = 2
-                                    # @<0.5  found and modified
-                            elif 15 < cut_percentile:
-                                if cut_dist > 4:
-                                    cut_percentile = 15.5
-                            found = True
-                            # rate of change found
-                            break
-                changes = changes - 0.1
-
-        except IndexError:
-            pass
+                        if 0.5 >= cut_percentile:
+                            if cut_dist > 5:
+                                cut_percentile = 2
+                                # @<0.5  found and modified
+                        elif 15 < cut_percentile:
+                            if cut_dist > 4:
+                                cut_percentile = 15.5
+                        found = True
+                        # rate of change found
+                        break
+            changes = changes - 0.1
 
         # if still no result found, lower to 10% (1.1),
         # if no result found then default is used
@@ -334,12 +369,17 @@ class LineInfo:
                 cut_dist = 5
                 cut_percentile = 15.5
 
+        return CutParams(cut_dist=cut_dist, cut_height=float(cut_percentile))
+
+    def rate_of_change(self, percentile_array, side):
+        cut_params = self.derive_cut_params(percentile_array)
+
         if side == Side.right:
-            self.right_cut_dist = cut_dist
-            self.right_cut_height = float(cut_percentile)
+            self.right_cut_dist = cut_params.cut_dist
+            self.right_cut_height = cut_params.cut_height
         elif side == Side.left:
-            self.left_cut_dist = cut_dist
-            self.left_cut_height = float(cut_percentile)
+            self.left_cut_dist = cut_params.cut_dist
+            self.left_cut_height = cut_params.cut_height
 
     def multi_ring_buffer(self, df, ring_step, ring_max_dist):
         """
@@ -365,9 +405,13 @@ class LineInfo:
         return rings
 
     def prepare_line_buffer(self):
-        line = self.line.geometry.iloc[0]
+        self.buffer_left, self.buffer_right = self.build_line_side_buffers(
+            self.line.geometry.iloc[0], self.max_line_width
+        )
+
+    def build_line_side_buffers(self, line, max_line_width):
         buffer_left_1 = line.buffer(
-            distance=self.max_line_width + 1,
+            distance=max_line_width + 1,
             cap_style=3,
             single_sided=True,
         )
@@ -378,37 +422,43 @@ class LineInfo:
             single_sided=True,
         )
 
-        self.buffer_left = sh_ops.unary_union([buffer_left_1, buffer_left_2])
+        buffer_left = sh_ops.unary_union([buffer_left_1, buffer_left_2])
 
         buffer_right_1 = line.buffer(
-            distance=-self.max_line_width - 1,
+            distance=-max_line_width - 1,
             cap_style=3,
             single_sided=True,
         )
         buffer_right_2 = line.buffer(distance=1, cap_style=3, single_sided=True)
 
-        self.buffer_right = sh_ops.unary_union([buffer_right_1, buffer_right_2])
+        buffer_right = sh_ops.unary_union([buffer_right_1, buffer_right_2])
+        return buffer_left, buffer_right
 
-    def dyn_canopy_cost_raster(self, side):
+    def _get_side_raster_inputs(self, side):
         canopy_thresh_ratio = self.canopy_thresh_percentage / 100
 
         if side == Side.left:
-            canopy_height_thresh = self.left_cut_height * canopy_thresh_ratio
-            cut_dist = self.left_cut_dist
-            line_buffer = self.buffer_left
-        elif side == Side.right:
-            canopy_height_thresh = self.right_cut_height * canopy_thresh_ratio
-            cut_dist = self.right_cut_dist
-            line_buffer = self.buffer_right
-        else:
-            raise ValueError(f"Unsupported side: {side}")
+            return SideRasterInputs(
+                line_buffer=self.buffer_left,
+                cut_dist=self.left_cut_dist,
+                canopy_height_thresh=float(self.left_cut_height * canopy_thresh_ratio),
+            )
+        if side == Side.right:
+            return SideRasterInputs(
+                line_buffer=self.buffer_right,
+                cut_dist=self.right_cut_dist,
+                canopy_height_thresh=float(self.right_cut_height * canopy_thresh_ratio),
+            )
+        raise ValueError(f"Unsupported side: {side}")
 
-        canopy_height_thresh = float(canopy_height_thresh)
+    def dyn_canopy_cost_raster(self, side):
+        side_inputs = self._get_side_raster_inputs(side)
+        canopy_height_thresh = side_inputs.canopy_height_thresh
         if canopy_height_thresh <= 0:
             canopy_height_thresh = 0.5
 
         try:
-            clipped_raster, out_meta = sp_common.clip_raster(self.in_chm, line_buffer, 0)
+            clipped_raster, out_meta = sp_common.clip_raster(self.in_chm, side_inputs.line_buffer, 0)
             negative_cost_clip, dyn_canopy_ndarray = algo_cost.cost_raster(
                 clipped_raster,
                 out_meta,
@@ -419,7 +469,7 @@ class LineInfo:
                 self.exponent,
             )
 
-            return dyn_canopy_ndarray, negative_cost_clip, out_meta, cut_dist
+            return dyn_canopy_ndarray, negative_cost_clip, out_meta, side_inputs.cut_dist
 
         except Exception as e:
             print(f"dyn_canopy_cost_raster: {e}")
@@ -453,11 +503,19 @@ class LineInfo:
             return None
 
         in_transform = in_meta["transform"]
-        cell_size_x = in_transform[0]
-        cell_size_y = -in_transform[4]
-
         feat = self.line.geometry.iloc[0]
         segment_list = self._extract_coords(feat)
+
+        result = self.build_corridor_polygon(
+            canopy_raster, cost_raster, in_transform, cut_dist, feat, segment_list
+        )
+        if result.reason is not None:
+            print(result.reason)
+        return result.footprint_gdf
+
+    def build_corridor_polygon(self, canopy_raster, cost_raster, in_transform, cut_dist, feat, segment_list):
+        cell_size_x = in_transform[0]
+        cell_size_y = -in_transform[4]
 
         # Work out the corridor from both end of the centerline
         try:
@@ -520,12 +578,11 @@ class LineInfo:
                 try:
                     for poly, value in out_polygon:
                         multi_polygon.append(sh_geom.shape(poly))
-                except TypeError:
-                    pass
+                except TypeError as e:
+                    return SideFootprintResult(None, f"Invalid polygon output: {e}")
 
             if not multi_polygon:
-                print("No polygons generated from raster. Returning None.")
-                return None
+                return SideFootprintResult(None, "No polygons generated from raster. Returning None.")
 
             poly = sh_geom.MultiPolygon(multi_polygon)
 
@@ -538,11 +595,9 @@ class LineInfo:
                 footprint_gdf = footprint_gdf.set_crs(self.line.crs, allow_override=True)
 
             if footprint_gdf.empty or footprint_gdf.geometry.isnull().all():
-                print("Empty GeoDataFrame from process_single_footprint.")
-                return None
+                return SideFootprintResult(None, "Empty GeoDataFrame from process_single_footprint.")
 
-            return footprint_gdf
+            return SideFootprintResult(footprint_gdf)
 
         except Exception as e:
-            print("Exception: {}".format(e))
-            return None
+            return SideFootprintResult(None, "Exception: {}".format(e))

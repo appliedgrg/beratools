@@ -1,8 +1,8 @@
-"""Canopy footprint tool with exception handling."""
+"""Adaptive relative canopy footprint tool with exception handling."""
 
 import beratools.core.algo_common as algo_common
 import beratools.utility.spatial_common as sp_common
-from beratools.core.algo_canopy_footprint_exp import FootprintCanopy
+from beratools.core.algo_canopy_footprint_exp import FootprintCanopyAdaptive
 from beratools.utility.tool_args import CallMode
 
 
@@ -12,7 +12,7 @@ def _is_valid_gdf(obj, attr):
     return gdf is not None and hasattr(gdf, "empty") and not gdf.empty
 
 
-def line_footprint_exp(
+def line_footprint_adaptive(
     in_line,
     in_chm,
     out_footprint,
@@ -26,9 +26,9 @@ def line_footprint_exp(
     call_mode=CallMode.CLI,
     log_level="INFO",
 ):
-    """Safe version of relative canopy footprint tool."""
+    """Safe version of adaptive relative canopy footprint tool."""
     try:
-        footprint = FootprintCanopy(
+        footprint = FootprintCanopyAdaptive(
             in_line,
             in_chm,
             max_line_width=max_line_width,
@@ -39,7 +39,7 @@ def line_footprint_exp(
             canopy_thresh_percentage=canopy_thresh_percentage,
         )
     except Exception as e:
-        print(f"Failed to initialize FootprintCanopy: {e}")
+        print(f"Failed to initialize FootprintCanopyAdaptive: {e}")
         return
 
     try:
@@ -75,7 +75,7 @@ def parse_cli_args():
     import argparse
 
     parser = argparse.ArgumentParser(
-        description="Canopy footprint tool with exception handling.",
+        description="Adaptive relative canopy footprint tool with exception handling.",
         usage="%(prog)s in_line in_chm out_footprint [options]",
     )
     parser.add_argument("in_line", help="Input line file")
@@ -115,5 +115,9 @@ if __name__ == "__main__":
 
     start_time = time.time()
     kwargs = parse_cli_args()
-    line_footprint_exp(**kwargs)
+    line_footprint_adaptive(**kwargs)
     print("Elapsed time: {}".format(time.time() - start_time))
+
+
+# Backward-compatible alias
+line_footprint_exp = line_footprint_adaptive

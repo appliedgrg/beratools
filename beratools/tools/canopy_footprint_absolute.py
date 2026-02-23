@@ -60,12 +60,26 @@ class FootprintAbsolute:
 
     def compute(self):
         """Generate line footprint."""
-        in_chm = self.in_chm
-        corridor_thresh = self.corridor_thresh
-        line_gpd = self.line_seg
-        max_ln_width = self.max_ln_width
-        exp_shk_cell = self.exp_shk_cell
+        prep = self.prepare_inputs()
+        raster = self.compute_cost_surface(prep["feat"])
 
+        corridor_thresh = algo_common.corridor_raster(
+            raster["clip_cost"],
+            raster["out_meta"],
+            raster["source"],
+            raster["destination"],
+            (raster["cell_size_x"], raster["cell_size_y"]),
+            prep["corridor_thresh"],
+        )
+
+        clean_raster = algo_common.morph_raster(
+            corridor_thresh, raster["clip_canopy"], self.exp_shk_cell, raster["cell_size_x"]
+        )
+        self.footprint = self.build_candidate_polygon(clean_raster, raster["out_transform"])
+        self.postprocess_output(corridor_thresh, raster["out_transform"], prep["line_gpd"], prep["feat"])
+
+    def prepare_inputs(self):
+        corridor_thresh = self.corridor_thresh
         try:
             corridor_thresh = float(corridor_thresh)
             if corridor_thresh < 0.0:
@@ -76,58 +90,51 @@ class FootprintAbsolute:
         except Exception as e:
             print(f"FootprintAbsolute.compute: exception {e}")
 
-        segment_list = []
         feat = self.line_seg.geometry[0]
-        for coord in feat.coords:
-            segment_list.append(coord)
+        return {
+            "line_gpd": self.line_seg,
+            "corridor_thresh": corridor_thresh,
+            "feat": feat,
+        }
 
-        # Find origin and destination coordinates
-        x1, y1 = segment_list[0][0], segment_list[0][1]
-        x2, y2 = segment_list[-1][0], segment_list[-1][1]
-
+    def compute_cost_surface(self, feat):
         # Buffer around line and clip cost raster and canopy raster
         # TODO: deal with NODATA
-        clip_cost, out_meta = sp_common.clip_raster(in_chm, feat, max_ln_width)
+        clip_cost, out_meta = sp_common.clip_raster(self.in_chm, feat, self.max_ln_width)
         out_transform = out_meta["transform"]
         cell_size_x = out_transform[0]
         cell_size_y = -out_transform[4]
 
         clip_cost, clip_canopy = algo_cost.cost_raster(clip_cost, out_meta)
-
-        # Work out the corridor from both end of the centerline
         if len(clip_canopy.shape) > 2:
             clip_canopy = np.squeeze(clip_canopy, axis=0)
 
-        source = [rowcol(out_transform, x1, y1)]
-        destination = [rowcol(out_transform, x2, y2)]
+        source = [rowcol(out_transform, feat.coords[0][0], feat.coords[0][1])]
+        destination = [rowcol(out_transform, feat.coords[-1][0], feat.coords[-1][1])]
 
-        corridor_thresh = algo_common.corridor_raster(
-            clip_cost,
-            out_meta,
-            source,
-            destination,
-            (cell_size_x, cell_size_y),
-            corridor_thresh,
-        )
+        return {
+            "clip_cost": clip_cost,
+            "clip_canopy": clip_canopy,
+            "out_meta": out_meta,
+            "out_transform": out_transform,
+            "cell_size_x": cell_size_x,
+            "cell_size_y": cell_size_y,
+            "source": source,
+            "destination": destination,
+        }
 
-        clean_raster = algo_common.morph_raster(corridor_thresh, clip_canopy, exp_shk_cell, cell_size_x)
-
-        # create mask for non-polygon area
+    def build_candidate_polygon(self, clean_raster, out_transform):
         msk = np.where(clean_raster == 1, True, False)
         if clean_raster.dtype == np.int64:
             clean_raster = clean_raster.astype(np.int32)
 
-        # Process: ndarray to shapely Polygon
         out_polygon = features.shapes(clean_raster, mask=msk, transform=out_transform)
 
-        # create a shapely multipolygon
         multi_polygon = []
         for shp, value in out_polygon:
             multi_polygon.append(shape(shp))
         poly = MultiPolygon(multi_polygon)
 
-        # create a pandas dataframe for the footprint
-        # Ensure CRS is a string
         crs_str = None
         if hasattr(self.line_seg, "crs") and self.line_seg.crs:
             if hasattr(self.line_seg.crs, "to_string"):
@@ -136,28 +143,25 @@ class FootprintAbsolute:
                 crs_str = str(self.line_seg.crs)
         else:
             crs_str = "EPSG:4326"
-        # Ensure poly is a valid shapely geometry
+
         if not isinstance(poly, (Polygon, MultiPolygon)):
             poly = MultiPolygon([poly]) if poly else None
 
-        # Fallback CRS if invalid
         if not crs_str or not isinstance(crs_str, str) or not crs_str.startswith("EPSG"):
             crs_str = "EPSG:4326"
 
-        # Only create GeoDataFrame if poly is not None
         if poly is not None and isinstance(poly, (Polygon, MultiPolygon)):
             geometry_list = [poly]
         else:
             geometry_list = []
 
-        import pandas as pd
+        footprint = gpd.GeoDataFrame({"geometry": geometry_list})
+        footprint.set_crs(crs_str, inplace=True)
+        return footprint
 
-        self.footprint = gpd.GeoDataFrame({"geometry": geometry_list})
-        self.footprint.set_crs(crs_str, inplace=True)
-
-        # find contiguous corridor polygon for centerline
+    def postprocess_output(self, corridor_thresh, out_transform, line_gpd, feat):
         corridor_poly_gpd = algo_cl.find_corridor_polygon(corridor_thresh, out_transform, line_gpd)
-        centerline, status = algo_cl.find_centerline(corridor_poly_gpd.geometry.iloc[0], feat)
+        centerline, _status = algo_cl.find_centerline(corridor_poly_gpd.geometry.iloc[0], feat)
 
         self.corridor_poly_gpd = corridor_poly_gpd
         self.centerline = centerline
