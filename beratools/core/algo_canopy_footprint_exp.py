@@ -62,7 +62,7 @@ class FootprintCanopy:
 
         for idx in data.index:
             line = LineInfo(
-                data.loc[[idx]],
+                data.loc[[idx]].copy(),
                 in_chm,
                 max_line_width=max_line_width,
                 tree_radius=tree_radius,
@@ -95,8 +95,8 @@ class FootprintCanopy:
                 else:
                     print("lines_percentile is None for one of the lines.")
 
-            self.footprints = pd.concat(footprint_list) if footprint_list else None
-            self.lines_percentile = pd.concat(percentile) if percentile else None
+            self.footprints = pd.concat(footprint_list, ignore_index=True) if footprint_list else None
+            self.lines_percentile = pd.concat(percentile, ignore_index=True) if percentile else None
 
             if self.footprints is None:
                 print("No valid footprints to save.")
@@ -202,8 +202,7 @@ class LineInfo:
                     {"geometry": ring.geometry, "percentile": ring.percentile, "side": ring.side.value}
                 )
         if percentile_records:
-            self.lines_percentile = gpd.GeoDataFrame(percentile_records)
-            self.lines_percentile.set_geometry("geometry", inplace=True)
+            self.lines_percentile = gpd.GeoDataFrame(percentile_records, geometry="geometry")
             if self.line.crs:
                 self.lines_percentile = self.lines_percentile.set_crs(self.line.crs, allow_override=True)
         else:
@@ -212,13 +211,7 @@ class LineInfo:
         self.rate_of_change(self.get_percentile_array(Side.left), Side.left)
         self.rate_of_change(self.get_percentile_array(Side.right), Side.right)
 
-        self.line["left_cut_height"] = self.left_cut_height
-        self.line["right_cut_height"] = self.right_cut_height
-        self.line["right_cut_dist"] = self.right_cut_dist
-        self.line["left_cut_dist"] = self.left_cut_dist
-
         self.dyn_canopy_thresh = (self.left_cut_height + self.right_cut_height) / 2
-        self.line["dyn_canopy_thresh"] = self.dyn_canopy_thresh
 
         self.prepare_line_buffer()
 
@@ -236,7 +229,7 @@ class LineInfo:
             fp_left.geometry = fp_left.geometry.buffer(0)
             fp_right.geometry = fp_right.geometry.buffer(0)
 
-            fp_combined = pd.concat([fp_left, fp_right])
+            fp_combined = pd.concat([fp_left, fp_right], ignore_index=True)
 
             if fp_combined.empty or not isinstance(fp_combined, gpd.GeoDataFrame):
                 print("Combined footprint is invalid or empty.")
@@ -452,11 +445,11 @@ class LineInfo:
         cut_dist = None
         line_buffer = None
         if side == Side.left:
-            canopy_height_thresh = self.line.left_cut_height.iloc[0] * canopy_thresh_ratio
+            canopy_height_thresh = self.left_cut_height * canopy_thresh_ratio
             cut_dist = self.left_cut_dist
             line_buffer = self.buffer_left
         elif side == Side.right:
-            canopy_height_thresh = self.line.right_cut_height.iloc[0] * canopy_thresh_ratio
+            canopy_height_thresh = self.right_cut_height * canopy_thresh_ratio
             cut_dist = self.right_cut_dist
             line_buffer = self.buffer_right
         else:
@@ -592,9 +585,9 @@ class LineInfo:
 
             # create GeoDataFrame directly from dictionary
             footprint_gdf = gpd.GeoDataFrame(
-                {"corridor_thresh": [corridor_threshold], "geometry": [poly]}
+                {"corridor_thresh": [corridor_threshold], "geometry": [poly]},
+                geometry="geometry",
             )
-            footprint_gdf.set_geometry("geometry", inplace=True)
             if self.line.crs:
                 footprint_gdf = footprint_gdf.set_crs(self.line.crs, allow_override=True)
 
