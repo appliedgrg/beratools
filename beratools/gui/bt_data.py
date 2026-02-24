@@ -23,6 +23,7 @@ from importlib import metadata as importlib_metadata
 from pathlib import Path
 
 import pyogrio
+from packaging.version import InvalidVersion, Version
 
 import beratools.core.constants as bt_const
 from beratools.gui.geometry_types import (
@@ -51,6 +52,9 @@ def default_callback(value):
 
 def _run_git_command(command, cwd, timeout_s=1.0):
     try:
+        run_kwargs = {}
+        if os.name == "nt":
+            run_kwargs["creationflags"] = getattr(subprocess, "CREATE_NO_WINDOW", 0)
         completed = subprocess.run(
             command,
             cwd=str(cwd),
@@ -58,6 +62,7 @@ def _run_git_command(command, cwd, timeout_s=1.0):
             text=True,
             check=True,
             timeout=timeout_s,
+            **run_kwargs,
         )
         value = completed.stdout.strip()
         return value if value else None
@@ -89,6 +94,64 @@ def _extract_git_revision_from_version(version_value):
 
 def _resolve_git_revision(repo_root):
     return _run_git_command(["git", "rev-parse", "--short", "HEAD"], cwd=repo_root)
+
+
+def _iter_beratools_distributions():
+    for dist in importlib_metadata.distributions():
+        try:
+            dist_name = (dist.metadata.get("Name") or "").strip().lower()
+        except Exception:
+            dist_name = ""
+        if dist_name == "beratools":
+            yield dist
+
+
+def _resolve_metadata_version():
+    candidates = []
+    for dist in _iter_beratools_distributions():
+        raw_version = str(getattr(dist, "version", "")).strip()
+        if not raw_version:
+            continue
+
+        try:
+            normalized = Version(raw_version)
+        except InvalidVersion:
+            _LOG.warning("Skipping BERATools metadata entry with invalid version: %s", raw_version)
+            continue
+
+        dist_path = str(getattr(dist, "_path", ""))
+        sort_key = (dist_path, raw_version)
+        candidates.append(
+            {
+                "raw_version": raw_version,
+                "normalized": normalized,
+                "source": dist_path,
+                "sort_key": sort_key,
+            }
+        )
+
+    if candidates:
+        highest = max(item["normalized"] for item in candidates)
+        highest_candidates = [item for item in candidates if item["normalized"] == highest]
+        winner = sorted(highest_candidates, key=lambda item: item["sort_key"])[0]
+
+        if len(candidates) > 1:
+            discovered = [
+                item["raw_version"] for item in sorted(candidates, key=lambda item: item["sort_key"])
+            ]
+            _LOG.warning(
+                "Detected multiple BERATools metadata versions: %s; selected=%s (source=%s)",
+                discovered,
+                winner["raw_version"],
+                winner["source"] or "unknown",
+            )
+
+        return winner["raw_version"]
+
+    try:
+        return importlib_metadata.version("BERATools")
+    except Exception:
+        return None
 
 
 def _parse_git_version(git_describe, git_revision):
@@ -146,8 +209,17 @@ def _parse_git_version(git_describe, git_revision):
 def get_app_version_info():
     repo_root = Path(__file__).resolve().parents[2]
 
+    override_version = os.getenv("BERATOOLS_APP_VERSION", "").strip()
+    if override_version:
+        version_info = _normalize_version_string(override_version)
+        version_info["git_revision"] = _extract_git_revision_from_version(override_version)
+        _LOG.debug("Resolved app version via BERATOOLS_APP_VERSION")
+        return version_info
+
     try:
-        installed_version = importlib_metadata.version("BERATools")
+        installed_version = _resolve_metadata_version()
+        if not installed_version:
+            raise importlib_metadata.PackageNotFoundError
         version_info = _normalize_version_string(installed_version)
         if not version_info["git_revision"]:
             version_info["git_revision"] = _extract_git_revision_from_version(installed_version)

@@ -582,16 +582,14 @@ class MainWindow(QtWidgets.QMainWindow):
     def show_about_dialog(self):
         version_info = bt_data.get_app_version_info()
         git_revision = version_info.get("git_revision") or "n/a"
-        release_type = "Release" if version_info.get("is_release") else "Development"
 
         about_text = (
             "BERA Tools\n"
             "Applied Geospatial Research Group (AppliedGRG)\n\n"
             "A suite of geospatial analysis tools for research and operations.\n\n"
             f"Version: {version_info.get('version', 'unknown')}\n"
-            f"Short Version: {version_info.get('short_version', 'unknown')}\n"
             f"Git Revision: {git_revision}\n"
-            f"Build Type: {release_type}\n\n"
+            "\n"
             f"Python: {sys.version.split()[0]}\n"
             f"PyQt: {QtCore.PYQT_VERSION_STR}\n"
             f"Qt: {QtCore.QT_VERSION_STR}\n"
