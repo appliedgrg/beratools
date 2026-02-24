@@ -290,6 +290,8 @@ def ground_footprint(
 
     # TODO: refactor this code for better line quality check
     line_gdf = gpd.read_file(in_file, layer=in_layer)
+    if "fid" in line_gdf.columns:
+        line_gdf = line_gdf.rename(columns={"fid": "orig_fid"})
     line_gdf = algo_common.clean_geometries(line_gdf, stage="input")
     line_gdf = line_gdf.reset_index(drop=True)
     if bt_const.BT_GROUP not in line_gdf.columns:
@@ -298,6 +300,8 @@ def ground_footprint(
     use_least_cost_path = True
     try:
         lc_path_gdf = gpd.read_file(in_file, layer=in_layer_lc_path)
+        if "fid" in lc_path_gdf.columns:
+            lc_path_gdf = lc_path_gdf.rename(columns={"fid": "orig_fid"})
         lc_path_gdf = algo_common.clean_geometries(lc_path_gdf, stage="input")
         lc_path_gdf = lc_path_gdf.reset_index(drop=True)
     except (ValueError, OSError, pyogrio.errors.DataLayerError):
@@ -311,6 +315,8 @@ def ground_footprint(
 
     # read footprints and remove holes
     poly_gdf = gpd.read_file(in_fp_file, layer=in_layer_fp)
+    if "fid" in poly_gdf.columns:
+        poly_gdf = poly_gdf.rename(columns={"fid": "orig_fid"})
     poly_gdf = algo_common.clean_geometries(poly_gdf, stage="input")
     poly_gdf = poly_gdf.reset_index(drop=True)
     poly_gdf["geometry"] = poly_gdf["geometry"].apply(algo_common.remove_holes)
