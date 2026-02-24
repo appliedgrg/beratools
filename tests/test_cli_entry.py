@@ -83,3 +83,14 @@ def test_alias_parity_no_arg_output(capsys):
         assert "BERATools CLI" in out
         assert "Use '--help' to see all commands." in out
         assert "Use 'list-tools' to list tool subcommands." in out
+
+
+def test_bare_tool_subcommand_prints_help_not_error(capsys):
+    code = entry.run(argv=["centerline"], prog_name="bt")
+    assert code == 0
+
+    out = capsys.readouterr().out
+    assert "usage: bt centerline" in out
+    assert "Required Parameters" in out
+    assert "Optional Parameters" in out
+    assert "error:" not in out.lower()

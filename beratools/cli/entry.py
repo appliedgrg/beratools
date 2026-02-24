@@ -106,6 +106,9 @@ def _add_framework_args(parser: argparse.ArgumentParser) -> None:
 
 
 def _add_tool_args(parser: argparse.ArgumentParser, tool_cfg: dict[str, Any]) -> None:
+    required_group = parser.add_argument_group("Required Parameters")
+    optional_group = parser.add_argument_group("Optional Parameters")
+
     for param in tool_cfg.get("parameters", []):
         variable = param.get("variable")
         if not variable:
@@ -133,7 +136,15 @@ def _add_tool_args(parser: argparse.ArgumentParser, tool_cfg: dict[str, Any]) ->
             subtype = subtypes[0] if subtypes else ""
             kwargs["choices"] = [_coerce_value(choice, subtype) for choice in param.get("data", [])]
 
-        parser.add_argument(f"--{variable}", **kwargs)
+        target_group = optional_group if optional else required_group
+        target_group.add_argument(f"--{variable}", **kwargs)
+
+
+def _get_subparser(parser: argparse.ArgumentParser, name: str) -> argparse.ArgumentParser | None:
+    for action in parser._actions:
+        if isinstance(action, argparse._SubParsersAction):
+            return action.choices.get(name)
+    return None
 
 
 def _build_parser(prog: str, tools_cfg: dict[str, dict[str, Any]]) -> argparse.ArgumentParser:
@@ -237,6 +248,12 @@ def run(argv: list[str] | None = None, prog_name: str | None = None) -> int:
 
     if not argv:
         return print_basic_info(prog)
+
+    if len(argv) == 1 and argv[0] in TOOL_ALIASES:
+        subparser = _get_subparser(parser, argv[0])
+        if subparser is not None:
+            subparser.print_help()
+            return 0
 
     args = parser.parse_args(argv)
     handler = getattr(args, "handler", None)
