@@ -34,7 +34,7 @@ Install with Anaconda works on Windows, macOS, and Linux.
 - Download the file [environment.yml](https://raw.githubusercontent.com/appliedgrg/beratools/main/environment.yml
 ) and save to local storage. Launch **Anaconda Prompt** or **Miniconda Prompt**.
 - **Change directory** to where environment.yml is saved in the command prompt.
-- Run the following command to create a new environment named **bera**. **BERA Tools** will be installed in the new environment at the same time.
+- Run the following command to create a new environment named **bera**. **BERA Tools** will be installed at the same time.
 
    ```bash
    $ conda env create -n bera -f environment.yml
@@ -54,12 +54,6 @@ Install with Anaconda works on Windows, macOS, and Linux.
     ```bash
     $ conda activate bera
     $ conda update beratools
-    ```
-
-- To completely remove BERA Tools and its environment, run the following command:
-
-    ```bash
-    $ conda remove -n bera
     ```
 
 ## BERA Tools Guide
