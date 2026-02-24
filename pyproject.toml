@@ -70,7 +70,6 @@ doc = [
 
 [project.scripts]
 bt = "beratools.cli.entry:run"
-BERATools = "beratools.cli.entry:run"
 beratools = "beratools.cli.entry:run"
 
 [project.urls]

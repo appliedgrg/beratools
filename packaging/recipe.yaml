@@ -19,7 +19,6 @@ build:
   python:
     entry_points:
       - bt = beratools.cli.entry:run
-      - BERATools = beratools.cli.entry:run
       - beratools = beratools.cli.entry:run
 
 requirements:

@@ -3,7 +3,7 @@ import pytest
 from beratools.cli import entry
 
 
-@pytest.mark.parametrize("alias", ["bt", "beratools", "BERATools"])
+@pytest.mark.parametrize("alias", ["bt", "beratools"])
 def test_no_arg_alias_prints_basic_cli_info(capsys, alias):
     code = entry.run(argv=[], prog_name=alias)
     assert code == 0
@@ -75,7 +75,7 @@ def test_parse_and_dispatch_short_tool(monkeypatch):
 
 def test_alias_parity_no_arg_output(capsys):
     outputs = []
-    for alias in ("bt", "beratools", "BERATools"):
+    for alias in ("bt", "beratools"):
         entry.run(argv=[], prog_name=alias)
         outputs.append(capsys.readouterr().out)
 
