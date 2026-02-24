@@ -50,6 +50,8 @@ def tool_template(in_feature, buffer_dist, out_feature,
 
     buffer_dist = float(buffer_dist)
     gdf = gpd.read_file(in_file, layer=in_layer)
+    if "fid" in gdf.columns:
+        gdf = gdf.rename(columns={"fid": "orig_fid"})
     gdf_list = [(gdf.iloc[[i]], buffer_dist) for i in range(len(gdf))]
 
     # Set verbose based on log_level

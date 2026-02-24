@@ -769,6 +769,8 @@ def check_seed_line(
             raise ValueError("Input line and raster CRS do not match.")
 
     gdf = gpd.read_file(in_file, layer=in_layer)
+    if "fid" in gdf.columns:
+        gdf = gdf.rename(columns={"fid": "orig_fid"})
     input_count = len(gdf)
     gdf = algo_common.clean_geometries(
         gdf,

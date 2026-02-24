@@ -284,6 +284,8 @@ if __name__ == "__main__":
     layer_name = "merged_lines_original"
 
     gdf = gpd.read_file(input_gpkg, layer=layer_name)
+    if "fid" in gdf.columns:
+        gdf = gdf.rename(columns={"fid": "orig_fid"})
     splitter = LineSplitter(gdf)
     splitter.process()
     splitter.save_to_geopackage(input_gpkg)

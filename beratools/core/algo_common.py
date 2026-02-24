@@ -83,6 +83,11 @@ def read_geospatial_file(file_path, layer=None):
 
         gdf = gpd.read_file(file_path, **kwargs)
 
+        # Rename 'fid' column to avoid conflict with GeoPackage's reserved
+        # FID field on write.
+        if "fid" in gdf.columns:
+            gdf = gdf.rename(columns={"fid": "orig_fid"})
+
         # Clean the geometries in the GeoDataFrame
         gdf = clean_geometries(gdf, stage="input")
         gdf = gdf.reset_index(drop=True)
