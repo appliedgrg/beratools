@@ -1,5 +1,7 @@
 # Ground Footprint
 
+> Algorithm details: [Technical Guide → Ground Footprint](../technical/algorithms/ground_footprint.md)
+
 ## What does this tool do?
 
 **Ground Footprint** creates footprint polygons for each input line using a fixed-width buffer, based on the measured width of the line features. This is useful for mapping corridors or buffered areas around lines (like roads or rivers) using a consistent width or percentile-based width.

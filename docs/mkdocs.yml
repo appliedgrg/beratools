@@ -84,11 +84,26 @@ nav:
     - developer/contributing.md
     - developer/development.md
     - developer/dev_standards.md
+    - developer/add_new_tool.md
     - developer/tool_template.md
     - developer/testing.md
     - developer/documentation.md
     - developer/maintainer.md
     - developer/publishing.md
+  - Technical Guide:
+    - technical_guide.md
+    - technical/algorithm_overview.md
+    - Architecture:
+      - technical/architecture/system_overview.md
+      - technical/architecture/execution_pipeline.md
+      - technical/architecture/tool_runtime_model.md
+    - Algorithms:
+      - technical/algorithms/check_seed_line.md
+      - technical/algorithms/vertex_optimization.md
+      - technical/algorithms/centerline.md
+      - technical/algorithms/canopy_footprint_absolute.md
+      - technical/algorithms/canopy_footprint_relative.md
+      - technical/algorithms/ground_footprint.md
   - API Reference: api.md
 
 plugins:

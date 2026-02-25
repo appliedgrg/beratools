@@ -1,5 +1,7 @@
 # Vertex Optimization
 
+> Algorithm details: [Technical Guide → Vertex Optimization](../technical/algorithms/vertex_optimization.md)
+
 ## What does this tool do?
 
 **Vertex Optimization** improves the geometry of line features by optimizing the position of their vertices based on a reference raster (such as a canopy height model or cost surface). This helps to align lines more accurately with features in the raster.

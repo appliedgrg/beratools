@@ -1,5 +1,7 @@
 # Canopy Footprint (Relative)
 
+> Algorithm details: [Technical Guide → Canopy Footprint (Relative)](../technical/algorithms/canopy_footprint_relative.md)
+
 ## What does this tool do?
 
 **Canopy Footprint (Relative)** creates dynamic footprint polygons for each input line using a least-cost corridor method and thresholds that are calculated individually for each line. This is useful for mapping areas around lines (like roads or rivers) where the buffer adapts to local canopy or cost raster values.

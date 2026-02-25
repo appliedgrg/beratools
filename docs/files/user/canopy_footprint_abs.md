@@ -1,5 +1,7 @@
 # canopy Footprint (Absolute)
 
+> Algorithm details: [Technical Guide → Canopy Footprint (Absolute)](../technical/algorithms/canopy_footprint_absolute.md)
+
 ## What does this tool do?
 
 **Canopy Footprint (Absolute)** generates footprint polygons for each input line using an absolute threshold method. This is useful for mapping the area around lines (like roads or rivers) based on a canopy or cost raster, with user-defined thresholds.
