@@ -1,7 +1,9 @@
-name: Deploy MkDocs to GitHub Pages
+name: Deploy Docs to GitHub Pages
 
 permissions:
-  contents: write
+  contents: read
+  pages: write
+  id-token: write
 
 on:
   pull_request:
@@ -36,12 +38,15 @@ jobs:
           pip install -r docs/files/requirements.txt
       - name: Install project in editable mode
         run: pip install -e .
-      - name: Build MkDocs site
-        run: mkdocs build -f docs/mkdocs.yml
+      - name: Build docs site
+        run: zensical build -f docs/mkdocs.yml
 
   deploy:
     if: github.event_name == 'push'
     runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
     steps:
       - uses: actions/checkout@v4
       - name: Set up Python
@@ -59,5 +64,12 @@ jobs:
           pip install -r docs/files/requirements.txt
       - name: Install project in editable mode
         run: pip install -e .
+      - name: Build docs site
+        run: zensical build -f docs/mkdocs.yml
+      - name: Upload Pages artifact
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: docs/site
       - name: Deploy to GitHub Pages
-        run: mkdocs gh-deploy -f docs/mkdocs.yml --force
+        id: deployment
+        uses: actions/deploy-pages@v4
