@@ -888,6 +888,8 @@ def check_seed_line(
     prev_crs = gdf.crs
     split_out = qc_split_lines_at_intersections(gdf)
     gdf = _ensure_gdf(split_out, prev_crs)
+    gdf, removed_gdf = _clean_line_geometries_min_length_m(gdf, config.minimum_line_length)
+    gdf = gdf.reset_index(drop=True)
     _log_step(7, step_name, in_count, len(gdf), _elapsed(t0))
     if _bail_if_empty(gdf, step_name, out_file, out_layer, in_count):
         _persist_qc_tables(input_count, 0)
