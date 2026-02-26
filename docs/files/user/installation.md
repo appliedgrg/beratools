@@ -4,7 +4,7 @@ Welcome to **BERA Tools**! This guide will give you advanced installation option
 
 ## Prerequisites
 
-- Python 3.10 - 3.13
+- Python 3.10 - 3.14
 - conda or pip
 
 ## Installation Methods

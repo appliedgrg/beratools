@@ -1,5 +1,7 @@
 # Centerline
 
+> Algorithm details: [Technical Guide → Centerline](../technical/algorithms/centerline.md)
+
 ## What does this tool do?
 
 **Centerline** finds the least-cost path between vertices of your input lines, helping you extract centerlines (such as for rivers or roads) based on a cost raster (e.g., a canopy height model or other surface).

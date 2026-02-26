@@ -8,6 +8,7 @@ BERA Tools is successor of [Forest Line Mapper](https://github.com/appliedgrg/fl
 [![Codecov](https://img.shields.io/codecov/c/github/appliedgrg/beratools/main)](https://codecov.io/gh/appliedgrg/beratools)
 [![GitHub Pages](https://img.shields.io/github/deployments/appliedgrg/beratools/github-pages?label=docs)](https://appliedgrg.github.io/beratools/)
 [![Conda Version](https://img.shields.io/conda/v/AppliedGRG/beratools)](https://anaconda.org/AppliedGRG/beratools)
+[![PyPI](https://img.shields.io/pypi/v/BERATools)](https://pypi.org/project/BERATools/)
 [![Python Version](https://img.shields.io/badge/python-3.10%2B-blue)](https://www.python.org/downloads/release/python-3100/)
 [![License: GPL-3.0](https://img.shields.io/badge/License-GPL%203.0-blue.svg)](https://www.gnu.org/licenses/gpl-3.0)
 
@@ -41,20 +42,16 @@ Install with Anaconda works on Windows, macOS, and Linux.
    ```
 
    Wait until the installation is done.
-- Activate the **bera** environment and launch BERA Tools:
+- Activate the **bera** environment and launch BERA Tools main GUI:
 
   ```bash
   $ conda activate bera
-  $ beratools
+  $ beratools gui
   ```
 
 - [Download latest example data](https://github.com/appliedgrg/beratools/releases/latest/download/test_data.zip) to try with BERA Tools.
-- To update BERA Tools when new release is issued, run the following commands:
 
-    ```bash
-    $ conda activate bera
-    $ conda update beratools
-    ```
+For more information about installation, check the [BERA Tools Installation](https://appliedgrg.github.io/beratools/user/installation/).
 
 ## BERA Tools Guide
 
@@ -64,7 +61,7 @@ Check the online [BERA Tools Guide](https://appliedgrg.github.io/beratools/) for
 
 <table>
   <tr>
-    <td><img src="docs/files/icons/bera_logo.png" alt="Logos" width="80"></td>
+    <td><img src="https://github.com/appliedgrg/beratools/raw/main/docs/files/icons/bera_logo.png" alt="Logos" width="80"></td>
     <td>
       <p>
         This tool is part of the <strong><a href="http://www.beraproject.org/">Boreal Ecosystem Recovery & Assessment (BERA)</a></strong>.

@@ -1,5 +1,7 @@
 # Check Seed Lines
 
+> Algorithm details: [Technical Guide → Check Seed Lines](../technical/algorithms/check_seed_line.md)
+
 ## What does this tool do?
 
 **Check Seed Lines** cleans and prepares seed lines before downstream processing. It can:

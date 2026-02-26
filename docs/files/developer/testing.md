@@ -7,7 +7,7 @@ BERA Tools employs a `pytest` framework to ensure code quality and reliability. 
 - **pytest**: All code is tested using the pytest framework. Tests are located in the `tests` directory and cover modules, tools, and workflows.
 - **Test triggers**: Tests run automatically on push and pull request events affecting `beratools` via GitHub Actions.
 - **Coverage**: Test coverage is measured and reported to Codecov.
-- **Matrix testing**: The `tox.yml` workflow runs tests across multiple Python versions (3.10–3.13) to ensure compatibility.
+- **Matrix testing**: The `tox.yml` workflow runs tests across multiple Python versions (3.10–3.14) to ensure compatibility.
 
 ## Running Tests Locally
 
@@ -43,7 +43,7 @@ To run tests locally, follow these steps:
 
 BERA Tools uses GitHub Actions to automate testing and deployment processes. This document describes the various workflows set up in the repository to ensure code quality and streamline releases.
 
-1. **tox.yml**: This workflow runs tests across multiple Python versions (3.10 to 3.13) using `tox`. It ensures that the codebase is compatible with all supported Python versions.
+1. **tox.yml**: This workflow runs tests across multiple Python versions (3.10 to 3.14) using `tox`. It ensures that the codebase is compatible with all supported Python versions.
 
 1. **python-tests.yml**: This workflow runs the test suite using `pytest` whenever code is pushed to the repository or a pull request is created. It helps catch issues early in the development process.
 
