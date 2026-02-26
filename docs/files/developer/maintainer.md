@@ -44,7 +44,7 @@ Here is a summary of the actions defined in all workflow files in `.github/workf
     - Runs pytest with coverage and uploads results to Codecov.
 
 - __tox.yml__
-    - Summary: Matrix testing via tox for multiple Python versions (3.10–3.13).
+    - Summary: Matrix testing via tox for multiple Python versions (3.10–3.14).
     - Trigger: On pull request to `main` affecting `beratools/**`.
     - Executes tox across multiple Python versions (matrix) to run tests for each target interpreter.
 
