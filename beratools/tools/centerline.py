@@ -77,8 +77,9 @@ def centerline(
     - main_route: unguided main-route extraction.
     - pairwise: endpoint-guided search over endpoint node pairs.
     - virtual_nodes: endpoint-guided search using virtual source/destination graph nodes.
+    - direct_insert: endpoint-guided search by inserting endpoints directly into the Voronoi graph.
     """
-    valid_guided_strategies = {"main_route", "pairwise", "virtual_nodes"}
+    valid_guided_strategies = {"main_route", "pairwise", "virtual_nodes", "direct_insert"}
     if guided_strategy not in valid_guided_strategies:
         raise ValueError("guided_strategy must be one of {}".format(sorted(valid_guided_strategies)))
 
