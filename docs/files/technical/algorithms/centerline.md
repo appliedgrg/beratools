@@ -36,8 +36,8 @@ Extract a centerline path guided by a raster cost surface and seed-line endpoint
 
 ## Direction of travel
 
-- Current favored modes are `pairwise` and `direct_insert`.
-- `main_route` and `virtual_nodes` remain supported, but may be phased out in a future release.
+- `pairwise` and `main_route` are the primary supported modes, exposed through the GUI; all four modes remain available via CLI/API.
+- `virtual_nodes` and `direct_insert` are not exposed in the GUI at this time and may be phased out in a future release.
 - `direct_insert` includes a clearance-weight control (`snap_clearance_weight`) in the implementation; this parameter may be exposed in CLI/API or GUI later.
 
 ## Assumptions

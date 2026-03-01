@@ -304,7 +304,17 @@
               "output": false,
               "optional": false
             },
-
+            {
+              "variable": "guided_strategy",
+              "label": "Guided Strategy",
+              "description": "Centerline extraction strategy. 'pairwise': endpoint-guided pair scoring (default). 'main_route': unguided extraction from corridor graph.",
+              "type": "list",
+              "subtype": "string",
+              "data": ["pairwise", "main_route"],
+              "default": "pairwise",
+              "output": false,
+              "optional": true
+            },
             {
               "variable": "out_line",
               "label": "Output Centerline",

@@ -22,6 +22,7 @@
 - **Seed Line**: Path to your input line file
 - **CHM Raster**: Path to your input raster file
 - **Process Segments**: Process each segment between vertices (True/False, default: True)
+- **Guided Strategy**: Centerline extraction strategy (`pairwise` or `main_route`, default: `pairwise`)
 - **Output Centerline**: Path for the output file
 
 ## Tips
@@ -32,5 +33,5 @@
 
 ## Guided mode details
 
-Centerline guidance mode is currently managed internally and not exposed in the GUI.
-Centerline is moving toward `pairwise`/`direct_insert` as primary modes. `main_route` and `virtual_nodes` may be phased out over time.
+- **pairwise** (default): endpoint-guided extraction by scoring source/destination node pairs. Recommended for most workflows.
+- **main_route**: unguided extraction from the corridor graph. Useful when endpoint guidance is weak or unavailable.
