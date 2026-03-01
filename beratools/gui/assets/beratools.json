@@ -304,17 +304,7 @@
               "output": false,
               "optional": false
             },
-            {
-              "variable": "guided_strategy",
-              "label": "Centerline Mode",
-              "description": "Centerline extraction mode: main_route (default), pairwise guided endpoints, virtual_nodes guided endpoints, or direct_insert guided endpoints.",
-              "type": "list",
-              "subtype": "text",
-              "data": ["main_route", "pairwise", "virtual_nodes", "direct_insert"],
-              "default": "main_route",
-              "output": false,
-              "optional": true
-            },
+
             {
               "variable": "out_line",
               "label": "Output Centerline",

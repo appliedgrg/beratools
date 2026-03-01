@@ -166,7 +166,6 @@ PARAM_TYPES = {
     "optimize_internal_vertices": {"type": "list", "subtype": "bool"},
     # Centerline
     "proc_segments": {"type": "list", "subtype": "bool"},
-    "guided_strategy": {"type": "list", "subtype": "text"},
     # Canopy Footprint (Absolute)
     "in_chm": {"type": "file", "subtype": "raster"},
     "corridor_thresh": {"type": "number", "subtype": "float"},
@@ -224,7 +223,6 @@ TOOL_PARAM_LABELS = {
         "in_raster": "CHM Raster",
         "line_radius": "Line Processing Radius",
         "proc_segments": "Process Segments",
-        "guided_strategy": "Centerline Mode",
         "out_line": "Output Centerline",
     },
     "Canopy Footprint (Absolute Threshold)": {

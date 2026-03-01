@@ -8,7 +8,7 @@ Extract a centerline path guided by a raster cost surface and seed-line endpoint
 
 ## Inputs and outputs
 
-- Inputs: seed line vector, CHM/cost raster, centerline mode, segment-processing options
+- Inputs: seed line vector, CHM/cost raster, guided strategy (`pairwise` default), segment-processing options
 - Outputs: centerline vector and auxiliary corridor/path artifacts
 
 ## Method summary
@@ -24,6 +24,7 @@ Extract a centerline path guided by a raster cost surface and seed-line endpoint
 - `main_route`: derives principal route from corridor graph.
 - `pairwise`: scores source/destination node pairs and selects best path.
 - `virtual_nodes`: injects temporary virtual source/destination nodes and solves shortest path.
+- `direct_insert`: inserts endpoints directly into Voronoi graph and solves shortest path.
 
 ## Assumptions
 
