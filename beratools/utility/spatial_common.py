@@ -126,7 +126,11 @@ def vector_crs(in_vector):
             if version_info.major < 3:
                 osr_crs.ImportFromWkt(vec_crs.to_wkt(WktVersion.WKT1_GDAL))
             else:
-                osr_crs.ImportFromEPSG(vec_crs.to_epsg())
+                epsg = vec_crs.to_epsg()
+                if epsg is not None:
+                    osr_crs.ImportFromEPSG(epsg)
+                else:
+                    osr_crs.ImportFromWkt(vec_crs.to_wkt(WktVersion.WKT1_GDAL))
             return osr_crs
         else:
             print("No CRS found in the input feature, please check!")
@@ -147,7 +151,11 @@ def raster_crs(in_raster):
                 if version_info.major < 3:
                     osr_crs.ImportFromWkt(vec_crs.to_wkt(WktVersion.WKT1_GDAL))
                 else:
-                    osr_crs.ImportFromEPSG(vec_crs.to_epsg())
+                    epsg = vec_crs.to_epsg()
+                    if epsg is not None:
+                        osr_crs.ImportFromEPSG(epsg)
+                    else:
+                        osr_crs.ImportFromWkt(vec_crs.to_wkt(WktVersion.WKT1_GDAL))
                 return osr_crs
             else:
                 print("No Coordinate Reference System (CRS) find in the input feature, please check!")
