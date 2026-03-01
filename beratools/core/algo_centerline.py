@@ -212,7 +212,7 @@ def find_centerline(poly, input_line, guided_strategy="main_route"):
 
     """
     default_return = input_line, CenterlineStatus.FAILED
-    valid_guided_strategies = {"main_route", "pairwise", "virtual_nodes"}
+    valid_guided_strategies = {"main_route", "pairwise", "virtual_nodes", "direct_insert"}
     if guided_strategy not in valid_guided_strategies:
         raise ValueError("guided_strategy must be one of {}".format(sorted(valid_guided_strategies)))
     effective_strategy = guided_strategy
@@ -240,7 +240,7 @@ def find_centerline(poly, input_line, guided_strategy="main_route"):
 
     src_geom = None
     dst_geom = None
-    if guided_strategy in {"pairwise", "virtual_nodes"}:
+    if guided_strategy in {"pairwise", "virtual_nodes", "direct_insert"}:
         src_geom = sh_geom.Point(line_coords[0])
         dst_geom = sh_geom.Point(line_coords[-1])
 
@@ -255,7 +255,7 @@ def find_centerline(poly, input_line, guided_strategy="main_route"):
         print(f"find_centerline: {e}")
         centerline = None
 
-    if not centerline and guided_strategy in {"pairwise", "virtual_nodes"}:
+    if not centerline and guided_strategy in {"pairwise", "virtual_nodes", "direct_insert"}:
         print(f"find_centerline: {guided_strategy} guidance failed, retrying main_route")
         try:
             centerline = _extract_centerline_from_polygon(

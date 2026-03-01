@@ -31,6 +31,19 @@ FP_CORRIDOR_THRESHOLD = 2.5
 SMALL_BUFFER = 1e-3
 
 
+@enum.unique
+class CenterlineStrategy(enum.Enum):
+    """Guided strategy for centerline extraction."""
+
+    MAIN_ROUTE = "main_route"
+    PAIRWISE = "pairwise"
+    VIRTUAL_NODES = "virtual_nodes"
+    DIRECT_INSERT = "direct_insert"
+
+
+CENTERLINE_GUIDED_STRATEGY = CenterlineStrategy.PAIRWISE
+
+
 class CenterlineFlags(enum.Flag):
     """Flags for the centerline algorithm."""
 

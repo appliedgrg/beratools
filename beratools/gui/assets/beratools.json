@@ -306,12 +306,12 @@
             },
             {
               "variable": "guided_strategy",
-              "label": "Centerline Mode",
-              "description": "Centerline extraction mode: main_route (default), pairwise guided endpoints, or virtual_nodes guided endpoints.",
+              "label": "Guided Strategy",
+              "description": "Centerline extraction strategy. 'pairwise': endpoint-guided pair scoring (default). 'main_route': unguided extraction from corridor graph.",
               "type": "list",
-              "subtype": "text",
-              "data": ["main_route", "pairwise", "virtual_nodes"],
-              "default": "main_route",
+              "subtype": "string",
+              "data": ["pairwise", "main_route"],
+              "default": "pairwise",
               "output": false,
               "optional": true
             },
