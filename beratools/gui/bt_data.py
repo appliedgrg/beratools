@@ -384,12 +384,20 @@ class SettingsManager:
         self.settings["tool_history"].move_to_end(tool, last=False)
 
     def remove_tool_history_item(self, index):
-        key = list(self.settings["tool_history"].keys())[index]
-        self.settings["tool_history"].pop(key)
+        tool_history = self.settings.get("tool_history")
+        if not isinstance(tool_history, dict):
+            return
+
+        keys = list(tool_history.keys())
+        if index < 0 or index >= len(keys):
+            return
+
+        key = keys[index]
+        tool_history.pop(key, None)
         self.save_tool_info()
 
     def remove_tool_history_all(self):
-        self.settings.pop("tool_history")
+        self.settings.pop("tool_history", None)
         self.save_tool_info()
 
     def get_tool_history(self):
