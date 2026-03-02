@@ -42,7 +42,7 @@ requirements:
     - tabulate
     - tqdm
     - xarray-spatial
-
+    - pandarallel
 tests:
   - script:
       - pytest tests/test_workflow.py

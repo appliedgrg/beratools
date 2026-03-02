@@ -46,7 +46,7 @@ def test_full_workflow(tool_arguments_workflow):
     # 5. Test the line_footprint_rel tool
     arg_main_canopy_threshold_relative = tool_arguments_workflow["arg_main_canopy_threshold_relative"]
     main_canopy_threshold_relative(**arg_main_canopy_threshold_relative)
-    out_file, layer = decode_file_layer(arg_main_canopy_threshold_relative["out_DynCenterline"])
+    out_file, layer = decode_file_layer(arg_main_canopy_threshold_relative["out_dyn_centerline"])
     assert check_file_exists(out_file, layer=layer), "Dynamic Centerline output file was not created!"
 
     arg_main_line_footprint_relative = tool_arguments_workflow["arg_main_line_footprint_relative"]

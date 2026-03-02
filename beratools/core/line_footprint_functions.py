@@ -648,7 +648,6 @@ def main_line_footprint_relative(
     full_step:bool,
     canopy_thresh_percentage:int,
     processes:int,
-    verbose:bool,
     debug_mode:bool=BT_DEBUGGING,
 )-> None:
     """
@@ -702,7 +701,7 @@ def main_line_footprint_relative(
     with rasterio.open(in_chm) as raster:
         line_args = []
 
-        if compare_crs(vector_crs(in_file), raster_crs(in_chm)):
+        if compare_crs(vector_crs(in_file,layer), raster_crs(in_chm)):
             proc_segments = False
             if proc_segments:
                 print("[Info]: Splitting lines into segments...")

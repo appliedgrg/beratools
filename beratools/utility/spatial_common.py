@@ -113,13 +113,16 @@ def decode_file_layer(encoded):
     return file_path, layer_name
 
 
-def vector_crs(in_vector):
+def vector_crs(in_vector,gpd_layer):
     osr_crs = osr.SpatialReference()
     from pyproj.enums import WktVersion
 
     vec_crs = None
     # open input vector data as GeoDataFrame
-    gpd_vector = gpd.GeoDataFrame.from_file(in_vector)
+    if gpd_layer!=None:
+        gpd_vector = gpd.GeoDataFrame.from_file(in_vector,layer=gpd_layer)
+    else:
+        gpd_vector = gpd.GeoDataFrame.from_file(in_vector)
     try:
         if gpd_vector.crs is not None:
             vec_crs = gpd_vector.crs

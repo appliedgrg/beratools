@@ -32,6 +32,7 @@
 
 from beratools.core.line_footprint_functions import *
 from beratools.core.canopy_threshold_relative import *
+import time
 
 
 def line_footprint_relative(
@@ -62,7 +63,7 @@ def line_footprint_relative(
         canopy_thresh_percentage=int(float(canopy_thresh_percentage)),
         full_step=bool(True),
         processes=int(float(processes)),
-        verbose=bool(verbose),
+
     )
 
     if not dy_cl_line:
@@ -83,7 +84,6 @@ def line_footprint_relative(
         full_step=bool(True),
         canopy_thresh_percentage=int(float(canopy_thresh_percentage)),
         processes=int(float(processes)),
-        verbose=bool(verbose),
     )
 
 if __name__ == "__main__":
