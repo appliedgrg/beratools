@@ -39,6 +39,7 @@ dependencies = [
     "tabulate",
     "tqdm",
     "xarray-spatial",
+    "pandarallel",
 ]
 
 [project.optional-dependencies]

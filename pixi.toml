@@ -25,6 +25,7 @@ tabulate = "*"
 tqdm = "*"
 xarray-spatial = "*"
 pytest = "*"
+pandarallel = "1.6.*"
 
 [pypi-dependencies]
 hatch-vcs = "*"
