@@ -40,7 +40,7 @@ def vertex_optimization(
         optimize_internal_vertices = optimize_internal_vertices.lower() in ["true", "1", "yes"]
 
     in_file, in_layer = sp_common.decode_file_layer(in_line)
-    if not sp_common.compare_crs(sp_common.vector_crs(in_file), sp_common.raster_crs(in_raster)):
+    if not sp_common.compare_crs(sp_common.vector_crs(in_file,in_layer), sp_common.raster_crs(in_raster)):
         return
 
     vg = bt_vo.VertexGrouping(
