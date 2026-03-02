@@ -85,6 +85,19 @@ def test_centerline_guided_strategy_pairwise_strict_anchors(footprint_shape):
     assert Point(centerline.coords[-1]).distance(dst_pt) < 1e-9
 
 
+def test_centerline_guided_strategy_direct_insert(footprint_shape, footprint_endpoint_points):
+    src_pt, dst_pt = footprint_endpoint_points
+    centerline = get_centerline(
+        footprint_shape,
+        src_geom=src_pt,
+        dst_geom=dst_pt,
+        guided_strategy="direct_insert",
+    )
+    assert centerline.is_valid
+    assert Point(centerline.coords[0]).distance(src_pt) < 1e-9
+    assert Point(centerline.coords[-1]).distance(dst_pt) < 1e-9
+
+
 def test_centerline_guided_failure_raises_in_strict_mode(footprint_shape, monkeypatch):
     src_pt = footprint_shape.representative_point()
     dst_pt = footprint_shape.centroid

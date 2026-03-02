@@ -50,6 +50,7 @@ def get_centerline(
     endpoint_candidate_k=5,
     max_terminal_angle=40,
     alpha=0.5,
+    snap_clearance_weight=5.0,
 ):
     """
     Return centerline from geometry.
@@ -68,12 +69,15 @@ def get_centerline(
     max_paths : Number of longest paths used to create the centerlines.
         (default: 5)
     src_geom, dst_geom : Optional endpoint guidance geometries.
-    guided_strategy : "pairwise", "virtual_nodes", or "main_route".
+    guided_strategy : "pairwise", "virtual_nodes", "direct_insert", or "main_route".
     endpoint_mode : "strict" or "soft".
     snap_tolerance : Maximum endpoint snap distance for soft mode.
     endpoint_candidate_k : Number of endpoint graph candidates.
     max_terminal_angle : Maximum allowed terminal deflection in degrees.
     alpha : Exponent for medial-aware edge weighting.
+    snap_clearance_weight : (direct_insert only) Penalty for peripheral edges
+        when choosing insertion point. 0 = pure nearest; higher = prefer
+        interior edges. (default: 0.0)
 
     Returns:
     --------
@@ -91,7 +95,7 @@ def get_centerline(
     if endpoint_mode not in valid_endpoint_modes:
         raise ValueError("endpoint_mode must be one of %s" % sorted(valid_endpoint_modes))
 
-    valid_guided_strategies = {"pairwise", "virtual_nodes", "main_route"}
+    valid_guided_strategies = {"pairwise", "virtual_nodes", "direct_insert", "main_route"}
     if guided_strategy not in valid_guided_strategies:
         raise ValueError("guided_strategy must be one of %s" % sorted(valid_guided_strategies))
 
@@ -132,6 +136,38 @@ def get_centerline(
 
         guided_attempted = False
         if (
+            guided_strategy == "direct_insert"
+            and src_point is not None
+            and dst_point is not None
+        ):
+            guided_attempted = True
+            guided = _get_guided_path_direct_insert(
+                graph, vor, geom, src_point, dst_point,
+                max_terminal_angle, alpha,
+                enforce_angle=(endpoint_mode == "strict"),
+                snap_clearance_weight=snap_clearance_weight,
+            )
+            if guided is None and endpoint_mode == "strict":
+                logger.debug("direct_insert strict mode failed, retrying without angle guard")
+                guided = _get_guided_path_direct_insert(
+                    graph, vor, geom, src_point, dst_point,
+                    max_terminal_angle, alpha,
+                    enforce_angle=False,
+                    snap_clearance_weight=snap_clearance_weight,
+                )
+            if guided is not None:
+                ext = guided.get("extended_coords", {})
+                coords = [src_point.coords[0]]
+                for n in guided["path"]:
+                    coords.append(tuple(_get_vertex_coords(n, vor, ext)))
+                coords.append(dst_point.coords[0])
+                deduped = [coords[0]]
+                for c in coords[1:]:
+                    if c != deduped[-1]:
+                        deduped.append(c)
+                centerline = _smooth_linestring_fixed_ends(LineString(deduped), smooth_sigma)
+
+        elif (
             guided_strategy in {"pairwise", "virtual_nodes"}
             and src_point is not None
             and dst_point is not None
@@ -654,6 +690,141 @@ def _get_guided_path_virtual(
         return None
 
     return best
+
+
+def _get_vertex_coords(node, vor, extended_coords):
+    """Get coordinates for a graph node, checking extended coords first."""
+    if extended_coords and node in extended_coords:
+        return extended_coords[node]
+    return vor.vertices[node]
+
+
+def _insert_endpoint_node(
+    point, weighted_graph, vor, geometry, alpha, extended_coords, snap_clearance_weight=5.0
+):
+    """Insert endpoint into weighted graph by splitting the nearest edge.
+
+    Projects *point* onto the closest edge of *weighted_graph*, splits that
+    edge at the projection, and stores the new node coordinates in
+    *extended_coords*.  Returns the new node ID, or ``None`` on failure.
+
+    *snap_clearance_weight* controls how much to penalise edges close to the
+    polygon boundary.  ``0`` (default) uses pure nearest distance; higher
+    values bias the selection toward more medial (interior) edges.
+    """
+    point_xy = np.array(point.coords[0])
+    best_score = float("inf")
+    best_edge = None
+    best_projected = None
+
+    for u, v in list(weighted_graph.edges()):
+        p1 = np.array(_get_vertex_coords(u, vor, extended_coords))
+        p2 = np.array(_get_vertex_coords(v, vor, extended_coords))
+        seg = p2 - p1
+        seg_len_sq = float(np.dot(seg, seg))
+        if seg_len_sq < 1e-12:
+            projected = p1
+        else:
+            t = float(np.dot(point_xy - p1, seg) / seg_len_sq)
+            t = max(0.0, min(1.0, t))
+            projected = p1 + t * seg
+
+        dist = float(np.linalg.norm(point_xy - projected))
+        clearance = geometry.boundary.distance(Point(projected))
+        score = dist + snap_clearance_weight / max(clearance, 1e-6)
+        if score < best_score:
+            best_score = score
+            best_edge = (u, v)
+            best_projected = projected
+
+    if best_edge is None:
+        return None
+
+    u, v = best_edge
+    new_id = max(weighted_graph.nodes()) + 1
+    extended_coords[new_id] = best_projected
+
+    weighted_graph.remove_edge(u, v)
+    p_new = Point(best_projected)
+    clearance_new = geometry.boundary.distance(p_new)
+
+    for nbr in (u, v):
+        nbr_coords = _get_vertex_coords(nbr, vor, extended_coords)
+        p_nbr = Point(nbr_coords)
+        length = p_nbr.distance(p_new)
+        clearance = geometry.boundary.distance(p_nbr)
+        weight = length / max(min(clearance, clearance_new), 1e-6) ** alpha
+        weighted_graph.add_edge(nbr, new_id, weight=weight)
+
+    return new_id
+
+
+def _get_guided_path_direct_insert(
+    graph,
+    vor,
+    geometry,
+    src_point,
+    dst_point,
+    max_terminal_angle,
+    alpha,
+    enforce_angle=True,
+    snap_clearance_weight=5.0,
+):
+    """Get path by inserting src/dst directly into the Voronoi graph.
+
+    Instead of picking candidate nodes and searching many paths, this mode
+    projects each endpoint onto the nearest Voronoi edge, splits that edge,
+    and runs a single shortest-path query between the two inserted nodes.
+
+    *snap_clearance_weight* controls how much to penalise peripheral edges
+    when choosing the insertion point.  ``0`` = pure nearest distance;
+    higher values bias toward more medial (interior) edges.
+    """
+    weighted = _build_medial_weighted_graph(graph, vor, geometry, alpha)
+    extended_coords = {}
+
+    src_node = _insert_endpoint_node(
+        src_point, weighted, vor, geometry, alpha, extended_coords, snap_clearance_weight
+    )
+    dst_node = _insert_endpoint_node(
+        dst_point, weighted, vor, geometry, alpha, extended_coords, snap_clearance_weight
+    )
+
+    if src_node is None or dst_node is None:
+        return None
+
+    try:
+        path = nx.shortest_path(weighted, src_node, dst_node, weight="weight")
+        score = nx.path_weight(weighted, path, weight="weight")
+    except NetworkXNoPath:
+        return None
+
+    if len(path) < 2:
+        return None
+
+    # Terminal angle check using extended coords
+    start_xy = np.array(_get_vertex_coords(path[0], vor, extended_coords))
+    next_xy = np.array(_get_vertex_coords(path[1], vor, extended_coords))
+    end_xy = np.array(_get_vertex_coords(path[-1], vor, extended_coords))
+    prev_xy = np.array(_get_vertex_coords(path[-2], vor, extended_coords))
+    src_xy = np.array(src_point.coords[0])
+    dst_xy = np.array(dst_point.coords[0])
+
+    start_angle = _angle_between_vectors(start_xy - src_xy, next_xy - start_xy)
+    end_angle = _angle_between_vectors(prev_xy - end_xy, dst_xy - end_xy)
+    terminal_angle = max(start_angle, end_angle)
+
+    if enforce_angle and terminal_angle > max_terminal_angle:
+        return None
+
+    score += ANGLE_PENALTY_WEIGHT * terminal_angle
+
+    return {
+        "path": path,
+        "score": score,
+        "angle": terminal_angle,
+        "extended_coords": extended_coords,
+    }
 
 
 def _get_main_route_longest_paths(graph_nk):

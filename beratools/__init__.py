@@ -1,4 +1,4 @@
-__author__ = """AppliedGRG"""
+__author__ = """Applied Geospatial Research Group"""
 __email__ = 'appliedgrg@gmail.com'
 __version__ = '0.3.6'
 __license__ = "GPL-3.0-or-later"

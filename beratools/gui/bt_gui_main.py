@@ -337,8 +337,12 @@ class BTListView(QtWidgets.QWidget):
 
     def delete_selected_item(self):
         selection = self.sel_model.currentIndex()
-        self.list_model.removeRow(selection.row())
-        bt.remove_tool_history_item(selection.row())
+        row = selection.row()
+        if row < 0:
+            return
+
+        self.list_model.removeRow(row)
+        bt.remove_tool_history_item(row)
 
     def clear_all_items(self):
         self.list_model.setStringList([])

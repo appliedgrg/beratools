@@ -19,6 +19,7 @@ import pandas as pd
 
 import beratools.core.algo_centerline as algo_centerline
 import beratools.core.algo_common as algo_common
+import beratools.core.constants as bt_const
 import beratools.utility.spatial_common as sp_common
 from beratools.core.logger import Logger
 from beratools.core.tool_base import execute_multiprocessing
@@ -35,7 +36,7 @@ def generate_line_class_list(
     line_radius,
     layer=None,
     proc_segments=True,
-    guided_strategy="main_route",
+    guided_strategy=bt_const.CENTERLINE_GUIDED_STRATEGY,
 ) -> list:
     line_classes = []
     line_list = algo_common.prepare_lines_gdf(in_vector, layer, proc_segments)
@@ -65,7 +66,7 @@ def centerline(
     line_radius,
     proc_segments,
     out_line,
-    guided_strategy="main_route",
+    guided_strategy=bt_const.CENTERLINE_GUIDED_STRATEGY,
     use_angle_grouping=True,
     processes=0,
     call_mode=CallMode.CLI,
@@ -74,13 +75,15 @@ def centerline(
     """Run centerline extraction.
 
     guided_strategy modes:
-    - main_route: unguided main-route extraction.
-    - pairwise: endpoint-guided search over endpoint node pairs.
-    - virtual_nodes: endpoint-guided search using virtual source/destination graph nodes.
+    - MAIN_ROUTE: unguided main-route extraction.
+    - PAIRWISE: endpoint-guided search over endpoint node pairs.
+    - VIRTUAL_NODES: endpoint-guided search using virtual source/destination graph nodes.
+    - DIRECT_INSERT: endpoint-guided search by inserting endpoints directly into the Voronoi graph.
     """
-    valid_guided_strategies = {"main_route", "pairwise", "virtual_nodes"}
-    if guided_strategy not in valid_guided_strategies:
-        raise ValueError("guided_strategy must be one of {}".format(sorted(valid_guided_strategies)))
+    if isinstance(guided_strategy, str):
+        guided_strategy = bt_const.CenterlineStrategy(guided_strategy)
+
+    guided_strategy = guided_strategy.value
 
     in_file, in_layer = sp_common.decode_file_layer(in_line)
     out_file, out_layer = sp_common.decode_file_layer(out_line)

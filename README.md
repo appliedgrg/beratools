@@ -16,32 +16,30 @@ BERA Tools is successor of [Forest Line Mapper](https://github.com/appliedgrg/fl
 
 ## [Quick Start](https://appliedgrg.github.io/beratools)
 
-BERA Tools is built upon open-source Python libraries. Anaconda is used to manage runtime environments.
-
-Ways to install BERA Tools:
+Here are the ways to install BERA Tools:
 
 - Windows installer
 - Install with Anaconda.
 
 ### Windows Installer
 
-Windows installer is provided with releases. Check the [latest release](https://github.com/appliedgrg/beratools/releases/latest) for the up-to-date installer.
+Windows installer is provided with releases. Check the [latest release](https://github.com/appliedgrg/beratools/releases/latest).
 
 ### Install with Anaconda
 
 Install with Anaconda works on Windows, macOS, and Linux.
 
 - Install Miniconda. Download Miniconda from [Miniconda](https://docs.anaconda.com/miniconda/) and install on your machine.
-- Download the file [environment.yml](https://raw.githubusercontent.com/appliedgrg/beratools/main/environment.yml
-) and save to local storage. Launch **Anaconda Prompt** or **Miniconda Prompt**.
-- **Change directory** to where environment.yml is saved in the command prompt.
-- Run the following command to create a new environment named **bera**. **BERA Tools** will be installed at the same time.
+- Download and save the file [environment.yml](https://raw.githubusercontent.com/appliedgrg/beratools/main/environment.yml
+).
+- Launch **Anaconda Prompt** and **Change directory** to where environment.yml is saved.
+- Run the command to install BERA Tools.
 
    ```bash
    $ conda env create -n bera -f environment.yml
    ```
 
-   Wait until the installation is done.
+   After the installation is done, a new environment named **bera** is created and BERA Tools is installed within it.
 - Activate the **bera** environment and launch BERA Tools main GUI:
 
   ```bash
@@ -49,13 +47,15 @@ Install with Anaconda works on Windows, macOS, and Linux.
   $ beratools gui
   ```
 
+![BERA Tools Main GUI](beratools/gui/assets/BERA_GUI_Main.png)
+
 - [Download latest example data](https://github.com/appliedgrg/beratools/releases/latest/download/test_data.zip) to try with BERA Tools.
 
 For more information about installation, check the [BERA Tools Installation](https://appliedgrg.github.io/beratools/user/installation/).
 
 ## BERA Tools Guide
 
-Check the online [BERA Tools Guide](https://appliedgrg.github.io/beratools/) for user, developer guides.
+Check the online [BERA Tools Guide](https://appliedgrg.github.io/beratools/) for user, developer and technical guides.
 
 ## Credits
 

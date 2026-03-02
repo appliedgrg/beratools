@@ -120,7 +120,7 @@ Finalize results and persist outputs for downstream use.
 
 ```mermaid
 flowchart LR
-    A[Check Seed Lines] --> B[Vertex Optimization\n(optional)]
+    A[Check Seed Lines] --> B[Vertex Optimization]
     A --> C[Centerline]
     B --> C
     C --> D[Canopy Footprint]
