@@ -4,7 +4,6 @@ from multiprocessing.pool import Pool
 from pathlib import Path
 
 import pandas as pd
-from parallel_pandas import ParallelPandas
 from pandarallel import pandarallel
 
 from beratools.core.constants import *
