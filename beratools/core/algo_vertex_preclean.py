@@ -1,9 +1,10 @@
 """Per-line vertex preclean helpers for vertex optimization."""
 
 import math
-
+import numpy as np
 import geopandas as gpd
 import shapely.geometry as sh_geom
+import shapely as sh
 
 import beratools.core.constants as bt_const
 
@@ -84,6 +85,56 @@ def _preclean_line(line, close_distance, min_segment_length, angle_tol):
 
     return sh_geom.LineString(cleaned)
 
+def _simplify_line_fr_dist_offset(line, close_distance, min_segment_length,angle_tol=None):
+    """
+    1) Remove repeated points from the input line,
+    2) Remove vertices based on back and forward internal distances (e.g. < min_segment_length) and offset constraints (e.g. perpendicular offset or collinearity > offset threshold).
+
+    Return
+        Simplified line
+    """
+    line = sh.remove_repeated_points(line, tolerance=0.0)
+    vertices = np.array(line.coords)
+    if len(vertices) < 3:
+        return line
+    # Initialize with first point
+    simplified = [sh_geom.Point(vertices[0])]
+    skipped = False
+    for i in range(1, len(vertices) - 1):
+        prev = vertices[i - 1]
+        curr = vertices[i]
+        nxt = vertices[i + 1]
+
+        # Calculate distances to previous and next vertex
+        dist_prev = np.linalg.norm(curr - prev)
+        dist_next = np.linalg.norm(nxt - curr)
+        # Calculate offset distances from curr point to previous and next vertex
+        current_p=sh_geom.Point(curr)
+        whole_l=sh_geom.LineString([prev,nxt])
+        if skipped==False:
+            # Condition: either distances must be > 2 meters apart (example constraint)
+            if dist_prev > min_segment_length and dist_next > min_segment_length:
+                # perpendicular offset or collinearity > offset threshold, keep current point
+                if current_p.distance(whole_l) > close_distance:
+                    simplified.append(current_p)
+                    skipped = False
+                else:
+                    # skip current when smaller
+                    skipped=True
+                    continue
+
+            else: # Condition:  distances < 2 meters apart, skip current
+                skipped = True
+                continue
+        else:
+            #if skipped in previous point, keep current point
+            simplified.append(current_p)
+            skipped = False
+
+    # Always keep the last point
+    simplified.append(sh_geom.Point(vertices[-1]))
+
+    return sh_geom.LineString(simplified)
 
 def preclean_vertices(gdf, close_distance, min_segment_length, angle_tol):
     """Remove redundant close internal vertices on each line independently."""
