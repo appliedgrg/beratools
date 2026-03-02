@@ -1,9 +1,10 @@
 """Per-line vertex preclean helpers for vertex optimization."""
 
 import math
-
+import numpy as np
 import geopandas as gpd
 import shapely.geometry as sh_geom
+import shapely as sh
 
 import beratools.core.constants as bt_const
 
@@ -87,8 +88,9 @@ def _preclean_line(line, close_distance, min_segment_length, angle_tol):
 def _simplify_line_fr_dist_offset(line, close_distance, min_segment_length,angle_tol=None):
     """
     1) Remove repeated points from the input line,
-    2) Remove vertices based on back and forward internal distances (e.g. < min_segment_length) and offset constraints (e.g. perpendicular offset or collinearity > offset threshold).
-    
+    2) Remove vertices based on back and forward internal distances (e.g. < min_segment_length) and offset constraints
+    (e.g. perpendicular offset or collinearity < offset threshold).
+
     Return
         Simplified line
     """
