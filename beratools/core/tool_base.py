@@ -67,7 +67,7 @@ def parallel_mode(processes):
     if processes == 1:
         return bt_const.ParallelMode.SEQUENTIAL, processes
     else:
-        return bt_const.ParallelMode.MULTIPROCESSING, processes
+        return bt_const.ParallelMode.MULTIPROCESSING, min(processes,determine_cpu_core_limit())
 
 
 def execute_multiprocessing(
