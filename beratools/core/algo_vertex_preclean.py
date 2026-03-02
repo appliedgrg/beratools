@@ -160,7 +160,7 @@ def preclean_vertices(gdf, close_distance, min_segment_length, angle_tol):
             cleaned_geoms.append(geom)
             continue
 
-        cleaned_geoms.append(_preclean_line(geom, close_distance, min_segment_length, angle_tol))
+        cleaned_geoms.append(_simplify_line_fr_dist_offset(geom, close_distance, min_segment_length, angle_tol))
 
     out_gdf.geometry = cleaned_geoms
     out_gdf = out_gdf[~out_gdf.geometry.isna() & ~out_gdf.geometry.is_empty]
