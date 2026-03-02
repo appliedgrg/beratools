@@ -44,7 +44,7 @@ def available_cpu_cores():
 def tool_arguments_integration(testdata_dir, available_cpu_cores):
     return {
         "args_check_seed_line": {
-            "in_line": f"{testdata_dir.joinpath('integration_aoi.gpkg').as_posix()}|seed_lines_checked",
+            "in_line": f"{testdata_dir.joinpath('seed_lines_aoi.gpkg').as_posix()}|seed_lines",
             "in_raster": testdata_dir.joinpath("chm_aoi.tif").as_posix(),
             "out_line": f"{testdata_dir.joinpath('integration_inter.gpkg').as_posix()}|seed_lines_checked",
         },
@@ -116,8 +116,7 @@ def tool_arguments_integration(testdata_dir, available_cpu_cores):
             "canopy_thresh_percentage": 50,
             "full_step": "True",
             "processes": available_cpu_cores,
-            "verbose": False,
-            "out_DynCenterline": f"{testdata_dir.joinpath('DynCanTh_integration.gpkg').as_posix()}|centerline",
+            "out_dyn_centerline": f"{testdata_dir.joinpath('DynCanTh_integration.gpkg').as_posix()}|centerline",
         },
         "arg_main_line_footprint_relative": {
             "in_line": f"{testdata_dir.joinpath('DynCanTh_integration.gpkg').as_posix()}|centerline",
@@ -133,7 +132,6 @@ def tool_arguments_integration(testdata_dir, available_cpu_cores):
             "full_step": "True",
             "canopy_thresh_percentage": 50,
             "processes": available_cpu_cores,
-            "verbose": False,
             "debug_mode": False,
         },
     }
@@ -216,8 +214,7 @@ def tool_arguments_workflow(testdata_dir, available_cpu_cores):
             "canopy_thresh_percentage": 50,
             "full_step": "True",
             "processes": available_cpu_cores,
-            "verbose": False,
-            "out_DynCenterline": f"{testdata_dir.joinpath('DynCanTh_workflow.gpkg').as_posix()}|centerline",
+            "out_dyn_centerline": f"{testdata_dir.joinpath('DynCanTh_workflow.gpkg').as_posix()}|centerline",
         },
         "arg_main_line_footprint_relative": {
             "in_line": f"{testdata_dir.joinpath('DynCanTh_workflow.gpkg').as_posix()}|centerline",
@@ -233,7 +230,6 @@ def tool_arguments_workflow(testdata_dir, available_cpu_cores):
             "full_step": "True",
             "canopy_thresh_percentage": 50,
             "processes": available_cpu_cores,
-            "verbose": False,
             "debug_mode": False,
         },
     }
