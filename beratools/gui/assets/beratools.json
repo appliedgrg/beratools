@@ -32,8 +32,17 @@
               "output": false,
               "optional": true,
               "depends_on": {
-                "variable": "clip_to_chm_footprint",
-                "condition": true,
+                "logic": "or",
+                "conditions": [
+                  {
+                    "variable": "clip_to_chm_footprint",
+                    "condition": true
+                  },
+                  {
+                    "variable": "apply_seed_line_correction",
+                    "condition": true
+                  }
+                ],
                 "mode": "hide"
               }
             },

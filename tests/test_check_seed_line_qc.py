@@ -584,6 +584,14 @@ def test_schema_marks_chm_shrink_as_optional():
     assert params["clip_to_chm_footprint"]["default"] is True
     assert params["clip_to_chm_footprint"]["optional"] is True
 
+    in_raster_dep = params["in_raster"]["depends_on"]
+    assert in_raster_dep["logic"] == "or"
+    assert in_raster_dep["mode"] == "hide"
+    assert in_raster_dep["conditions"] == [
+        {"variable": "clip_to_chm_footprint", "condition": True},
+        {"variable": "apply_seed_line_correction", "condition": True},
+    ]
+
     assert params["apply_seed_line_correction"]["type"] == "list"
     assert params["apply_seed_line_correction"]["default"] is False
 
