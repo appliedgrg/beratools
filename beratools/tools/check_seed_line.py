@@ -48,6 +48,10 @@ class SeedLineQCConfig:
     densify_long_lines: bool = False
     max_segment_length: float = bt_const.LP_SEGMENT_LENGTH
     use_angle_grouping: bool = True
+    apply_seed_line_correction: bool = False
+    slc_search_distance: float = 5.0
+    slc_line_radius: float = 15.0
+    slc_optimize_internal_vertices: bool = False
 
 
 def _to_bool(value):
@@ -641,13 +645,17 @@ def check_seed_line(
     densify_long_lines=False,
     max_segment_length=bt_const.LP_SEGMENT_LENGTH,
     use_angle_grouping=True,
+    apply_seed_line_correction=False,
+    slc_search_distance=5.0,
+    slc_line_radius=15.0,
+    slc_optimize_internal_vertices=False,
     processes=0,
     call_mode=CallMode.CLI,
     log_level="INFO",
 ):
     from beratools.core.algo_line_grouping import LineGrouping
 
-    del processes, call_mode, log_level
+    del log_level
 
     config = SeedLineQCConfig(
         chm_footprint_shrink=float(chm_footprint_shrink),
@@ -661,6 +669,10 @@ def check_seed_line(
         densify_long_lines=_to_bool(densify_long_lines),
         max_segment_length=float(max_segment_length),
         use_angle_grouping=_to_bool(use_angle_grouping),
+        apply_seed_line_correction=_to_bool(apply_seed_line_correction),
+        slc_search_distance=float(slc_search_distance),
+        slc_line_radius=float(slc_line_radius),
+        slc_optimize_internal_vertices=_to_bool(slc_optimize_internal_vertices),
     )
 
     in_file, in_layer = sp_common.decode_file_layer(in_line)
@@ -771,6 +783,10 @@ def check_seed_line(
             "merge_by_group": int(config.merge_by_group),
             "densify_long_lines": int(config.densify_long_lines),
             "max_segment_length_m": float(config.max_segment_length),
+            "apply_seed_line_correction": int(config.apply_seed_line_correction),
+            "slc_search_distance": float(config.slc_search_distance),
+            "slc_line_radius": float(config.slc_line_radius),
+            "slc_optimize_internal_vertices": int(config.slc_optimize_internal_vertices),
             "input_feature_count": int(input_count),
             "output_feature_count": int(output_count),
         }
@@ -953,6 +969,32 @@ def check_seed_line(
             return
     else:
         _log_step(10, step_name, in_count, in_count, skipped_reason="disabled")
+
+    step_name = "SeedLineCorrection"
+    in_count = len(gdf)
+    if config.apply_seed_line_correction:
+        from beratools.core.algo_seed_line_correction import SeedLineCorrection
+
+        t0 = _step_timer()
+        slc = SeedLineCorrection(
+            in_file,
+            in_raster,
+            config.slc_search_distance,
+            config.slc_line_radius,
+            processes,
+            call_mode,
+            layer=in_layer,
+            optimize_internal_vertices=config.slc_optimize_internal_vertices,
+        )
+        slc.prepare_lines(lines_gdf=gdf)
+        slc.group_vertices()
+        gdf = _ensure_gdf(slc.optimize(), gdf.crs).reset_index(drop=True)
+        _log_step(11, step_name, in_count, len(gdf), _elapsed(t0))
+        if _bail_if_empty(gdf, step_name, out_file, out_layer, in_count):
+            _persist_qc_tables(input_count, 0)
+            return
+    else:
+        _log_step(11, step_name, in_count, in_count, skipped_reason="disabled")
 
     gdf, removed_gdf = _clean_line_geometries_min_length_m(gdf, bt_const.SMALL_BUFFER)
     gdf = gdf.reset_index(drop=True)

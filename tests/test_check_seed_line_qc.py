@@ -584,6 +584,24 @@ def test_schema_marks_chm_shrink_as_optional():
     assert params["clip_to_chm_footprint"]["default"] is True
     assert params["clip_to_chm_footprint"]["optional"] is True
 
+    assert params["apply_seed_line_correction"]["type"] == "list"
+    assert params["apply_seed_line_correction"]["default"] is False
+
+    assert params["slc_search_distance"]["type"] == "number"
+    assert params["slc_search_distance"]["default"] == 5.0
+    assert params["slc_search_distance"]["depends_on"]["variable"] == "apply_seed_line_correction"
+    assert params["slc_search_distance"]["depends_on"]["condition"] is True
+
+    assert params["slc_line_radius"]["type"] == "number"
+    assert params["slc_line_radius"]["default"] == 15.0
+    assert params["slc_line_radius"]["depends_on"]["variable"] == "apply_seed_line_correction"
+    assert params["slc_line_radius"]["depends_on"]["condition"] is True
+
+    assert params["slc_optimize_internal_vertices"]["type"] == "list"
+    assert params["slc_optimize_internal_vertices"]["default"] is False
+    assert params["slc_optimize_internal_vertices"]["depends_on"]["variable"] == "apply_seed_line_correction"
+    assert params["slc_optimize_internal_vertices"]["depends_on"]["condition"] is True
+
 
 def test_schema_centerline_exposes_guided_strategy_parameter():
     schema_path = Path(__file__).resolve().parents[1] / "beratools" / "gui" / "assets" / "beratools.json"
