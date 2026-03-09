@@ -1,7 +1,10 @@
 import geopandas as gpd
 import numpy as np
 import pandas as pd
+import shapely.geometry as sh_geom
 
+import beratools.core.algo_common as algo_common
+import beratools.core.constants as bt_const
 from beratools.core.algo_seed_line_correction import SeedLineCorrection
 from beratools.utility.spatial_common import decode_file_layer
 
@@ -53,6 +56,26 @@ def _make_slc(args, in_file, in_layer):
     )
 
 
+def _make_local_slc(monkeypatch, *, close_distance=0.5, angle_tol=10.0):
+    monkeypatch.setattr(
+        algo_common,
+        "generate_raster_footprint",
+        lambda *_args, **_kwargs: sh_geom.box(-100.0, -100.0, 100.0, 100.0),
+    )
+    return SeedLineCorrection(
+        "dummy.gpkg",
+        "dummy.tif",
+        search_distance=1.0,
+        line_radius=1.0,
+        processes=0,
+        call_mode="test",
+        optimize_internal_vertices=False,
+        close_distance=close_distance,
+        min_segment_length=close_distance,
+        angle_tol=angle_tol,
+    )
+
+
 def test_slc_inmemory_matches_file(tool_arguments_integration):
     args = tool_arguments_integration["args_vertex_optimization"]
     in_file, in_layer = decode_file_layer(args["in_line"])
@@ -79,3 +102,48 @@ def test_slc_inmemory_matches_file(tool_arguments_integration):
     result_mem = slc_mem.optimize()
 
     assert_gdf_equal(result_mem, result_file, sort_by="BT_UID")
+
+
+def test_prepare_lines_removes_vertex_close_to_endpoint(monkeypatch):
+    slc = _make_local_slc(monkeypatch, close_distance=0.5)
+    line = sh_geom.LineString([(0.0, 0.0), (0.2, 0.0), (2.0, 0.0), (4.0, 0.0)])
+    lines_gdf = gpd.GeoDataFrame({"id": [1]}, geometry=[line], crs="EPSG:3857")
+
+    slc.prepare_lines(lines_gdf=lines_gdf)
+
+    assert len(slc.line_list) == 1
+    coords = list(slc.line_list[0].geometry.iloc[0].coords)
+    assert coords == [(0.0, 0.0), (2.0, 0.0), (4.0, 0.0)]
+
+
+def test_prepare_lines_preserves_bend_while_thinning_close_vertices(monkeypatch):
+    slc = _make_local_slc(monkeypatch, close_distance=0.5, angle_tol=10.0)
+    line = sh_geom.LineString([(0.0, 0.0), (2.0, 0.0), (2.2, 0.3), (2.4, 0.3), (4.0, 0.3)])
+    lines_gdf = gpd.GeoDataFrame({"id": [1]}, geometry=[line], crs="EPSG:3857")
+
+    slc.prepare_lines(lines_gdf=lines_gdf)
+
+    coords = list(slc.line_list[0].geometry.iloc[0].coords)
+    assert (2.4, 0.3) not in coords
+    assert len(coords) >= 3
+    assert any(coord[1] > 0.0 for coord in coords[1:])
+
+
+def test_prepare_lines_dense_uniform_line_keeps_representatives(monkeypatch):
+    close_distance = 0.5
+    slc = _make_local_slc(monkeypatch, close_distance=close_distance, angle_tol=10.0)
+    line = sh_geom.LineString([(idx * 0.2, 0.0) for idx in range(20)])
+    lines_gdf = gpd.GeoDataFrame({"id": [1]}, geometry=[line], crs="EPSG:3857")
+
+    slc.prepare_lines(lines_gdf=lines_gdf)
+
+    coords = list(slc.line_list[0].geometry.iloc[0].coords)
+    assert coords[0] == (0.0, 0.0)
+    assert np.isclose(coords[-1][0], 3.8)
+    assert np.isclose(coords[-1][1], 0.0)
+    assert len(coords) > 2
+    assert all(
+        sh_geom.Point(coords[i]).distance(sh_geom.Point(coords[i + 1]))
+        >= close_distance - bt_const.SMALL_BUFFER
+        for i in range(len(coords) - 1)
+    )

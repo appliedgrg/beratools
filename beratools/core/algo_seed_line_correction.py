@@ -16,6 +16,7 @@ Description:
 """
 
 import geopandas as gpd
+import math
 import numpy as np
 import pandas as pd
 import shapely.geometry as sh_geom
@@ -23,7 +24,6 @@ from shapely import STRtree
 
 import beratools.core.algo_common as algo_common
 import beratools.core.algo_cost as algo_cost
-import beratools.core.algo_vertex_preclean as algo_vertex_preclean
 import beratools.core.constants as bt_const
 import beratools.core.tool_base as bt_base
 import beratools.utility.spatial_common as sp_common
@@ -49,6 +49,145 @@ def update_line_end_pt(line, index, new_vertex):
         coords[index] = (new_vertex.x, new_vertex.y, 0.0)
 
     return sh_geom.LineString(coords)
+
+
+class VertexPrecleaner:
+    def __init__(self, close_distance, angle_tol):
+        self.close_distance = float(close_distance)
+        self.angle_tol = float(angle_tol)
+
+    @staticmethod
+    def _point_distance(coord_a, coord_b):
+        return math.hypot(coord_b[0] - coord_a[0], coord_b[1] - coord_a[1])
+
+    def _bend_score(self, coord_a, coord_b, coord_c):
+        v1x = coord_b[0] - coord_a[0]
+        v1y = coord_b[1] - coord_a[1]
+        v2x = coord_c[0] - coord_b[0]
+        v2y = coord_c[1] - coord_b[1]
+
+        norm1 = math.hypot(v1x, v1y)
+        norm2 = math.hypot(v2x, v2y)
+        if norm1 <= bt_const.SMALL_BUFFER or norm2 <= bt_const.SMALL_BUFFER:
+            return 180.0
+
+        dot = v1x * v2x + v1y * v2y
+        cos_val = max(-1.0, min(1.0, dot / (norm1 * norm2)))
+        return math.degrees(math.acos(cos_val))
+
+    def _shape_loss(self, work_coords, remove_index):
+        prev_coord = work_coords[remove_index - 1] if remove_index - 1 >= 0 else None
+        curr_coord = work_coords[remove_index]
+        next_coord = work_coords[remove_index + 1] if remove_index + 1 < len(work_coords) else None
+
+        old_scores = []
+        if prev_coord is not None and remove_index - 2 >= 0:
+            old_scores.append(self._bend_score(work_coords[remove_index - 2], prev_coord, curr_coord))
+        if next_coord is not None and remove_index + 2 < len(work_coords):
+            old_scores.append(self._bend_score(curr_coord, next_coord, work_coords[remove_index + 2]))
+        if prev_coord is not None and next_coord is not None:
+            old_scores.append(self._bend_score(prev_coord, curr_coord, next_coord))
+
+        new_scores = []
+        if prev_coord is not None and next_coord is not None:
+            if remove_index - 2 >= 0:
+                new_scores.append(self._bend_score(work_coords[remove_index - 2], prev_coord, next_coord))
+            if remove_index + 2 < len(work_coords):
+                new_scores.append(self._bend_score(prev_coord, next_coord, work_coords[remove_index + 2]))
+
+        old_peak = max(old_scores) if old_scores else 0.0
+        new_peak = max(new_scores) if new_scores else 0.0
+        significant_penalty = 50.0 if old_peak > self.angle_tol and new_peak <= self.angle_tol else 0.0
+        return abs(old_peak - new_peak) + significant_penalty
+
+    def _remove_close_vertices_from_line(self, line):
+        coords = [tuple(coord) for coord in line.coords]
+        if len(coords) <= 2:
+            return line
+
+        work_coords = [coords[0]]
+        for coord in coords[1:]:
+            if self._point_distance(work_coords[-1], coord) > bt_const.SMALL_BUFFER:
+                work_coords.append(coord)
+
+        while (
+            len(work_coords) > 2
+            and self._point_distance(work_coords[0], work_coords[1]) < self.close_distance
+        ):
+            work_coords.pop(1)
+
+        while (
+            len(work_coords) > 2
+            and self._point_distance(work_coords[-2], work_coords[-1]) < self.close_distance
+        ):
+            work_coords.pop(-2)
+
+        i = 1
+        while i < len(work_coords) - 2:
+            left_coord = work_coords[i]
+            right_coord = work_coords[i + 1]
+            if self._point_distance(left_coord, right_coord) >= self.close_distance:
+                i += 1
+                continue
+
+            left_score = self._bend_score(work_coords[i - 1], left_coord, right_coord)
+            right_score = self._bend_score(left_coord, right_coord, work_coords[i + 2])
+
+            if left_score > self.angle_tol and right_score <= self.angle_tol:
+                remove_index = i + 1
+            elif right_score > self.angle_tol and left_score <= self.angle_tol:
+                remove_index = i
+            else:
+                remove_left_loss = self._shape_loss(work_coords, i)
+                remove_right_loss = self._shape_loss(work_coords, i + 1)
+                if remove_left_loss <= remove_right_loss:
+                    remove_index = i
+                else:
+                    remove_index = i + 1
+
+            work_coords.pop(remove_index)
+            if i > 1:
+                i -= 1
+
+        if len(work_coords) < 2:
+            return None
+
+        if self._point_distance(work_coords[0], work_coords[-1]) <= bt_const.SMALL_BUFFER:
+            return None
+
+        return sh_geom.LineString(work_coords)
+
+    def remove_close_vertices(self, gdf):
+        """Remove redundant close internal vertices on each line independently."""
+        if gdf is None or gdf.empty:
+            return gdf
+
+        if isinstance(gdf, gpd.GeoSeries):
+            gdf = gpd.GeoDataFrame(geometry=gdf)
+
+        out_gdf = gdf.copy()
+
+        if any(geom.geom_type == "MultiLineString" for geom in out_gdf.geometry):
+            out_gdf = out_gdf.explode(index_parts=False)
+
+        cleaned_geoms = []
+        for geom in out_gdf.geometry:
+            if geom is None or geom.is_empty:
+                cleaned_geoms.append(None)
+                continue
+
+            if geom.geom_type != "LineString":
+                cleaned_geoms.append(geom)
+                continue
+
+            cleaned_geoms.append(self._remove_close_vertices_from_line(geom))
+
+        out_gdf.geometry = cleaned_geoms
+        out_gdf = out_gdf[~out_gdf.geometry.isna() & ~out_gdf.geometry.is_empty]
+        out_gdf = out_gdf[out_gdf.geometry.length > bt_const.SMALL_BUFFER]
+        out_gdf.reset_index(drop=True, inplace=True)
+
+        return out_gdf
 
 
 class _SingleLine:
@@ -452,12 +591,10 @@ class SeedLineCorrection:
             lines_gdf[bt_const.BT_UID] = range(len(lines_gdf))
 
         self.source_lines_gdf = lines_gdf.copy()
-        lines_gdf = algo_vertex_preclean.preclean_vertices(
-            lines_gdf,
+        lines_gdf = VertexPrecleaner(
             self.close_distance,
-            self.min_segment_length,
             self.angle_tol,
-        )
+        ).remove_close_vertices(lines_gdf)
 
         if self.optimize_internal_vertices:
             self.line_list = algo_common.split_lines_to_segments(lines_gdf)
