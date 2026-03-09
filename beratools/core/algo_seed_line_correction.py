@@ -442,6 +442,15 @@ class SeedLineCorrection:
             self.line_visited = None
             return
 
+        # Keep in-memory and file-based paths consistent with shared input hygiene.
+        if "fid" in lines_gdf.columns:
+            lines_gdf = lines_gdf.rename(columns={"fid": "orig_fid"})
+
+        lines_gdf = algo_common.clean_geometries(lines_gdf, stage="input")
+        lines_gdf = lines_gdf.reset_index(drop=True)
+        if bt_const.BT_UID not in lines_gdf.columns:
+            lines_gdf[bt_const.BT_UID] = range(len(lines_gdf))
+
         self.source_lines_gdf = lines_gdf.copy()
         lines_gdf = algo_vertex_preclean.preclean_vertices(
             lines_gdf,
@@ -515,6 +524,9 @@ class SeedLineCorrection:
 
             lines[bt_const.BT_GROUP] = lines["BT_UID"]
             lines = algo_merge_lines.run_line_merge(lines, merge_group=True)
+
+        if "length" not in lines.columns:
+            lines["length"] = lines.geometry.length
 
         return algo_common.clean_geometries(
             lines,
