@@ -463,12 +463,18 @@ def test_check_seed_line_prints_step_status_for_disabled_options(tmp_path, monke
     )
 
     output = capsys.readouterr().out
-    assert "Step 1 [qc_merge_multilinestring] -> 1 -> 1 [done" in output
-    assert "Step 2 [geometry cleanup] -> 1 -> 1 [done" in output
+    assert "qc_merge_multilinestring -> 1 -> 1 [done" in output
+    assert "geometry cleanup -> 1 -> 1 [done" in output
     assert "Skipped steps:" in output
-    assert "3(short line removal: disabled)" in output
-    assert "4(CHM footprint clipping: disabled)" in output
-    assert "6(endpoint snapping: disabled)" in output
+    assert "CHM footprint clipping: disabled" in output
+    assert "short line removal: disabled" in output
+    assert "endpoint snapping: disabled" in output
+
+    clip_pos = output.find("CHM footprint clipping: disabled")
+    short_pos = output.find("short line removal: disabled")
+    snap_pos = output.find("endpoint snapping: disabled")
+    assert -1 not in (clip_pos, short_pos, snap_pos)
+    assert clip_pos < short_pos < snap_pos
 
 
 def test_check_seed_line_writes_qc_doc_tables(tmp_path, monkeypatch):

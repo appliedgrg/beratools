@@ -81,7 +81,7 @@ def _log_step(
     skipped_steps=None,
 ):
     status = "done"
-    detail = f"Step {step_idx} [{step_name}] -> {in_count} -> {out_count}"
+    detail = f"{step_name} -> {in_count} -> {out_count}"
 
     if skipped_reason:
         if verbose:
@@ -118,9 +118,22 @@ def _print_skipped_summary(skipped_steps):
     if not skipped_steps:
         return
 
+    option_order = {
+        "CHM footprint clipping": 0,
+        "short line removal": 1,
+        "endpoint snapping": 2,
+        "LineGrouping": 3,
+        "long line densification": 4,
+        "SeedLineCorrection": 5,
+    }
+    skipped_steps = sorted(
+        skipped_steps,
+        key=lambda item: (option_order.get(item[1], 99), item[0]),
+    )
+
     builtins.print("Skipped steps:", flush=True)
-    for step_idx, step_name, reason in skipped_steps:
-        builtins.print(f"  - {step_idx}({step_name}: {reason})", flush=True)
+    for _, step_name, reason in skipped_steps:
+        builtins.print(f"  - {step_name}: {reason}", flush=True)
 
 
 def _print_skipped_summary_once(skipped_steps, summary_state):
@@ -743,7 +756,7 @@ def check_seed_line(
         },
         "qc_removed_short": {
             "layer_name": "qc_removed_short",
-            "step": 3,
+            "step": 4,
             "step_name": "short line removal",
             "reason": "Lines below user minimum length",
             "feature_count": 0,
@@ -752,7 +765,7 @@ def check_seed_line(
         },
         "qc_removed_clipped": {
             "layer_name": "qc_removed_clipped",
-            "step": 4,
+            "step": 3,
             "step_name": "CHM footprint clipping",
             "reason": "Lines outside shrunken CHM footprint",
             "feature_count": 0,
@@ -761,7 +774,7 @@ def check_seed_line(
         },
         "chm_footprint": {
             "layer_name": "chm_footprint",
-            "step": 4,
+            "step": 3,
             "step_name": "CHM footprint clipping",
             "reason": "Shrunken CHM footprint used for clipping",
             "feature_count": 0,
@@ -908,39 +921,6 @@ def check_seed_line(
         _persist_qc_tables(input_count, 0)
         return
 
-    step_name = "short line removal"
-    in_count = len(gdf)
-    if config.remove_short_lines:
-        t0 = _step_timer()
-        gdf, removed_gdf = _clean_line_geometries_min_length_m(gdf, config.minimum_line_length)
-        gdf = gdf.reset_index(drop=True)
-        _mark_layer("qc_removed_short", removed_gdf, notes="written" if _has_rows(removed_gdf) else "empty")
-        _log_step(
-            3, step_name, in_count, len(gdf), _elapsed(t0), verbose=verbose_steps, skipped_steps=skipped_steps
-        )
-        if _bail_if_empty(
-            gdf,
-            step_name,
-            out_file,
-            out_layer,
-            in_count,
-            skipped_steps=skipped_steps,
-            summary_state=skipped_summary_state,
-        ):
-            _persist_qc_tables(input_count, 0)
-            return
-    else:
-        qc_manifest["qc_removed_short"]["notes"] = "disabled"
-        _log_step(
-            3,
-            step_name,
-            in_count,
-            in_count,
-            skipped_reason="disabled",
-            verbose=verbose_steps,
-            skipped_steps=skipped_steps,
-        )
-
     step_name = "CHM footprint clipping"
     in_count = len(gdf)
     if config.clip_to_chm_footprint:
@@ -955,7 +935,7 @@ def check_seed_line(
             )
             _mark_layer("chm_footprint", footprint_gdf, notes="written")
             _log_step(
-                4,
+                3,
                 step_name,
                 in_count,
                 len(gdf),
@@ -981,7 +961,7 @@ def check_seed_line(
                 "CHM footprint clipping enabled but 'in_raster' is missing; continuing without footprint clip."
             )
             _log_step(
-                4,
+                3,
                 step_name,
                 in_count,
                 in_count,
@@ -992,6 +972,39 @@ def check_seed_line(
     else:
         qc_manifest["qc_removed_clipped"]["notes"] = "disabled"
         qc_manifest["chm_footprint"]["notes"] = "disabled"
+        _log_step(
+            3,
+            step_name,
+            in_count,
+            in_count,
+            skipped_reason="disabled",
+            verbose=verbose_steps,
+            skipped_steps=skipped_steps,
+        )
+
+    step_name = "short line removal"
+    in_count = len(gdf)
+    if config.remove_short_lines:
+        t0 = _step_timer()
+        gdf, removed_gdf = _clean_line_geometries_min_length_m(gdf, config.minimum_line_length)
+        gdf = gdf.reset_index(drop=True)
+        _mark_layer("qc_removed_short", removed_gdf, notes="written" if _has_rows(removed_gdf) else "empty")
+        _log_step(
+            4, step_name, in_count, len(gdf), _elapsed(t0), verbose=verbose_steps, skipped_steps=skipped_steps
+        )
+        if _bail_if_empty(
+            gdf,
+            step_name,
+            out_file,
+            out_layer,
+            in_count,
+            skipped_steps=skipped_steps,
+            summary_state=skipped_summary_state,
+        ):
+            _persist_qc_tables(input_count, 0)
+            return
+    else:
+        qc_manifest["qc_removed_short"]["notes"] = "disabled"
         _log_step(
             4,
             step_name,
@@ -1215,7 +1228,15 @@ def check_seed_line(
             verbose=verbose_steps,
             skipped_steps=skipped_steps,
         )
-        if _bail_if_empty(gdf, step_name, out_file, out_layer, in_count, skipped_steps=skipped_steps):
+        if _bail_if_empty(
+            gdf,
+            step_name,
+            out_file,
+            out_layer,
+            in_count,
+            skipped_steps=skipped_steps,
+            summary_state=skipped_summary_state,
+        ):
             _persist_qc_tables(input_count, 0)
             return
     else:
