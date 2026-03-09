@@ -440,6 +440,37 @@ def test_pipeline_runs_snap_before_split(tmp_path, monkeypatch):
     assert call_order == ["snap", "split"]
 
 
+def test_check_seed_line_prints_step_status_for_disabled_options(tmp_path, monkeypatch, capsys):
+    in_gpkg = _write_seed_input(tmp_path, [LineString([(0.0, 0.0), (10.0, 0.0)])])
+    out_gpkg = tmp_path / "seed_output.gpkg"
+
+    monkeypatch.setattr(csl.sp_common, "vector_crs", lambda *_args, **_kwargs: object())
+    monkeypatch.setattr(csl.sp_common, "raster_crs", lambda *_args, **_kwargs: object())
+    monkeypatch.setattr(csl.sp_common, "compare_crs", lambda *_args, **_kwargs: True)
+    monkeypatch.setattr(csl, "qc_split_lines_at_intersections", lambda gdf: gdf)
+
+    csl.check_seed_line(
+        in_line=f"{in_gpkg.as_posix()}|seed_lines",
+        in_raster="",
+        out_line=f"{out_gpkg.as_posix()}|seed_checked",
+        clip_to_chm_footprint=False,
+        remove_short_lines=False,
+        snap_close_endpoints=False,
+        group_lines=False,
+        merge_by_group=False,
+        densify_long_lines=False,
+        apply_seed_line_correction=False,
+    )
+
+    output = capsys.readouterr().out
+    assert "Step 1 [qc_merge_multilinestring] -> 1 -> 1 [done" in output
+    assert "Step 2 [geometry cleanup] -> 1 -> 1 [done" in output
+    assert "Skipped steps:" in output
+    assert "3(short line removal: disabled)" in output
+    assert "4(CHM footprint clipping: disabled)" in output
+    assert "6(endpoint snapping: disabled)" in output
+
+
 def test_check_seed_line_writes_qc_doc_tables(tmp_path, monkeypatch):
     in_gpkg = _write_seed_input(
         tmp_path,
