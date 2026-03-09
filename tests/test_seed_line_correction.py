@@ -147,3 +147,43 @@ def test_prepare_lines_dense_uniform_line_keeps_representatives(monkeypatch):
         >= close_distance - bt_const.SMALL_BUFFER
         for i in range(len(coords) - 1)
     )
+
+
+def test_optimize_post_update_removes_vertex_close_to_moved_endpoint(monkeypatch):
+    slc = _make_local_slc(monkeypatch, close_distance=2.0, angle_tol=10.0)
+    line = sh_geom.LineString([(0.0, 0.0), (2.2, 0.0), (6.0, 0.0)])
+    slc.line_list = [gpd.GeoDataFrame({"id": [1]}, geometry=[line], crs="EPSG:3857")]
+
+    class _StubVertex:
+        def __init__(self, vertex_opt):
+            self.vertex_opt = vertex_opt
+            self.lines = [type("LineRef", (), {"line_no": 0, "end_no": 0})()]
+
+    slc.vertex_grp = [_StubVertex(sh_geom.Point(0.5, 0.0))]
+    monkeypatch.setattr(slc, "compute", lambda: None)
+
+    out = slc.optimize()
+
+    assert out is not None
+    coords = list(out.geometry.iloc[0].coords)
+    assert coords == [(0.5, 0.0), (6.0, 0.0)]
+
+
+def test_post_update_endpoint_cleanup_only_targets_endpoint_adjacent_vertices(monkeypatch):
+    slc = _make_local_slc(monkeypatch, close_distance=2.0, angle_tol=10.0)
+    line = sh_geom.LineString([(0.0, 0.0), (3.0, 0.0), (4.2, 0.0), (7.0, 0.0)])
+    slc.line_list = [gpd.GeoDataFrame({"id": [1]}, geometry=[line], crs="EPSG:3857")]
+
+    class _StubVertex:
+        def __init__(self, vertex_opt):
+            self.vertex_opt = vertex_opt
+            self.lines = [type("LineRef", (), {"line_no": 0, "end_no": 0})()]
+
+    slc.vertex_grp = [_StubVertex(sh_geom.Point(0.5, 0.0))]
+    monkeypatch.setattr(slc, "compute", lambda: None)
+
+    out = slc.optimize()
+
+    assert out is not None
+    coords = list(out.geometry.iloc[0].coords)
+    assert coords == [(0.5, 0.0), (3.0, 0.0), (4.2, 0.0), (7.0, 0.0)]

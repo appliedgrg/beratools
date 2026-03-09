@@ -52,6 +52,8 @@ def update_line_end_pt(line, index, new_vertex):
 
 
 class VertexPrecleaner:
+    VALID_MODES = {"full", "endpoint_only"}
+
     def __init__(self, close_distance, angle_tol):
         self.close_distance = float(close_distance)
         self.angle_tol = float(angle_tol)
@@ -100,27 +102,53 @@ class VertexPrecleaner:
         significant_penalty = 50.0 if old_peak > self.angle_tol and new_peak <= self.angle_tol else 0.0
         return abs(old_peak - new_peak) + significant_penalty
 
-    def _remove_close_vertices_from_line(self, line):
-        coords = [tuple(coord) for coord in line.coords]
-        if len(coords) <= 2:
-            return line
+    def _dedupe_consecutive_coords(self, coords):
+        if not coords:
+            return []
 
         work_coords = [coords[0]]
         for coord in coords[1:]:
             if self._point_distance(work_coords[-1], coord) > bt_const.SMALL_BUFFER:
                 work_coords.append(coord)
 
-        while (
-            len(work_coords) > 2
-            and self._point_distance(work_coords[0], work_coords[1]) < self.close_distance
-        ):
-            work_coords.pop(1)
+        return work_coords
 
-        while (
-            len(work_coords) > 2
-            and self._point_distance(work_coords[-2], work_coords[-1]) < self.close_distance
-        ):
-            work_coords.pop(-2)
+    def _finalize_line(self, coords, original_line):
+        if len(coords) < 2:
+            return None
+
+        if self._point_distance(coords[0], coords[-1]) <= bt_const.SMALL_BUFFER:
+            return None
+
+        if len(coords) == len(original_line.coords):
+            return original_line
+
+        return sh_geom.LineString(coords)
+
+    def _cleanup_endpoint_only(self, coords):
+        while len(coords) > 2 and self._point_distance(coords[0], coords[1]) < self.close_distance:
+            coords.pop(1)
+
+        while len(coords) > 2 and self._point_distance(coords[-2], coords[-1]) < self.close_distance:
+            coords.pop(-2)
+
+        return coords
+
+    def cleanup_line(self, line, mode="full"):
+        if mode not in self.VALID_MODES:
+            raise ValueError(f"Unsupported vertex cleanup mode: {mode}")
+
+        coords = [tuple(coord) for coord in line.coords]
+        if len(coords) <= 2:
+            return line
+
+        work_coords = self._dedupe_consecutive_coords(coords)
+        if len(work_coords) <= 2:
+            return self._finalize_line(work_coords, line)
+
+        work_coords = self._cleanup_endpoint_only(work_coords)
+        if mode == "endpoint_only":
+            return self._finalize_line(work_coords, line)
 
         i = 1
         while i < len(work_coords) - 2:
@@ -149,16 +177,13 @@ class VertexPrecleaner:
             if i > 1:
                 i -= 1
 
-        if len(work_coords) < 2:
-            return None
+        return self._finalize_line(work_coords, line)
 
-        if self._point_distance(work_coords[0], work_coords[-1]) <= bt_const.SMALL_BUFFER:
-            return None
-
-        return sh_geom.LineString(work_coords)
-
-    def remove_close_vertices(self, gdf):
+    def remove_close_vertices(self, gdf, mode="full"):
         """Remove redundant close internal vertices on each line independently."""
+        if mode not in self.VALID_MODES:
+            raise ValueError(f"Unsupported vertex cleanup mode: {mode}")
+
         if gdf is None or gdf.empty:
             return gdf
 
@@ -180,7 +205,7 @@ class VertexPrecleaner:
                 cleaned_geoms.append(geom)
                 continue
 
-            cleaned_geoms.append(self._remove_close_vertices_from_line(geom))
+            cleaned_geoms.append(self.cleanup_line(geom, mode=mode))
 
         out_gdf.geometry = cleaned_geoms
         out_gdf = out_gdf[~out_gdf.geometry.isna() & ~out_gdf.geometry.is_empty]
@@ -642,6 +667,29 @@ class SeedLineCorrection:
                     update_line_end_pt(old_line, line.end_no, vertex_obj.vertex_opt)
                 ]
 
+    def _post_update_vertex_cleanup(self, mode="endpoint_only"):
+        if not self.line_list or mode == "off":
+            return
+
+        if mode not in VertexPrecleaner.VALID_MODES:
+            raise ValueError(f"Unsupported post-update vertex cleanup mode: {mode}")
+
+        cleaned_lines = []
+        precleaner = VertexPrecleaner(self.close_distance, self.angle_tol)
+
+        for item in self.line_list:
+            line = item.geometry.iloc[0]
+            cleaned_line = precleaner.cleanup_line(line, mode=mode)
+
+            if cleaned_line is None or cleaned_line.is_empty:
+                continue
+
+            cleaned_item = item.copy()
+            cleaned_item.geometry = [cleaned_line]
+            cleaned_lines.append(cleaned_item)
+
+        self.line_list = cleaned_lines
+
     def get_optimized_lines(self):
         if not self.line_list:
             if self.source_lines_gdf is None:
@@ -699,6 +747,7 @@ class SeedLineCorrection:
     def optimize(self):
         self.compute()
         self.update_all_lines()
+        self._post_update_vertex_cleanup(mode="endpoint_only")
         return self.get_optimized_lines()
 
     def compute(self):
