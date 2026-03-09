@@ -247,17 +247,16 @@ def _clean_line_geometries_min_length_m(line_gdf, min_length_m):
 
     return kept.reset_index(drop=True), rejected.reset_index(drop=True)
 
-def _seedlines_within_chm_footprint(gdf,
-                           in_raster)->bool:
+
+def _seedlines_within_chm_footprint(gdf, in_raster) -> bool:
     footprint = algo_common.generate_raster_footprint(in_raster, latlon=False)
-    if not footprint.is_empty and all(footprint.contains(gdf['geometry'])):
+    if not footprint.is_empty and all(footprint.contains(gdf["geometry"])):
         return True
-    elif not footprint.is_empty and any(footprint.intersects(gdf['geometry'])):
-        print('[Warning]: Some seedlines are partially intersect the CHM footprint.')
+    elif not footprint.is_empty and any(footprint.intersects(gdf["geometry"])):
+        print("[Warning]: Some seedlines are partially intersect the CHM footprint.")
         return True
     else:
         return False
-
 
 
 def _clip_to_chm_footprint(gdf, in_raster, shrink_m):
@@ -793,11 +792,14 @@ def check_seed_line(
         algo_common.save_aux_table([summary_row], out_file, "qc_run_summary", overwrite=True)
 
     if in_raster:
-        if not sp_common.compare_crs(sp_common.vector_crs(in_file,in_layer), sp_common.raster_crs(in_raster)):
+        if not sp_common.compare_crs(
+            sp_common.vector_crs(in_file, in_layer), sp_common.raster_crs(in_raster)
+        ):
             raise ValueError("Input line and raster CRS do not match.")
             exit()
+
     gdf = gpd.read_file(in_file, layer=in_layer)
-    if not(config.clip_to_chm_footprint and  _seedlines_within_chm_footprint(gdf, in_raster)):
+    if config.clip_to_chm_footprint and in_raster and not _seedlines_within_chm_footprint(gdf, in_raster):
         raise ValueError("Input line(s) do not overlap input raster.")
         exit()
     if "fid" in gdf.columns:
