@@ -49,6 +49,7 @@ class SeedLineQCConfig:
     clip_to_chm_footprint: bool = True
     remove_short_lines: bool = False
     minimum_line_length: float = 5.0
+    preclean_vertices: bool = True
     preclean_close_distance: Optional[float] = None
     preclean_angle_tolerance: float = 10.0
     snap_close_endpoints: bool = False
@@ -781,6 +782,7 @@ def check_seed_line(
     clip_to_chm_footprint=True,
     remove_short_lines=False,
     minimum_line_length=5.0,
+    preclean_vertices=True,
     preclean_close_distance=None,
     preclean_angle_tolerance=10.0,
     snap_close_endpoints=False,
@@ -813,6 +815,7 @@ def check_seed_line(
         clip_to_chm_footprint=_to_bool(clip_to_chm_footprint),
         remove_short_lines=_to_bool(remove_short_lines),
         minimum_line_length=float(minimum_line_length),
+        preclean_vertices=_to_bool(preclean_vertices),
         preclean_close_distance=None
         if preclean_close_distance in (None, "", "none")
         else float(preclean_close_distance),
@@ -949,6 +952,7 @@ def check_seed_line(
             "chm_footprint_shrink_m": float(config.chm_footprint_shrink),
             "remove_short_lines": int(config.remove_short_lines),
             "minimum_line_length_m": float(config.minimum_line_length),
+            "preclean_vertices": int(config.preclean_vertices),
             "preclean_mode": "full",
             "preclean_close_distance_m": float(effective_preclean_close_distance),
             "preclean_angle_tolerance_deg": float(config.preclean_angle_tolerance),
@@ -1154,28 +1158,42 @@ def check_seed_line(
 
     step_name = "Preclean vertices"
     in_count = len(gdf)
-    t0 = _step_timer()
-    gdf, removed_gdf = _preclean_lines_full(
-        gdf,
-        close_distance_m=effective_preclean_close_distance,
-        angle_tol_deg=config.preclean_angle_tolerance,
-    )
-    gdf = gdf.reset_index(drop=True)
-    _mark_layer("qc_removed_preclean", removed_gdf, notes="written" if _has_rows(removed_gdf) else "empty")
-    _log_step(
-        6, step_name, in_count, len(gdf), _elapsed(t0), verbose=verbose_steps, skipped_steps=skipped_steps
-    )
-    if _bail_if_empty(
-        gdf,
-        step_name,
-        out_file,
-        out_layer,
-        in_count,
-        skipped_steps=skipped_steps,
-        summary_state=skipped_summary_state,
-    ):
-        _persist_qc_tables(input_count, 0)
-        return
+    if config.preclean_vertices:
+        t0 = _step_timer()
+        gdf, removed_gdf = _preclean_lines_full(
+            gdf,
+            close_distance_m=effective_preclean_close_distance,
+            angle_tol_deg=config.preclean_angle_tolerance,
+        )
+        gdf = gdf.reset_index(drop=True)
+        _mark_layer(
+            "qc_removed_preclean", removed_gdf, notes="written" if _has_rows(removed_gdf) else "empty"
+        )
+        _log_step(
+            6, step_name, in_count, len(gdf), _elapsed(t0), verbose=verbose_steps, skipped_steps=skipped_steps
+        )
+        if _bail_if_empty(
+            gdf,
+            step_name,
+            out_file,
+            out_layer,
+            in_count,
+            skipped_steps=skipped_steps,
+            summary_state=skipped_summary_state,
+        ):
+            _persist_qc_tables(input_count, 0)
+            return
+    else:
+        qc_manifest["qc_removed_preclean"]["notes"] = "disabled"
+        _log_step(
+            6,
+            step_name,
+            in_count,
+            in_count,
+            skipped_reason="disabled",
+            verbose=verbose_steps,
+            skipped_steps=skipped_steps,
+        )
 
     step_name = "Snap close endpoints"
     in_count = len(gdf)

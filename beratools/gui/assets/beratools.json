@@ -111,6 +111,17 @@
               }
             },
             {
+              "variable": "preclean_vertices",
+              "label": "Preclean vertices",
+              "description": "Run full-mode vertex precleaning before endpoint snapping.",
+              "type": "list",
+              "subtype": "bool",
+              "data": [true, false],
+              "default": true,
+              "output": false,
+              "optional": true
+            },
+            {
               "variable": "preclean_close_distance",
               "label": "Preclean close distance (m)",
               "description": "Distance threshold for full-mode vertex precleaning before endpoint snapping.",
@@ -119,7 +130,12 @@
               "default": 2.0,
               "output": false,
               "optional": true,
-              "unit": "m"
+              "unit": "m",
+              "depends_on": {
+                "variable": "preclean_vertices",
+                "condition": true,
+                "mode": "hide"
+              }
             },
             {
               "variable": "preclean_angle_tolerance",
@@ -130,7 +146,12 @@
               "default": 10.0,
               "output": false,
               "optional": true,
-              "unit": "deg"
+              "unit": "deg",
+              "depends_on": {
+                "variable": "preclean_vertices",
+                "condition": true,
+                "mode": "hide"
+              }
             },
             {
               "variable": "snap_close_endpoints",

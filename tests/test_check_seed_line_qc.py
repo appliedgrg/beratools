@@ -445,6 +445,52 @@ def test_pipeline_runs_preclean_snap_before_split(tmp_path, monkeypatch):
     assert call_order == ["preclean", "snap", "split"]
 
 
+def test_pipeline_skips_preclean_when_disabled(tmp_path, monkeypatch):
+    in_gpkg = _write_seed_input(
+        tmp_path,
+        [
+            LineString([(0.0, 0.0), (10.0, 0.0)]),
+            LineString([(10.5, 0.0), (12.0, 0.0)]),
+        ],
+        data={"line_id": [1, 2]},
+    )
+    out_gpkg = tmp_path / "seed_output.gpkg"
+
+    monkeypatch.setattr(csl.sp_common, "vector_crs", lambda *_args, **_kwargs: object())
+    monkeypatch.setattr(csl.sp_common, "raster_crs", lambda *_args, **_kwargs: object())
+    monkeypatch.setattr(csl.sp_common, "compare_crs", lambda *_args, **_kwargs: True)
+
+    call_order = []
+
+    def _fake_preclean(gdf, *_args, **_kwargs):
+        call_order.append("preclean")
+        return gdf, gdf.iloc[0:0].copy()
+
+    def _fake_snap(gdf, *_args, **_kwargs):
+        call_order.append("snap")
+        return gdf
+
+    def _fake_split(gdf):
+        call_order.append("split")
+        return gdf
+
+    monkeypatch.setattr(csl, "_preclean_lines_full", _fake_preclean)
+    monkeypatch.setattr(csl, "_snap_close_endpoints", _fake_snap)
+    monkeypatch.setattr(csl, "qc_split_lines_at_intersections", _fake_split)
+
+    csl.check_seed_line(
+        in_line=f"{in_gpkg.as_posix()}|seed_lines",
+        in_raster="dummy.tif",
+        out_line=f"{out_gpkg.as_posix()}|seed_checked",
+        clip_to_chm_footprint=False,
+        preclean_vertices=False,
+        snap_close_endpoints=True,
+        group_lines=False,
+    )
+
+    assert call_order == ["snap", "split"]
+
+
 def test_check_seed_line_prints_step_status_for_disabled_options(tmp_path, monkeypatch, capsys):
     in_gpkg = _write_seed_input(tmp_path, [LineString([(0.0, 0.0), (10.0, 0.0)])])
     out_gpkg = tmp_path / "seed_output.gpkg"
@@ -625,10 +671,18 @@ def test_schema_marks_chm_shrink_as_optional():
     assert params["chm_footprint_shrink"]["optional"] is True
     assert params["clip_to_chm_footprint"]["default"] is True
     assert params["clip_to_chm_footprint"]["optional"] is True
+    assert params["preclean_vertices"]["type"] == "list"
+    assert params["preclean_vertices"]["default"] is True
     assert params["preclean_close_distance"]["type"] == "number"
     assert params["preclean_close_distance"]["default"] == 2.0
+    assert params["preclean_close_distance"]["depends_on"]["variable"] == "preclean_vertices"
+    assert params["preclean_close_distance"]["depends_on"]["condition"] is True
+    assert params["preclean_close_distance"]["depends_on"]["mode"] == "hide"
     assert params["preclean_angle_tolerance"]["type"] == "number"
     assert params["preclean_angle_tolerance"]["default"] == 10.0
+    assert params["preclean_angle_tolerance"]["depends_on"]["variable"] == "preclean_vertices"
+    assert params["preclean_angle_tolerance"]["depends_on"]["condition"] is True
+    assert params["preclean_angle_tolerance"]["depends_on"]["mode"] == "hide"
 
     in_raster_dep = params["in_raster"]["depends_on"]
     assert in_raster_dep["logic"] == "or"
