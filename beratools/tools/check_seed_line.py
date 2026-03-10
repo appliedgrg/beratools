@@ -16,6 +16,7 @@ Description:
 import logging
 import math
 import time
+import builtins
 from datetime import datetime, timezone
 from dataclasses import dataclass
 
@@ -48,6 +49,10 @@ class SeedLineQCConfig:
     densify_long_lines: bool = False
     max_segment_length: float = bt_const.LP_SEGMENT_LENGTH
     use_angle_grouping: bool = True
+    apply_seed_line_correction: bool = False
+    slc_search_distance: float = 5.0
+    slc_line_radius: float = 15.0
+    slc_optimize_internal_vertices: bool = False
 
 
 def _to_bool(value):
@@ -72,9 +77,17 @@ def _log_step(
     out_count,
     elapsed=None,
     skipped_reason=None,
+    verbose=False,
+    skipped_steps=None,
 ):
+    label = step_name.ljust(34)
+
     if skipped_reason:
-        logger.info(
+        if verbose:
+            builtins.print(f"↷ {label} {in_count} -> {out_count}", flush=True)
+        elif skipped_steps is not None:
+            _record_skipped_step(skipped_steps, step_idx, step_name, skipped_reason)
+        logger.debug(
             "Step %s - %s skipped (%s): %s -> %s",
             step_idx,
             step_name,
@@ -85,10 +98,12 @@ def _log_step(
         return
 
     if elapsed is None:
-        logger.info("Step %s - %s: %s -> %s", step_idx, step_name, in_count, out_count)
+        builtins.print(f"✓ {label} {in_count} -> {out_count}", flush=True)
+        logger.debug("Step %s - %s: %s -> %s", step_idx, step_name, in_count, out_count)
         return
 
-    logger.info(
+    builtins.print(f"✓ {label} {in_count} -> {out_count} {elapsed:.3f}s", flush=True)
+    logger.debug(
         "Step %s - %s: %s -> %s (%.3fs)",
         step_idx,
         step_name,
@@ -98,9 +113,47 @@ def _log_step(
     )
 
 
-def _bail_if_empty(gdf, step_name, out_file, out_layer, in_count):
+def _print_skipped_summary(skipped_steps):
+    if not skipped_steps:
+        return
+
+    option_order = {
+        "Clip to CHM footprint": 0,
+        "Remove short lines": 1,
+        "Snap close endpoints": 2,
+        "Group lines": 3,
+        "Densify long lines": 4,
+        "Apply Seed Line Correction": 5,
+    }
+    skipped_steps = sorted(
+        skipped_steps,
+        key=lambda item: (option_order.get(item[1], 99), item[0]),
+    )
+
+    lines = []
+    for _, step_name, _ in skipped_steps:
+        label = step_name.ljust(34)
+        lines.append(f"↷ {label} skipped")
+    builtins.print("\n".join(lines), flush=True)
+
+
+def _record_skipped_step(skipped_steps, step_idx, step_name, reason):
+    if skipped_steps is None:
+        return
+
+    if any(existing_step_name == step_name for _, existing_step_name, _ in skipped_steps):
+        return
+
+    skipped_steps.append((step_idx, step_name, reason))
+
+
+def _bail_if_empty(gdf, step_name, out_file, out_layer, in_count, skipped_steps=None, summary_state=None):
+    del summary_state
     if not gdf.empty:
         return False
+
+    if skipped_steps:
+        _print_skipped_summary(skipped_steps)
 
     logger.warning(
         "Seed line QC early return after '%s' produced empty output (%s -> 0).",
@@ -243,17 +296,16 @@ def _clean_line_geometries_min_length_m(line_gdf, min_length_m):
 
     return kept.reset_index(drop=True), rejected.reset_index(drop=True)
 
-def _seedlines_within_chm_footprint(gdf,
-                           in_raster)->bool:
+
+def _seedlines_within_chm_footprint(gdf, in_raster) -> bool:
     footprint = algo_common.generate_raster_footprint(in_raster, latlon=False)
-    if not footprint.is_empty and all(footprint.contains(gdf['geometry'])):
+    if not footprint.is_empty and all(footprint.contains(gdf["geometry"])):
         return True
-    elif not footprint.is_empty and any(footprint.intersects(gdf['geometry'])):
-        print('[Warning]: Some seedlines are partially intersect the CHM footprint.')
+    elif not footprint.is_empty and any(footprint.intersects(gdf["geometry"])):
+        print("[Warning]: Some seedlines are partially intersect the CHM footprint.")
         return True
     else:
         return False
-
 
 
 def _clip_to_chm_footprint(gdf, in_raster, shrink_m):
@@ -641,13 +693,23 @@ def check_seed_line(
     densify_long_lines=False,
     max_segment_length=bt_const.LP_SEGMENT_LENGTH,
     use_angle_grouping=True,
+    apply_seed_line_correction=False,
+    slc_search_distance=5.0,
+    slc_line_radius=15.0,
+    slc_optimize_internal_vertices=False,
     processes=0,
     call_mode=CallMode.CLI,
     log_level="INFO",
 ):
     from beratools.core.algo_line_grouping import LineGrouping
 
-    del processes, call_mode, log_level
+    level_name = str(log_level).upper()
+    level_value = getattr(logging, level_name, logging.INFO)
+    verbose_steps = level_value <= logging.DEBUG
+    logger.setLevel(level_value)
+    for handler in logging.getLogger().handlers:
+        if isinstance(handler, logging.StreamHandler):
+            handler.setLevel(level_value)
 
     config = SeedLineQCConfig(
         chm_footprint_shrink=float(chm_footprint_shrink),
@@ -661,7 +723,14 @@ def check_seed_line(
         densify_long_lines=_to_bool(densify_long_lines),
         max_segment_length=float(max_segment_length),
         use_angle_grouping=_to_bool(use_angle_grouping),
+        apply_seed_line_correction=_to_bool(apply_seed_line_correction),
+        slc_search_distance=float(slc_search_distance),
+        slc_line_radius=float(slc_line_radius),
+        slc_optimize_internal_vertices=_to_bool(slc_optimize_internal_vertices),
     )
+
+    skipped_steps = []
+    skipped_summary_state = None
 
     in_file, in_layer = sp_common.decode_file_layer(in_line)
     out_file, out_layer = sp_common.decode_file_layer(out_line)
@@ -688,7 +757,7 @@ def check_seed_line(
         },
         "qc_removed_short": {
             "layer_name": "qc_removed_short",
-            "step": 3,
+            "step": 4,
             "step_name": "short line removal",
             "reason": "Lines below user minimum length",
             "feature_count": 0,
@@ -697,7 +766,7 @@ def check_seed_line(
         },
         "qc_removed_clipped": {
             "layer_name": "qc_removed_clipped",
-            "step": 4,
+            "step": 3,
             "step_name": "CHM footprint clipping",
             "reason": "Lines outside shrunken CHM footprint",
             "feature_count": 0,
@@ -706,7 +775,7 @@ def check_seed_line(
         },
         "chm_footprint": {
             "layer_name": "chm_footprint",
-            "step": 4,
+            "step": 3,
             "step_name": "CHM footprint clipping",
             "reason": "Shrunken CHM footprint used for clipping",
             "feature_count": 0,
@@ -771,19 +840,22 @@ def check_seed_line(
             "merge_by_group": int(config.merge_by_group),
             "densify_long_lines": int(config.densify_long_lines),
             "max_segment_length_m": float(config.max_segment_length),
+            "apply_seed_line_correction": int(config.apply_seed_line_correction),
+            "slc_search_distance": float(config.slc_search_distance),
+            "slc_line_radius": float(config.slc_line_radius),
+            "slc_optimize_internal_vertices": int(config.slc_optimize_internal_vertices),
             "input_feature_count": int(input_count),
             "output_feature_count": int(output_count),
         }
         algo_common.save_aux_table([summary_row], out_file, "qc_run_summary", overwrite=True)
 
     if in_raster:
-        if not sp_common.compare_crs(sp_common.vector_crs(in_file,in_layer), sp_common.raster_crs(in_raster)):
+        if not sp_common.compare_crs(
+            sp_common.vector_crs(in_file, in_layer), sp_common.raster_crs(in_raster)
+        ):
             raise ValueError("Input line and raster CRS do not match.")
-            exit()
+
     gdf = gpd.read_file(in_file, layer=in_layer)
-    if not(config.clip_to_chm_footprint and  _seedlines_within_chm_footprint(gdf, in_raster)):
-        raise ValueError("Input line(s) do not overlap input raster.")
-        exit()
     if "fid" in gdf.columns:
         gdf = gdf.rename(columns={"fid": "orig_fid"})
     input_count = len(gdf)
@@ -806,42 +878,47 @@ def check_seed_line(
         input_cleanup_removed_count,
     )
 
-    step_name = "qc_merge_multilinestring"
+    step_name = "Normalize multiline seed lines"
     in_count = len(gdf)
     t0 = _step_timer()
     gdf = qc_merge_multilinestring(gdf)
-    _log_step(1, step_name, in_count, len(gdf), _elapsed(t0))
-    if _bail_if_empty(gdf, step_name, out_file, out_layer, in_count):
+    _log_step(
+        1, step_name, in_count, len(gdf), _elapsed(t0), verbose=verbose_steps, skipped_steps=skipped_steps
+    )
+    if _bail_if_empty(
+        gdf,
+        step_name,
+        out_file,
+        out_layer,
+        in_count,
+        skipped_steps=skipped_steps,
+        summary_state=skipped_summary_state,
+    ):
         _persist_qc_tables(input_count, 0)
         return
 
-    step_name = "geometry cleanup"
+    step_name = "Geometry cleanup"
     in_count = len(gdf)
     t0 = _step_timer()
     gdf, removed_gdf = _clean_line_geometries_min_length_m(gdf, bt_const.SMALL_BUFFER)
     gdf = gdf.reset_index(drop=True)
     _mark_layer("qc_removed_cleanup", removed_gdf, notes="written" if _has_rows(removed_gdf) else "empty")
-    _log_step(2, step_name, in_count, len(gdf), _elapsed(t0))
-    if _bail_if_empty(gdf, step_name, out_file, out_layer, in_count):
+    _log_step(
+        2, step_name, in_count, len(gdf), _elapsed(t0), verbose=verbose_steps, skipped_steps=skipped_steps
+    )
+    if _bail_if_empty(
+        gdf,
+        step_name,
+        out_file,
+        out_layer,
+        in_count,
+        skipped_steps=skipped_steps,
+        summary_state=skipped_summary_state,
+    ):
         _persist_qc_tables(input_count, 0)
         return
 
-    step_name = "short line removal"
-    in_count = len(gdf)
-    if config.remove_short_lines:
-        t0 = _step_timer()
-        gdf, removed_gdf = _clean_line_geometries_min_length_m(gdf, config.minimum_line_length)
-        gdf = gdf.reset_index(drop=True)
-        _mark_layer("qc_removed_short", removed_gdf, notes="written" if _has_rows(removed_gdf) else "empty")
-        _log_step(3, step_name, in_count, len(gdf), _elapsed(t0))
-        if _bail_if_empty(gdf, step_name, out_file, out_layer, in_count):
-            _persist_qc_tables(input_count, 0)
-            return
-    else:
-        qc_manifest["qc_removed_short"]["notes"] = "disabled"
-        _log_step(3, step_name, in_count, in_count, skipped_reason="disabled")
-
-    step_name = "CHM footprint clipping"
+    step_name = "Clip to CHM footprint"
     in_count = len(gdf)
     if config.clip_to_chm_footprint:
         if in_raster:
@@ -854,8 +931,24 @@ def check_seed_line(
                 [{"source": "chm_footprint_shrunken"}], geometry=[footprint], crs=gdf.crs
             )
             _mark_layer("chm_footprint", footprint_gdf, notes="written")
-            _log_step(4, step_name, in_count, len(gdf), _elapsed(t0))
-            if _bail_if_empty(gdf, step_name, out_file, out_layer, in_count):
+            _log_step(
+                3,
+                step_name,
+                in_count,
+                len(gdf),
+                _elapsed(t0),
+                verbose=verbose_steps,
+                skipped_steps=skipped_steps,
+            )
+            if _bail_if_empty(
+                gdf,
+                step_name,
+                out_file,
+                out_layer,
+                in_count,
+                skipped_steps=skipped_steps,
+                summary_state=skipped_summary_state,
+            ):
                 _persist_qc_tables(input_count, 0)
                 return
         else:
@@ -864,25 +957,84 @@ def check_seed_line(
             logger.error(
                 "CHM footprint clipping enabled but 'in_raster' is missing; continuing without footprint clip."
             )
-            _log_step(4, step_name, in_count, in_count, skipped_reason="enabled but missing in_raster")
+            _log_step(
+                3,
+                step_name,
+                in_count,
+                in_count,
+                skipped_reason="enabled but missing in_raster",
+                verbose=verbose_steps,
+                skipped_steps=skipped_steps,
+            )
     else:
         qc_manifest["qc_removed_clipped"]["notes"] = "disabled"
         qc_manifest["chm_footprint"]["notes"] = "disabled"
-        _log_step(4, step_name, in_count, in_count, skipped_reason="disabled")
+        _log_step(
+            3,
+            step_name,
+            in_count,
+            in_count,
+            skipped_reason="disabled",
+            verbose=verbose_steps,
+            skipped_steps=skipped_steps,
+        )
 
-    step_name = "post-clip normalize + cleanup"
+    step_name = "Remove short lines"
+    in_count = len(gdf)
+    if config.remove_short_lines:
+        t0 = _step_timer()
+        gdf, removed_gdf = _clean_line_geometries_min_length_m(gdf, config.minimum_line_length)
+        gdf = gdf.reset_index(drop=True)
+        _mark_layer("qc_removed_short", removed_gdf, notes="written" if _has_rows(removed_gdf) else "empty")
+        _log_step(
+            4, step_name, in_count, len(gdf), _elapsed(t0), verbose=verbose_steps, skipped_steps=skipped_steps
+        )
+        if _bail_if_empty(
+            gdf,
+            step_name,
+            out_file,
+            out_layer,
+            in_count,
+            skipped_steps=skipped_steps,
+            summary_state=skipped_summary_state,
+        ):
+            _persist_qc_tables(input_count, 0)
+            return
+    else:
+        qc_manifest["qc_removed_short"]["notes"] = "disabled"
+        _log_step(
+            4,
+            step_name,
+            in_count,
+            in_count,
+            skipped_reason="disabled",
+            verbose=verbose_steps,
+            skipped_steps=skipped_steps,
+        )
+
+    step_name = "Post-clip cleanup"
     in_count = len(gdf)
     t0 = _step_timer()
     gdf = _normalize_to_lines(gdf)
     gdf, removed_gdf = _clean_line_geometries_min_length_m(gdf, bt_const.SMALL_BUFFER)
     gdf = gdf.reset_index(drop=True)
     _mark_layer("qc_removed_post_clip", removed_gdf, notes="written" if _has_rows(removed_gdf) else "empty")
-    _log_step(5, step_name, in_count, len(gdf), _elapsed(t0))
-    if _bail_if_empty(gdf, step_name, out_file, out_layer, in_count):
+    _log_step(
+        5, step_name, in_count, len(gdf), _elapsed(t0), verbose=verbose_steps, skipped_steps=skipped_steps
+    )
+    if _bail_if_empty(
+        gdf,
+        step_name,
+        out_file,
+        out_layer,
+        in_count,
+        skipped_steps=skipped_steps,
+        summary_state=skipped_summary_state,
+    ):
         _persist_qc_tables(input_count, 0)
         return
 
-    step_name = "endpoint snapping"
+    step_name = "Snap close endpoints"
     in_count = len(gdf)
     if config.snap_close_endpoints:
         t0 = _step_timer()
@@ -890,73 +1042,217 @@ def check_seed_line(
         if config.remove_short_lines:
             effective_tolerance = max(effective_tolerance, config.minimum_line_length)
         gdf = _snap_close_endpoints(gdf, effective_tolerance).reset_index(drop=True)
-        _log_step(6, step_name, in_count, len(gdf), _elapsed(t0))
-        if _bail_if_empty(gdf, step_name, out_file, out_layer, in_count):
+        _log_step(
+            6, step_name, in_count, len(gdf), _elapsed(t0), verbose=verbose_steps, skipped_steps=skipped_steps
+        )
+        if _bail_if_empty(
+            gdf,
+            step_name,
+            out_file,
+            out_layer,
+            in_count,
+            skipped_steps=skipped_steps,
+            summary_state=skipped_summary_state,
+        ):
             _persist_qc_tables(input_count, 0)
             return
     else:
-        _log_step(6, step_name, in_count, in_count, skipped_reason="disabled")
+        _log_step(
+            6,
+            step_name,
+            in_count,
+            in_count,
+            skipped_reason="disabled",
+            verbose=verbose_steps,
+            skipped_steps=skipped_steps,
+        )
 
-    step_name = "qc_split_lines_at_intersections"
+    step_name = "Split lines at intersections"
     in_count = len(gdf)
     t0 = _step_timer()
     prev_crs = gdf.crs
     split_out = qc_split_lines_at_intersections(gdf)
     gdf = _ensure_gdf(split_out, prev_crs)
-    gdf, removed_gdf = _clean_line_geometries_min_length_m(gdf, config.minimum_line_length)
+    split_min_length = config.minimum_line_length if config.remove_short_lines else bt_const.SMALL_BUFFER
+    gdf, removed_gdf = _clean_line_geometries_min_length_m(gdf, split_min_length)
     gdf = gdf.reset_index(drop=True)
-    _log_step(7, step_name, in_count, len(gdf), _elapsed(t0))
-    if _bail_if_empty(gdf, step_name, out_file, out_layer, in_count):
+    _log_step(
+        7, step_name, in_count, len(gdf), _elapsed(t0), verbose=verbose_steps, skipped_steps=skipped_steps
+    )
+    if _bail_if_empty(
+        gdf,
+        step_name,
+        out_file,
+        out_layer,
+        in_count,
+        skipped_steps=skipped_steps,
+        summary_state=skipped_summary_state,
+    ):
         _persist_qc_tables(input_count, 0)
         return
 
-    step_name = "LineGrouping"
+    step_name = "Group lines"
     in_count = len(gdf)
     if config.group_lines:
         t0 = _step_timer()
         lg = LineGrouping(gdf, use_angle_grouping=config.use_angle_grouping)
         lg.run_grouping()
         gdf = _ensure_gdf(lg.lines, gdf.crs).reset_index(drop=True)
-        _log_step(8, step_name, in_count, len(gdf), _elapsed(t0))
-        if _bail_if_empty(gdf, step_name, out_file, out_layer, in_count):
+        _log_step(
+            8, step_name, in_count, len(gdf), _elapsed(t0), verbose=verbose_steps, skipped_steps=skipped_steps
+        )
+        if _bail_if_empty(
+            gdf,
+            step_name,
+            out_file,
+            out_layer,
+            in_count,
+            skipped_steps=skipped_steps,
+            summary_state=skipped_summary_state,
+        ):
             _persist_qc_tables(input_count, 0)
             return
     else:
         gdf = _ensure_gdf(gdf, gdf.crs).reset_index(drop=True)
         gdf[bt_const.BT_GROUP] = list(range(len(gdf)))
-        _log_step(8, step_name, in_count, len(gdf), skipped_reason="disabled; assigned unique BT_GROUP")
+        _log_step(
+            8,
+            step_name,
+            in_count,
+            len(gdf),
+            skipped_reason="disabled; assigned unique BT_GROUP",
+            verbose=verbose_steps,
+            skipped_steps=skipped_steps,
+        )
 
-    step_name = "merge by group"
+    step_name = "Merge by group"
     in_count = len(gdf)
     if config.merge_by_group and config.group_lines:
         t0 = _step_timer()
         gdf = gdf.dissolve(by=bt_const.BT_GROUP, as_index=False, aggfunc="first")
         gdf = qc_merge_multilinestring(gdf).reset_index(drop=True)
-        _log_step(9, step_name, in_count, len(gdf), _elapsed(t0))
-        if _bail_if_empty(gdf, step_name, out_file, out_layer, in_count):
+        _log_step(
+            9, step_name, in_count, len(gdf), _elapsed(t0), verbose=verbose_steps, skipped_steps=skipped_steps
+        )
+        if _bail_if_empty(
+            gdf,
+            step_name,
+            out_file,
+            out_layer,
+            in_count,
+            skipped_steps=skipped_steps,
+            summary_state=skipped_summary_state,
+        ):
             _persist_qc_tables(input_count, 0)
             return
     else:
         reason = "disabled"
         if config.merge_by_group and not config.group_lines:
             reason = "guarded because group_lines=false"
-        _log_step(9, step_name, in_count, in_count, skipped_reason=reason)
+        _log_step(
+            9,
+            step_name,
+            in_count,
+            in_count,
+            skipped_reason=reason,
+            verbose=verbose_steps,
+            skipped_steps=skipped_steps,
+        )
 
-    step_name = "long line densification"
+    step_name = "Densify long lines"
     in_count = len(gdf)
     if config.densify_long_lines:
         t0 = _step_timer()
         gdf = _densify_long_lines(gdf, config.max_segment_length).reset_index(drop=True)
-        _log_step(10, step_name, in_count, len(gdf), _elapsed(t0))
-        if _bail_if_empty(gdf, step_name, out_file, out_layer, in_count):
+        _log_step(
+            10,
+            step_name,
+            in_count,
+            len(gdf),
+            _elapsed(t0),
+            verbose=verbose_steps,
+            skipped_steps=skipped_steps,
+        )
+        if _bail_if_empty(
+            gdf,
+            step_name,
+            out_file,
+            out_layer,
+            in_count,
+            skipped_steps=skipped_steps,
+            summary_state=skipped_summary_state,
+        ):
             _persist_qc_tables(input_count, 0)
             return
     else:
-        _log_step(10, step_name, in_count, in_count, skipped_reason="disabled")
+        _log_step(
+            10,
+            step_name,
+            in_count,
+            in_count,
+            skipped_reason="disabled",
+            verbose=verbose_steps,
+            skipped_steps=skipped_steps,
+        )
+
+    step_name = "Apply Seed Line Correction"
+    in_count = len(gdf)
+    if config.apply_seed_line_correction:
+        from beratools.core.algo_seed_line_correction import SeedLineCorrection
+
+        print("Starting Seed Line Correction...", flush=True)
+
+        t0 = _step_timer()
+        slc = SeedLineCorrection(
+            in_file,
+            in_raster,
+            config.slc_search_distance,
+            config.slc_line_radius,
+            processes,
+            call_mode,
+            layer=in_layer,
+            optimize_internal_vertices=config.slc_optimize_internal_vertices,
+        )
+        slc.prepare_lines(lines_gdf=gdf)
+        slc.group_vertices()
+        gdf = _ensure_gdf(slc.optimize(), gdf.crs).reset_index(drop=True)
+        _log_step(
+            11,
+            step_name,
+            in_count,
+            len(gdf),
+            _elapsed(t0),
+            verbose=verbose_steps,
+            skipped_steps=skipped_steps,
+        )
+        if _bail_if_empty(
+            gdf,
+            step_name,
+            out_file,
+            out_layer,
+            in_count,
+            skipped_steps=skipped_steps,
+            summary_state=skipped_summary_state,
+        ):
+            _persist_qc_tables(input_count, 0)
+            return
+    else:
+        _log_step(
+            11,
+            step_name,
+            in_count,
+            in_count,
+            skipped_reason="disabled",
+            verbose=verbose_steps,
+            skipped_steps=skipped_steps,
+        )
 
     gdf, removed_gdf = _clean_line_geometries_min_length_m(gdf, bt_const.SMALL_BUFFER)
     gdf = gdf.reset_index(drop=True)
     _mark_layer("qc_removed_final", removed_gdf, notes="written" if _has_rows(removed_gdf) else "empty")
+
+    if not verbose_steps and skipped_steps:
+        _print_skipped_summary(skipped_steps)
 
     _write_output(gdf, out_file, out_layer)
     _persist_qc_tables(input_count, len(gdf))

@@ -32,8 +32,17 @@
               "output": false,
               "optional": true,
               "depends_on": {
-                "variable": "clip_to_chm_footprint",
-                "condition": true,
+                "logic": "or",
+                "conditions": [
+                  {
+                    "variable": "clip_to_chm_footprint",
+                    "condition": true
+                  },
+                  {
+                    "variable": "apply_seed_line_correction",
+                    "condition": true
+                  }
+                ],
                 "mode": "hide"
               }
             },
@@ -180,6 +189,65 @@
                 "variable": "densify_long_lines",
                 "condition": true,
                 "mode": "inline"
+              }
+            },
+            {
+              "variable": "apply_seed_line_correction",
+              "label": "Apply Seed Line Correction",
+              "description": "Run optional in-memory seed line correction after QC steps.",
+              "type": "list",
+              "subtype": "bool",
+              "data": [true, false],
+              "default": false,
+              "output": false,
+              "optional": true
+            },
+            {
+              "variable": "slc_search_distance",
+              "label": "SLC search distance (m)",
+              "description": "Vertex search distance for optional seed line correction.",
+              "type": "number",
+              "subtype": "float",
+              "default": 5.0,
+              "output": false,
+              "optional": true,
+              "unit": "m",
+              "depends_on": {
+                "variable": "apply_seed_line_correction",
+                "condition": true,
+                "mode": "hide"
+              }
+            },
+            {
+              "variable": "slc_line_radius",
+              "label": "SLC line radius (m)",
+              "description": "Line processing radius for optional seed line correction.",
+              "type": "number",
+              "subtype": "float",
+              "default": 15.0,
+              "output": false,
+              "optional": true,
+              "unit": "m",
+              "depends_on": {
+                "variable": "apply_seed_line_correction",
+                "condition": true,
+                "mode": "hide"
+              }
+            },
+            {
+              "variable": "slc_optimize_internal_vertices",
+              "label": "SLC optimize internal vertices",
+              "description": "Enable split/merge workflow for internal vertex optimization in optional seed line correction.",
+              "type": "list",
+              "subtype": "bool",
+              "data": [true, false],
+              "default": false,
+              "output": false,
+              "optional": true,
+              "depends_on": {
+                "variable": "apply_seed_line_correction",
+                "condition": true,
+                "mode": "hide"
               }
             }
           ]

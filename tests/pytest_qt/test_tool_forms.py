@@ -65,6 +65,10 @@ class TestCheckSeedLines:
         assert isinstance(_find_widget(tw, "minimum_line_length"), NumericInput)
         assert isinstance(_find_widget(tw, "snap_tolerance"), NumericInput)
         assert isinstance(_find_widget(tw, "max_segment_length"), NumericInput)
+        assert isinstance(_find_widget(tw, "apply_seed_line_correction"), BooleanInput)
+        assert isinstance(_find_widget(tw, "slc_search_distance"), NumericInput)
+        assert isinstance(_find_widget(tw, "slc_line_radius"), NumericInput)
+        assert isinstance(_find_widget(tw, "slc_optimize_internal_vertices"), BooleanInput)
 
     def test_round_trip(self, make_tool_widget, testdata_dir, tmp_path):
         tw = make_tool_widget(self.TOOL)
@@ -87,6 +91,10 @@ class TestCheckSeedLines:
                 "merge_by_group": False,
                 "densify_long_lines": False,
                 "max_segment_length": 500.0,
+                "apply_seed_line_correction": True,
+                "slc_search_distance": 5.0,
+                "slc_line_radius": 15.0,
+                "slc_optimize_internal_vertices": True,
             },
         )
 
@@ -105,6 +113,10 @@ class TestCheckSeedLines:
         assert args["merge_by_group"] is False
         assert args["densify_long_lines"] is False
         assert args["max_segment_length"] == pytest.approx(500.0)
+        assert args["apply_seed_line_correction"] is True
+        assert args["slc_search_distance"] == pytest.approx(5.0)
+        assert args["slc_line_radius"] == pytest.approx(15.0)
+        assert args["slc_optimize_internal_vertices"] is True
 
     def test_initial_form_hides_shrink_when_advanced_off(self, make_tool_widget):
         tw = make_tool_widget(self.TOOL, show_advanced=False)
@@ -117,6 +129,57 @@ class TestCheckSeedLines:
         shrink = _find_widget(tw, "chm_footprint_shrink")
         assert shrink is not None
         assert not shrink.isHidden()
+
+    def test_slc_dependency_visibility(self, make_tool_widget):
+        tw = make_tool_widget(self.TOOL, show_advanced=True)
+
+        apply_slc = _find_widget(tw, "apply_seed_line_correction")
+        slc_search_distance = _find_widget(tw, "slc_search_distance")
+        slc_line_radius = _find_widget(tw, "slc_line_radius")
+        slc_internal = _find_widget(tw, "slc_optimize_internal_vertices")
+
+        assert apply_slc is not None
+        assert slc_search_distance is not None
+        assert slc_line_radius is not None
+        assert slc_internal is not None
+
+        apply_slc.set_value(False)
+        tw._update_dependency_states()
+        assert slc_search_distance.isHidden()
+        assert slc_line_radius.isHidden()
+        assert slc_internal.isHidden()
+
+        apply_slc.set_value(True)
+        tw._update_dependency_states()
+        assert not slc_search_distance.isHidden()
+        assert not slc_line_radius.isHidden()
+        assert not slc_internal.isHidden()
+
+    def test_in_raster_visibility_with_clip_or_slc(self, make_tool_widget):
+        tw = make_tool_widget(self.TOOL, show_advanced=True)
+
+        in_raster = _find_widget(tw, "in_raster")
+        clip_to_chm = _find_widget(tw, "clip_to_chm_footprint")
+        apply_slc = _find_widget(tw, "apply_seed_line_correction")
+
+        assert in_raster is not None
+        assert clip_to_chm is not None
+        assert apply_slc is not None
+
+        clip_to_chm.set_value(False)
+        apply_slc.set_value(False)
+        tw._update_dependency_states()
+        assert in_raster.isHidden()
+
+        clip_to_chm.set_value(True)
+        apply_slc.set_value(False)
+        tw._update_dependency_states()
+        assert not in_raster.isHidden()
+
+        clip_to_chm.set_value(False)
+        apply_slc.set_value(True)
+        tw._update_dependency_states()
+        assert not in_raster.isHidden()
 
 
 # ---------------------------------------------------------------------------
