@@ -854,12 +854,10 @@ def check_seed_line(
             sp_common.vector_crs(in_file, in_layer), sp_common.raster_crs(in_raster)
         ):
             raise ValueError("Input line and raster CRS do not match.")
-            exit()
 
     gdf = gpd.read_file(in_file, layer=in_layer)
     if config.clip_to_chm_footprint and in_raster and not _seedlines_within_chm_footprint(gdf, in_raster):
         raise ValueError("Input line(s) do not overlap input raster.")
-        exit()
     if "fid" in gdf.columns:
         gdf = gdf.rename(columns={"fid": "orig_fid"})
     input_count = len(gdf)
