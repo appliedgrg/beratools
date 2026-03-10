@@ -187,3 +187,35 @@ def test_post_update_endpoint_cleanup_only_targets_endpoint_adjacent_vertices(mo
     assert out is not None
     coords = list(out.geometry.iloc[0].coords)
     assert coords == [(0.5, 0.0), (3.0, 0.0), (4.2, 0.0), (7.0, 0.0)]
+
+
+def test_get_debug_layers_include_group_id(monkeypatch):
+    slc = _make_local_slc(monkeypatch, close_distance=1.0, angle_tol=10.0)
+    seed_line = sh_geom.LineString([(0.0, 0.0), (5.0, 0.0)])
+    slc.line_list = [gpd.GeoDataFrame({"id": [1]}, geometry=[seed_line], crs="EPSG:3857")]
+
+    class _StubVertex:
+        def __init__(self, centerlines, anchors, vertex_opt):
+            self.centerlines = centerlines
+            self.anchors = anchors
+            self.vertex_opt = vertex_opt
+
+    slc.vertex_grp = [
+        _StubVertex(
+            centerlines=[sh_geom.LineString([(0.0, 0.0), (1.0, 0.0)])],
+            anchors=[sh_geom.Point(0.0, 0.0), sh_geom.Point(1.0, 0.0)],
+            vertex_opt=sh_geom.Point(0.5, 0.0),
+        ),
+        _StubVertex(
+            centerlines=[sh_geom.LineString([(2.0, 0.0), (3.0, 0.0)])],
+            anchors=[sh_geom.Point(2.0, 0.0), sh_geom.Point(3.0, 0.0)],
+            vertex_opt=sh_geom.Point(2.5, 0.0),
+        ),
+    ]
+
+    debug_layers = slc.get_debug_layers()
+
+    for layer_name in ("lc_paths", "anchors", "vertices"):
+        layer_gdf = debug_layers[layer_name]
+        assert "SLC_GROUP" in layer_gdf.columns
+        assert set(layer_gdf["SLC_GROUP"].unique()) == {0, 1}

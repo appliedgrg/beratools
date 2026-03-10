@@ -1216,6 +1216,10 @@ def check_seed_line(
         slc.prepare_lines(lines_gdf=gdf)
         slc.group_vertices()
         gdf = _ensure_gdf(slc.optimize(), gdf.crs).reset_index(drop=True)
+        debug_layers = slc.get_debug_layers()
+        algo_common.save_aux_layer(debug_layers.get("lc_paths"), out_file, "lc_paths")
+        algo_common.save_aux_layer(debug_layers.get("anchors"), out_file, "anchors")
+        algo_common.save_aux_layer(debug_layers.get("vertices"), out_file, "vertices")
         _log_step(
             11,
             step_name,

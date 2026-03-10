@@ -9,7 +9,7 @@ dependencies:
   - python=3.11
   - appliedgrg::beratools
   - dask
-  - gdal=3.9.3
+  - gdal=3.10.3
   - geopandas
   - networkit
   - pandas

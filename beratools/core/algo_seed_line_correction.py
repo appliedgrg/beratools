@@ -723,25 +723,29 @@ class SeedLineCorrection:
         lines = self.get_optimized_lines()
         out_crs = None if lines is None else lines.crs
 
-        lc_paths = []
-        anchors = []
-        vertices = []
-        for item in self.vertex_grp:
+        lc_path_rows = []
+        anchor_rows = []
+        vertex_rows = []
+        for group_id, item in enumerate(self.vertex_grp):
             if item.centerlines:
-                lc_paths.extend(item.centerlines)
+                for geom in item.centerlines:
+                    if geom is not None:
+                        lc_path_rows.append({"SLC_GROUP": int(group_id), "geometry": geom})
             if item.anchors:
-                anchors.extend(item.anchors)
+                for geom in item.anchors:
+                    if geom is not None:
+                        anchor_rows.append({"SLC_GROUP": int(group_id), "geometry": geom})
             if item.vertex_opt:
-                vertices.append(item.vertex_opt)
+                vertex_rows.append({"SLC_GROUP": int(group_id), "geometry": item.vertex_opt})
 
-        lc_paths = [item for item in lc_paths if item is not None]
-        anchors = [item for item in anchors if item is not None]
-        vertices = [item for item in vertices if item is not None]
+        lc_paths = gpd.GeoDataFrame(lc_path_rows, columns=["SLC_GROUP", "geometry"], crs=out_crs)
+        anchors = gpd.GeoDataFrame(anchor_rows, columns=["SLC_GROUP", "geometry"], crs=out_crs)
+        vertices = gpd.GeoDataFrame(vertex_rows, columns=["SLC_GROUP", "geometry"], crs=out_crs)
 
         return {
-            "lc_paths": gpd.GeoDataFrame(geometry=lc_paths, crs=out_crs),
-            "anchors": gpd.GeoDataFrame(geometry=anchors, crs=out_crs),
-            "vertices": gpd.GeoDataFrame(geometry=vertices, crs=out_crs),
+            "lc_paths": lc_paths,
+            "anchors": anchors,
+            "vertices": vertices,
         }
 
     def optimize(self):
