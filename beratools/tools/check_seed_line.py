@@ -856,8 +856,6 @@ def check_seed_line(
             raise ValueError("Input line and raster CRS do not match.")
 
     gdf = gpd.read_file(in_file, layer=in_layer)
-    if config.clip_to_chm_footprint and in_raster and not _seedlines_within_chm_footprint(gdf, in_raster):
-        raise ValueError("Input line(s) do not overlap input raster.")
     if "fid" in gdf.columns:
         gdf = gdf.rename(columns={"fid": "orig_fid"})
     input_count = len(gdf)
@@ -1075,7 +1073,8 @@ def check_seed_line(
     prev_crs = gdf.crs
     split_out = qc_split_lines_at_intersections(gdf)
     gdf = _ensure_gdf(split_out, prev_crs)
-    gdf, removed_gdf = _clean_line_geometries_min_length_m(gdf, config.minimum_line_length)
+    split_min_length = config.minimum_line_length if config.remove_short_lines else bt_const.SMALL_BUFFER
+    gdf, removed_gdf = _clean_line_geometries_min_length_m(gdf, split_min_length)
     gdf = gdf.reset_index(drop=True)
     _log_step(
         7, step_name, in_count, len(gdf), _elapsed(t0), verbose=verbose_steps, skipped_steps=skipped_steps
