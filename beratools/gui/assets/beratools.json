@@ -111,6 +111,28 @@
               }
             },
             {
+              "variable": "preclean_close_distance",
+              "label": "Preclean close distance (m)",
+              "description": "Distance threshold for full-mode vertex precleaning before endpoint snapping.",
+              "type": "number",
+              "subtype": "float",
+              "default": 2.0,
+              "output": false,
+              "optional": true,
+              "unit": "m"
+            },
+            {
+              "variable": "preclean_angle_tolerance",
+              "label": "Preclean angle tolerance (deg)",
+              "description": "Angle tolerance used by full-mode vertex precleaning decisions.",
+              "type": "number",
+              "subtype": "float",
+              "default": 10.0,
+              "output": false,
+              "optional": true,
+              "unit": "deg"
+            },
+            {
               "variable": "snap_close_endpoints",
               "label": "Snap close endpoints",
               "description": "Snap close line endpoints together using directed endpoint snapping.",

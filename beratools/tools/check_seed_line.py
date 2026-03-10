@@ -19,6 +19,7 @@ import time
 import builtins
 from datetime import datetime, timezone
 from dataclasses import dataclass
+from typing import Optional
 
 import geopandas as gpd
 import pyproj
@@ -27,9 +28,15 @@ from shapely.geometry import LineString, Point
 
 import beratools.core.constants as bt_const
 import beratools.core.algo_common as algo_common
+from beratools.core.algo_vertex_preclean import VertexPrecleaner
 import beratools.utility.spatial_common as sp_common
 from beratools.core.logger import Logger
 from beratools.utility.tool_args import CallMode
+
+try:
+    import rasterio
+except Exception:
+    rasterio = None
 
 log = Logger("check_seed_line", file_level=logging.INFO)
 logger = log.get_logger()
@@ -42,6 +49,8 @@ class SeedLineQCConfig:
     clip_to_chm_footprint: bool = True
     remove_short_lines: bool = False
     minimum_line_length: float = 5.0
+    preclean_close_distance: Optional[float] = None
+    preclean_angle_tolerance: float = 10.0
     snap_close_endpoints: bool = False
     snap_tolerance: float = 5.0
     group_lines: bool = False
@@ -120,10 +129,11 @@ def _print_skipped_summary(skipped_steps):
     option_order = {
         "Clip to CHM footprint": 0,
         "Remove short lines": 1,
-        "Snap close endpoints": 2,
-        "Group lines": 3,
-        "Densify long lines": 4,
-        "Apply Seed Line Correction": 5,
+        "Preclean vertices": 2,
+        "Snap close endpoints": 3,
+        "Group lines": 4,
+        "Densify long lines": 5,
+        "Apply Seed Line Correction": 6,
     }
     skipped_steps = sorted(
         skipped_steps,
@@ -255,6 +265,91 @@ def _geometry_length_meters(geom, unit_ctx):
         geom_metric = sh_ops.transform(unit_ctx["to_metric"].transform, geom)
         return float(geom_metric.length)
     return float(geom.length) * float(unit_ctx["unit_factor"])
+
+
+def _default_close_distance_m(in_raster):
+    fallback = 2.0
+    if not in_raster or rasterio is None:
+        return fallback
+
+    try:
+        with rasterio.open(in_raster) as src:
+            transform = src.transform
+            cell_size = min(abs(transform.a), abs(transform.e))
+            if math.isclose(cell_size, 0.0):
+                return fallback
+            return float(max(2.0, 1.5 * cell_size))
+    except Exception:
+        return fallback
+
+
+def _preclean_lines_full(gdf, close_distance_m, angle_tol_deg):
+    if gdf.empty:
+        return gdf, gdf.iloc[0:0].copy()
+
+    valid_mask = ~gdf.geometry.isna() & ~gdf.geometry.is_empty
+    out = gdf[valid_mask].copy()
+    rejected = gdf[~valid_mask].copy()
+    if out.empty:
+        return out.reset_index(drop=True), rejected.reset_index(drop=True)
+
+    crs = _require_crs(out, "Preclean close distance (m)")
+    precleaner = VertexPrecleaner(close_distance=close_distance_m, angle_tol=angle_tol_deg)
+    cleaned_records = []
+    removed_records = []
+
+    if crs.is_geographic:
+        reference_geom = out.unary_union.envelope
+        unit_ctx = _build_linear_unit_context(crs, reference_geom)
+        for _, row in out.iterrows():
+            geom = row.geometry
+            if geom is None or geom.is_empty or geom.geom_type != "LineString":
+                rec = row.to_dict()
+                if geom is None or geom.is_empty:
+                    removed_records.append(rec)
+                else:
+                    cleaned_records.append(rec)
+                continue
+
+            geom_metric = sh_ops.transform(unit_ctx["to_metric"].transform, geom)
+            cleaned_metric = precleaner.cleanup_line(geom_metric, mode="full")
+            if cleaned_metric is None or cleaned_metric.is_empty:
+                removed_records.append(row.to_dict())
+                continue
+
+            rec = row.to_dict()
+            rec["geometry"] = sh_ops.transform(unit_ctx["to_source"].transform, cleaned_metric)
+            cleaned_records.append(rec)
+    else:
+        unit_ctx = _build_linear_unit_context(crs, out.unary_union.envelope)
+        close_distance_native = max(
+            _meters_to_native_units(close_distance_m, unit_ctx), bt_const.SMALL_BUFFER
+        )
+        precleaner_native = VertexPrecleaner(close_distance=close_distance_native, angle_tol=angle_tol_deg)
+        for _, row in out.iterrows():
+            geom = row.geometry
+            if geom is None or geom.is_empty or geom.geom_type != "LineString":
+                rec = row.to_dict()
+                if geom is None or geom.is_empty:
+                    removed_records.append(rec)
+                else:
+                    cleaned_records.append(rec)
+                continue
+
+            cleaned = precleaner_native.cleanup_line(geom, mode="full")
+            if cleaned is None or cleaned.is_empty:
+                removed_records.append(row.to_dict())
+                continue
+
+            rec = row.to_dict()
+            rec["geometry"] = cleaned
+            cleaned_records.append(rec)
+
+    cleaned_gdf = gpd.GeoDataFrame(cleaned_records, columns=gdf.columns, crs=gdf.crs)
+    removed_gdf = gpd.GeoDataFrame(
+        [*rejected.to_dict("records"), *removed_records], columns=gdf.columns, crs=gdf.crs
+    )
+    return cleaned_gdf.reset_index(drop=True), removed_gdf.reset_index(drop=True)
 
 
 def _clean_line_geometries_min_length_m(line_gdf, min_length_m):
@@ -686,6 +781,8 @@ def check_seed_line(
     clip_to_chm_footprint=True,
     remove_short_lines=False,
     minimum_line_length=5.0,
+    preclean_close_distance=None,
+    preclean_angle_tolerance=10.0,
     snap_close_endpoints=False,
     snap_tolerance=5.0,
     group_lines=False,
@@ -716,6 +813,10 @@ def check_seed_line(
         clip_to_chm_footprint=_to_bool(clip_to_chm_footprint),
         remove_short_lines=_to_bool(remove_short_lines),
         minimum_line_length=float(minimum_line_length),
+        preclean_close_distance=None
+        if preclean_close_distance in (None, "", "none")
+        else float(preclean_close_distance),
+        preclean_angle_tolerance=float(preclean_angle_tolerance),
         snap_close_endpoints=_to_bool(snap_close_endpoints),
         snap_tolerance=float(snap_tolerance),
         group_lines=_to_bool(group_lines),
@@ -735,6 +836,11 @@ def check_seed_line(
     in_file, in_layer = sp_common.decode_file_layer(in_line)
     out_file, out_layer = sp_common.decode_file_layer(out_line)
     aux_file = algo_common.get_aux_path(out_file)
+    effective_preclean_close_distance = (
+        _default_close_distance_m(in_raster)
+        if config.preclean_close_distance is None
+        else float(config.preclean_close_distance)
+    )
 
     qc_manifest = {
         "qc_removed_input_cleanup": {
@@ -791,9 +897,18 @@ def check_seed_line(
             "written": 0,
             "notes": "not triggered",
         },
+        "qc_removed_preclean": {
+            "layer_name": "qc_removed_preclean",
+            "step": 6,
+            "step_name": "preclean vertices",
+            "reason": "Lines removed by full-mode vertex precleaning",
+            "feature_count": 0,
+            "written": 0,
+            "notes": "not triggered",
+        },
         "qc_removed_final": {
             "layer_name": "qc_removed_final",
-            "step": 11,
+            "step": 12,
             "step_name": "final cleanup",
             "reason": "Remaining invalid/empty/too-short lines",
             "feature_count": 0,
@@ -834,6 +949,9 @@ def check_seed_line(
             "chm_footprint_shrink_m": float(config.chm_footprint_shrink),
             "remove_short_lines": int(config.remove_short_lines),
             "minimum_line_length_m": float(config.minimum_line_length),
+            "preclean_mode": "full",
+            "preclean_close_distance_m": float(effective_preclean_close_distance),
+            "preclean_angle_tolerance_deg": float(config.preclean_angle_tolerance),
             "snap_close_endpoints": int(config.snap_close_endpoints),
             "snap_tolerance_m": float(config.snap_tolerance),
             "group_lines": int(config.group_lines),
@@ -1034,6 +1152,31 @@ def check_seed_line(
         _persist_qc_tables(input_count, 0)
         return
 
+    step_name = "Preclean vertices"
+    in_count = len(gdf)
+    t0 = _step_timer()
+    gdf, removed_gdf = _preclean_lines_full(
+        gdf,
+        close_distance_m=effective_preclean_close_distance,
+        angle_tol_deg=config.preclean_angle_tolerance,
+    )
+    gdf = gdf.reset_index(drop=True)
+    _mark_layer("qc_removed_preclean", removed_gdf, notes="written" if _has_rows(removed_gdf) else "empty")
+    _log_step(
+        6, step_name, in_count, len(gdf), _elapsed(t0), verbose=verbose_steps, skipped_steps=skipped_steps
+    )
+    if _bail_if_empty(
+        gdf,
+        step_name,
+        out_file,
+        out_layer,
+        in_count,
+        skipped_steps=skipped_steps,
+        summary_state=skipped_summary_state,
+    ):
+        _persist_qc_tables(input_count, 0)
+        return
+
     step_name = "Snap close endpoints"
     in_count = len(gdf)
     if config.snap_close_endpoints:
@@ -1043,7 +1186,7 @@ def check_seed_line(
             effective_tolerance = max(effective_tolerance, config.minimum_line_length)
         gdf = _snap_close_endpoints(gdf, effective_tolerance).reset_index(drop=True)
         _log_step(
-            6, step_name, in_count, len(gdf), _elapsed(t0), verbose=verbose_steps, skipped_steps=skipped_steps
+            7, step_name, in_count, len(gdf), _elapsed(t0), verbose=verbose_steps, skipped_steps=skipped_steps
         )
         if _bail_if_empty(
             gdf,
@@ -1058,7 +1201,7 @@ def check_seed_line(
             return
     else:
         _log_step(
-            6,
+            7,
             step_name,
             in_count,
             in_count,
@@ -1077,7 +1220,7 @@ def check_seed_line(
     gdf, removed_gdf = _clean_line_geometries_min_length_m(gdf, split_min_length)
     gdf = gdf.reset_index(drop=True)
     _log_step(
-        7, step_name, in_count, len(gdf), _elapsed(t0), verbose=verbose_steps, skipped_steps=skipped_steps
+        8, step_name, in_count, len(gdf), _elapsed(t0), verbose=verbose_steps, skipped_steps=skipped_steps
     )
     if _bail_if_empty(
         gdf,
@@ -1099,7 +1242,7 @@ def check_seed_line(
         lg.run_grouping()
         gdf = _ensure_gdf(lg.lines, gdf.crs).reset_index(drop=True)
         _log_step(
-            8, step_name, in_count, len(gdf), _elapsed(t0), verbose=verbose_steps, skipped_steps=skipped_steps
+            9, step_name, in_count, len(gdf), _elapsed(t0), verbose=verbose_steps, skipped_steps=skipped_steps
         )
         if _bail_if_empty(
             gdf,
@@ -1116,7 +1259,7 @@ def check_seed_line(
         gdf = _ensure_gdf(gdf, gdf.crs).reset_index(drop=True)
         gdf[bt_const.BT_GROUP] = list(range(len(gdf)))
         _log_step(
-            8,
+            9,
             step_name,
             in_count,
             len(gdf),
@@ -1131,39 +1274,6 @@ def check_seed_line(
         t0 = _step_timer()
         gdf = gdf.dissolve(by=bt_const.BT_GROUP, as_index=False, aggfunc="first")
         gdf = qc_merge_multilinestring(gdf).reset_index(drop=True)
-        _log_step(
-            9, step_name, in_count, len(gdf), _elapsed(t0), verbose=verbose_steps, skipped_steps=skipped_steps
-        )
-        if _bail_if_empty(
-            gdf,
-            step_name,
-            out_file,
-            out_layer,
-            in_count,
-            skipped_steps=skipped_steps,
-            summary_state=skipped_summary_state,
-        ):
-            _persist_qc_tables(input_count, 0)
-            return
-    else:
-        reason = "disabled"
-        if config.merge_by_group and not config.group_lines:
-            reason = "guarded because group_lines=false"
-        _log_step(
-            9,
-            step_name,
-            in_count,
-            in_count,
-            skipped_reason=reason,
-            verbose=verbose_steps,
-            skipped_steps=skipped_steps,
-        )
-
-    step_name = "Densify long lines"
-    in_count = len(gdf)
-    if config.densify_long_lines:
-        t0 = _step_timer()
-        gdf = _densify_long_lines(gdf, config.max_segment_length).reset_index(drop=True)
         _log_step(
             10,
             step_name,
@@ -1185,8 +1295,47 @@ def check_seed_line(
             _persist_qc_tables(input_count, 0)
             return
     else:
+        reason = "disabled"
+        if config.merge_by_group and not config.group_lines:
+            reason = "guarded because group_lines=false"
         _log_step(
             10,
+            step_name,
+            in_count,
+            in_count,
+            skipped_reason=reason,
+            verbose=verbose_steps,
+            skipped_steps=skipped_steps,
+        )
+
+    step_name = "Densify long lines"
+    in_count = len(gdf)
+    if config.densify_long_lines:
+        t0 = _step_timer()
+        gdf = _densify_long_lines(gdf, config.max_segment_length).reset_index(drop=True)
+        _log_step(
+            11,
+            step_name,
+            in_count,
+            len(gdf),
+            _elapsed(t0),
+            verbose=verbose_steps,
+            skipped_steps=skipped_steps,
+        )
+        if _bail_if_empty(
+            gdf,
+            step_name,
+            out_file,
+            out_layer,
+            in_count,
+            skipped_steps=skipped_steps,
+            summary_state=skipped_summary_state,
+        ):
+            _persist_qc_tables(input_count, 0)
+            return
+    else:
+        _log_step(
+            11,
             step_name,
             in_count,
             in_count,
@@ -1221,7 +1370,7 @@ def check_seed_line(
         algo_common.save_aux_layer(debug_layers.get("anchors"), out_file, "anchors")
         algo_common.save_aux_layer(debug_layers.get("vertices"), out_file, "vertices")
         _log_step(
-            11,
+            12,
             step_name,
             in_count,
             len(gdf),
@@ -1242,7 +1391,7 @@ def check_seed_line(
             return
     else:
         _log_step(
-            11,
+            12,
             step_name,
             in_count,
             in_count,

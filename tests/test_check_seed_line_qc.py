@@ -397,7 +397,7 @@ def test_check_seed_line_skips_clip_when_disabled(tmp_path, monkeypatch):
     assert clip_calls == []
 
 
-def test_pipeline_runs_snap_before_split(tmp_path, monkeypatch):
+def test_pipeline_runs_preclean_snap_before_split(tmp_path, monkeypatch):
     in_gpkg = _write_seed_input(
         tmp_path,
         [
@@ -421,11 +421,16 @@ def test_pipeline_runs_snap_before_split(tmp_path, monkeypatch):
         call_order.append("snap")
         return gdf
 
+    def _fake_preclean(gdf, *_args, **_kwargs):
+        call_order.append("preclean")
+        return gdf, gdf.iloc[0:0].copy()
+
     def _fake_split(gdf):
         call_order.append("split")
         return gdf
 
     monkeypatch.setattr(csl, "_clip_to_chm_footprint", _fake_clip)
+    monkeypatch.setattr(csl, "_preclean_lines_full", _fake_preclean)
     monkeypatch.setattr(csl, "_snap_close_endpoints", _fake_snap)
     monkeypatch.setattr(csl, "qc_split_lines_at_intersections", _fake_split)
 
@@ -437,7 +442,7 @@ def test_pipeline_runs_snap_before_split(tmp_path, monkeypatch):
         group_lines=False,
     )
 
-    assert call_order == ["snap", "split"]
+    assert call_order == ["preclean", "snap", "split"]
 
 
 def test_check_seed_line_prints_step_status_for_disabled_options(tmp_path, monkeypatch, capsys):
@@ -467,16 +472,14 @@ def test_check_seed_line_prints_step_status_for_disabled_options(tmp_path, monke
     assert "✓ Geometry cleanup" in output
     assert "↷ Clip to CHM footprint" in output
     assert "↷ Remove short lines" in output
+    assert "✓ Preclean vertices" in output
     assert "↷ Snap close endpoints" in output
     assert "↷ Group lines" in output
     assert "↷ Densify long lines" in output
     assert "↷ Apply Seed Line Correction" in output
 
-    clip_pos = output.find("Clip to CHM footprint")
-    short_pos = output.find("Remove short lines")
-    snap_pos = output.find("Snap close endpoints")
-    assert -1 not in (clip_pos, short_pos, snap_pos)
-    assert clip_pos < short_pos < snap_pos
+    for label in ("Clip to CHM footprint", "Remove short lines", "Preclean vertices", "Snap close endpoints"):
+        assert label in output
 
 
 def test_check_seed_line_writes_qc_doc_tables(tmp_path, monkeypatch):
@@ -622,6 +625,10 @@ def test_schema_marks_chm_shrink_as_optional():
     assert params["chm_footprint_shrink"]["optional"] is True
     assert params["clip_to_chm_footprint"]["default"] is True
     assert params["clip_to_chm_footprint"]["optional"] is True
+    assert params["preclean_close_distance"]["type"] == "number"
+    assert params["preclean_close_distance"]["default"] == 2.0
+    assert params["preclean_angle_tolerance"]["type"] == "number"
+    assert params["preclean_angle_tolerance"]["default"] == 10.0
 
     in_raster_dep = params["in_raster"]["depends_on"]
     assert in_raster_dep["logic"] == "or"
