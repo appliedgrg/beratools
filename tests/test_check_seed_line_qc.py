@@ -326,7 +326,7 @@ def test_normalize_to_lines_filters_non_line_parts():
     assert out.geometry.iloc[0].geom_type == "LineString"
 
 
-def test_check_seed_line_early_return_writes_empty_output(tmp_path, monkeypatch):
+def test_check_seed_line_raises_when_seedlines_do_not_overlap_raster(tmp_path, monkeypatch):
     in_gpkg = _write_seed_input(tmp_path, [LineString([(0.0, 0.0), (1.0, 0.0)])])
     out_gpkg = tmp_path / "seed_output.gpkg"
 
@@ -339,15 +339,12 @@ def test_check_seed_line_early_return_writes_empty_output(tmp_path, monkeypatch)
         lambda *_args, **_kwargs: Point(100.0, 100.0).buffer(100.0),
     )
 
-    csl.check_seed_line(
-        in_line=f"{in_gpkg.as_posix()}|seed_lines",
-        in_raster="dummy.tif",
-        out_line=f"{out_gpkg.as_posix()}|seed_checked",
-    )
-
-    out = gpd.read_file(out_gpkg, layer="seed_checked")
-    assert out.empty
-    assert "id" in out.columns
+    with pytest.raises(ValueError, match="do not overlap"):
+        csl.check_seed_line(
+            in_line=f"{in_gpkg.as_posix()}|seed_lines",
+            in_raster="dummy.tif",
+            out_line=f"{out_gpkg.as_posix()}|seed_checked",
+        )
 
 
 def test_check_seed_line_merge_guard_assigns_unique_bt_group(tmp_path, monkeypatch):
@@ -440,6 +437,7 @@ def test_check_seed_line_minimum_length_geographic_uses_meters(tmp_path, monkeyp
     monkeypatch.setattr(csl.sp_common, "vector_crs", lambda *_args, **_kwargs: object())
     monkeypatch.setattr(csl.sp_common, "raster_crs", lambda *_args, **_kwargs: object())
     monkeypatch.setattr(csl.sp_common, "compare_crs", lambda *_args, **_kwargs: True)
+    monkeypatch.setattr(csl, "_seedlines_within_chm_footprint", lambda *_args, **_kwargs: True)
     monkeypatch.setattr(
         csl,
         "_clip_to_chm_footprint",
@@ -525,6 +523,7 @@ def test_pipeline_runs_preclean_snap_before_split(tmp_path, monkeypatch):
     monkeypatch.setattr(csl.sp_common, "vector_crs", lambda *_args, **_kwargs: object())
     monkeypatch.setattr(csl.sp_common, "raster_crs", lambda *_args, **_kwargs: object())
     monkeypatch.setattr(csl.sp_common, "compare_crs", lambda *_args, **_kwargs: True)
+    monkeypatch.setattr(csl, "_seedlines_within_chm_footprint", lambda *_args, **_kwargs: True)
 
     call_order = []
 
