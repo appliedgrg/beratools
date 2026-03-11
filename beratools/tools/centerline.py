@@ -88,7 +88,7 @@ def centerline(
     in_file, in_layer = sp_common.decode_file_layer(in_line)
     out_file, out_layer = sp_common.decode_file_layer(out_line)
 
-    if not sp_common.compare_crs(sp_common.vector_crs(in_file,in_layer), sp_common.raster_crs(in_raster)):
+    if not sp_common.compare_crs(sp_common.vector_crs(in_file, in_layer), sp_common.raster_crs(in_raster)):
         print("Line and CHM have different spatial references, please check.")
         return
 

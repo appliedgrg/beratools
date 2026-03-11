@@ -137,7 +137,7 @@ class TestBooleanInputPure:
     def test_label_format(self, make_boolean_input):
         w = make_boolean_input(self.PARAM)
         assert "Process Segments" in w.checkbox.text()
-        assert "Process each segment separately" in w.checkbox.text()
+        assert "Process each segment separately" in w.checkbox.toolTip()
 
 
 class TestBooleanInputFromOptionList:

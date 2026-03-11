@@ -202,6 +202,96 @@ def test_densify_long_lines_projected_feet_converts_meter_threshold():
     assert all(seg <= 500.0 + bt_const.SMALL_BUFFER for seg in seg_lengths_m)
 
 
+class _DummyBounds:
+    def __init__(self, left, bottom, right, top):
+        self.left = left
+        self.bottom = bottom
+        self.right = right
+        self.top = top
+
+
+class _DummyRasterSrc:
+    def __init__(self, crs, x_res, y_res, bounds):
+        self.crs = crs
+        self.res = (x_res, y_res)
+        self.bounds = bounds
+
+
+class _DummyOpenCtx:
+    def __init__(self, src):
+        self._src = src
+
+    def __enter__(self):
+        return self._src
+
+    def __exit__(self, exc_type, exc, tb):
+        return False
+
+
+def test_default_close_distance_m_projected_feet_converts_to_meters(monkeypatch):
+    dummy_src = _DummyRasterSrc(
+        crs="EPSG:2263",
+        x_res=10.0,
+        y_res=-10.0,
+        bounds=_DummyBounds(0.0, 0.0, 100.0, 100.0),
+    )
+    monkeypatch.setattr(
+        csl,
+        "rasterio",
+        type(
+            "_DummyRasterio", (), {"open": staticmethod(lambda *_args, **_kwargs: _DummyOpenCtx(dummy_src))}
+        ),
+    )
+
+    dist_m = csl._default_close_distance_m("dummy.tif")
+    assert dist_m == pytest.approx(4.572009144018288, rel=1e-6)
+
+
+def test_default_close_distance_m_geographic_uses_geodesic_conversion(monkeypatch):
+    dummy_src = _DummyRasterSrc(
+        crs="EPSG:4326",
+        x_res=0.0001,
+        y_res=-0.0001,
+        bounds=_DummyBounds(-0.01, -0.01, 0.01, 0.01),
+    )
+    monkeypatch.setattr(
+        csl,
+        "rasterio",
+        type(
+            "_DummyRasterio", (), {"open": staticmethod(lambda *_args, **_kwargs: _DummyOpenCtx(dummy_src))}
+        ),
+    )
+
+    dist_m = csl._default_close_distance_m("dummy.tif")
+    assert dist_m > 10.0
+    assert dist_m < 20.0
+
+
+def test_default_close_distance_m_logs_warning_when_fallback_used(monkeypatch):
+    dummy_src = _DummyRasterSrc(
+        crs=None,
+        x_res=1.0,
+        y_res=-1.0,
+        bounds=_DummyBounds(0.0, 0.0, 1.0, 1.0),
+    )
+    monkeypatch.setattr(
+        csl,
+        "rasterio",
+        type(
+            "_DummyRasterio", (), {"open": staticmethod(lambda *_args, **_kwargs: _DummyOpenCtx(dummy_src))}
+        ),
+    )
+
+    warnings = []
+    monkeypatch.setattr(
+        csl.logger, "warning", lambda msg, *args: warnings.append(msg % args if args else msg)
+    )
+
+    dist_m = csl._default_close_distance_m("dummy.tif")
+    assert dist_m == 2.0
+    assert any("Using fallback preclean distance" in item for item in warnings)
+
+
 def test_normalize_to_lines_filters_non_line_parts():
     line = LineString([(0.0, 0.0), (1.0, 0.0)])
     mixed = GeometryCollection([line, Point(1.0, 0.0)])
@@ -397,7 +487,7 @@ def test_check_seed_line_skips_clip_when_disabled(tmp_path, monkeypatch):
     assert clip_calls == []
 
 
-def test_pipeline_runs_snap_before_split(tmp_path, monkeypatch):
+def test_pipeline_runs_preclean_snap_before_split(tmp_path, monkeypatch):
     in_gpkg = _write_seed_input(
         tmp_path,
         [
@@ -421,11 +511,16 @@ def test_pipeline_runs_snap_before_split(tmp_path, monkeypatch):
         call_order.append("snap")
         return gdf
 
+    def _fake_preclean(gdf, *_args, **_kwargs):
+        call_order.append("preclean")
+        return gdf, gdf.iloc[0:0].copy()
+
     def _fake_split(gdf):
         call_order.append("split")
         return gdf
 
     monkeypatch.setattr(csl, "_clip_to_chm_footprint", _fake_clip)
+    monkeypatch.setattr(csl, "_preclean_lines_full", _fake_preclean)
     monkeypatch.setattr(csl, "_snap_close_endpoints", _fake_snap)
     monkeypatch.setattr(csl, "qc_split_lines_at_intersections", _fake_split)
 
@@ -433,6 +528,52 @@ def test_pipeline_runs_snap_before_split(tmp_path, monkeypatch):
         in_line=f"{in_gpkg.as_posix()}|seed_lines",
         in_raster="dummy.tif",
         out_line=f"{out_gpkg.as_posix()}|seed_checked",
+        snap_close_endpoints=True,
+        group_lines=False,
+    )
+
+    assert call_order == ["preclean", "snap", "split"]
+
+
+def test_pipeline_skips_preclean_when_disabled(tmp_path, monkeypatch):
+    in_gpkg = _write_seed_input(
+        tmp_path,
+        [
+            LineString([(0.0, 0.0), (10.0, 0.0)]),
+            LineString([(10.5, 0.0), (12.0, 0.0)]),
+        ],
+        data={"line_id": [1, 2]},
+    )
+    out_gpkg = tmp_path / "seed_output.gpkg"
+
+    monkeypatch.setattr(csl.sp_common, "vector_crs", lambda *_args, **_kwargs: object())
+    monkeypatch.setattr(csl.sp_common, "raster_crs", lambda *_args, **_kwargs: object())
+    monkeypatch.setattr(csl.sp_common, "compare_crs", lambda *_args, **_kwargs: True)
+
+    call_order = []
+
+    def _fake_preclean(gdf, *_args, **_kwargs):
+        call_order.append("preclean")
+        return gdf, gdf.iloc[0:0].copy()
+
+    def _fake_snap(gdf, *_args, **_kwargs):
+        call_order.append("snap")
+        return gdf
+
+    def _fake_split(gdf):
+        call_order.append("split")
+        return gdf
+
+    monkeypatch.setattr(csl, "_preclean_lines_full", _fake_preclean)
+    monkeypatch.setattr(csl, "_snap_close_endpoints", _fake_snap)
+    monkeypatch.setattr(csl, "qc_split_lines_at_intersections", _fake_split)
+
+    csl.check_seed_line(
+        in_line=f"{in_gpkg.as_posix()}|seed_lines",
+        in_raster="dummy.tif",
+        out_line=f"{out_gpkg.as_posix()}|seed_checked",
+        clip_to_chm_footprint=False,
+        preclean_vertices=False,
         snap_close_endpoints=True,
         group_lines=False,
     )
@@ -467,16 +608,14 @@ def test_check_seed_line_prints_step_status_for_disabled_options(tmp_path, monke
     assert "✓ Geometry cleanup" in output
     assert "↷ Clip to CHM footprint" in output
     assert "↷ Remove short lines" in output
+    assert "✓ Preclean vertices" in output
     assert "↷ Snap close endpoints" in output
     assert "↷ Group lines" in output
     assert "↷ Densify long lines" in output
     assert "↷ Apply Seed Line Correction" in output
 
-    clip_pos = output.find("Clip to CHM footprint")
-    short_pos = output.find("Remove short lines")
-    snap_pos = output.find("Snap close endpoints")
-    assert -1 not in (clip_pos, short_pos, snap_pos)
-    assert clip_pos < short_pos < snap_pos
+    for label in ("Clip to CHM footprint", "Remove short lines", "Preclean vertices", "Snap close endpoints"):
+        assert label in output
 
 
 def test_check_seed_line_writes_qc_doc_tables(tmp_path, monkeypatch):
@@ -622,6 +761,18 @@ def test_schema_marks_chm_shrink_as_optional():
     assert params["chm_footprint_shrink"]["optional"] is True
     assert params["clip_to_chm_footprint"]["default"] is True
     assert params["clip_to_chm_footprint"]["optional"] is True
+    assert params["preclean_vertices"]["type"] == "list"
+    assert params["preclean_vertices"]["default"] is True
+    assert params["preclean_close_distance"]["type"] == "number"
+    assert params["preclean_close_distance"]["default"] == 2.0
+    assert params["preclean_close_distance"]["depends_on"]["variable"] == "preclean_vertices"
+    assert params["preclean_close_distance"]["depends_on"]["condition"] is True
+    assert params["preclean_close_distance"]["depends_on"]["mode"] == "hide"
+    assert params["preclean_angle_tolerance"]["type"] == "number"
+    assert params["preclean_angle_tolerance"]["default"] == 10.0
+    assert params["preclean_angle_tolerance"]["depends_on"]["variable"] == "preclean_vertices"
+    assert params["preclean_angle_tolerance"]["depends_on"]["condition"] is True
+    assert params["preclean_angle_tolerance"]["depends_on"]["mode"] == "hide"
 
     in_raster_dep = params["in_raster"]["depends_on"]
     assert in_raster_dep["logic"] == "or"

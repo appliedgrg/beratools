@@ -85,7 +85,8 @@ def _preclean_line(line, close_distance, min_segment_length, angle_tol):
 
     return sh_geom.LineString(cleaned)
 
-def _simplify_line_fr_dist_offset(line, close_distance, min_segment_length,angle_tol=None):
+
+def _simplify_line_fr_dist_offset(line, close_distance, min_segment_length, angle_tol=None):
     """
     1) Remove repeated points from the input line,
     2) Remove vertices based on back and forward internal distances (e.g. < min_segment_length) and offset constraints
@@ -110,9 +111,9 @@ def _simplify_line_fr_dist_offset(line, close_distance, min_segment_length,angle
         dist_prev = np.linalg.norm(curr - prev)
         dist_next = np.linalg.norm(nxt - curr)
         # Calculate offset distances from curr point to previous and next vertex
-        current_p=sh_geom.Point(curr)
-        whole_l=sh_geom.LineString([prev,nxt])
-        if skipped==False:
+        current_p = sh_geom.Point(curr)
+        whole_l = sh_geom.LineString([prev, nxt])
+        if skipped is False:
             # Condition: either distances must be > 2 meters apart (example constraint)
             if dist_prev > min_segment_length and dist_next > min_segment_length:
                 # perpendicular offset or collinearity > offset threshold, keep current point
@@ -121,14 +122,14 @@ def _simplify_line_fr_dist_offset(line, close_distance, min_segment_length,angle
                     skipped = False
                 else:
                     # skip current when smaller
-                    skipped=True
+                    skipped = True
                     continue
 
-            else: # Condition:  distances < 2 meters apart, skip current
+            else:  # Condition:  distances < 2 meters apart, skip current
                 skipped = True
                 continue
         else:
-            #if skipped in previous point, keep current point
+            # if skipped in previous point, keep current point
             simplified.append(current_p)
             skipped = False
 
@@ -136,6 +137,7 @@ def _simplify_line_fr_dist_offset(line, close_distance, min_segment_length,angle
     simplified.append(sh_geom.Point(vertices[-1]))
 
     return sh_geom.LineString(simplified)
+
 
 def preclean_vertices(gdf, close_distance, min_segment_length, angle_tol):
     """Remove redundant close internal vertices on each line independently."""
