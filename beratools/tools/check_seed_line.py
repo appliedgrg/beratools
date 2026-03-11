@@ -28,7 +28,7 @@ from shapely.geometry import LineString, Point
 
 import beratools.core.constants as bt_const
 import beratools.core.algo_common as algo_common
-from beratools.core.algo_vertex_preclean import VertexPrecleaner
+from beratools.core.algo_check_seed_line import VertexPrecleaner
 import beratools.utility.spatial_common as sp_common
 from beratools.core.logger import Logger
 from beratools.utility.tool_args import CallMode

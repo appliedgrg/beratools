@@ -26,7 +26,7 @@ import beratools.core.algo_common as algo_common
 import beratools.core.algo_cost as algo_cost
 import beratools.core.constants as bt_const
 import beratools.core.tool_base as bt_base
-from beratools.core.algo_vertex_preclean import VertexPrecleaner
+from beratools.core.algo_check_seed_line import VertexPrecleaner
 import beratools.utility.spatial_common as sp_common
 from beratools.core import algo_dijkstra
 
