@@ -145,7 +145,7 @@ class VertexPrecleaner:
 
         out_gdf = gdf.copy()
 
-        if any(geom.geom_type == "MultiLineString" for geom in out_gdf.geometry):
+        if any(getattr(geom, "geom_type", None) == "MultiLineString" for geom in out_gdf.geometry):
             out_gdf = out_gdf.explode(index_parts=False)
 
         cleaned_geoms = []
@@ -170,9 +170,3 @@ class VertexPrecleaner:
 
         return out_gdf
 
-
-def preclean_vertices(gdf, close_distance, min_segment_length=None, angle_tol=10.0):
-    del min_segment_length
-    return VertexPrecleaner(close_distance=close_distance, angle_tol=angle_tol).remove_close_vertices(
-        gdf, mode="full"
-    )
