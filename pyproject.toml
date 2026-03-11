@@ -58,6 +58,8 @@ dev = [
 test = [
     "gdal==3.8.4",
     "pytest",
+    "pytest-qt",
+    "pywinauto; platform_system == 'Windows'",
 ]
 doc = [
     "mkdocs",

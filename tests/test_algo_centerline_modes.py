@@ -148,7 +148,7 @@ def test_snap_end_to_end_respects_max_snap_distance():
 def test_centerline_tool_rejects_unknown_guided_strategy():
     from beratools.tools.centerline import centerline
 
-    with pytest.raises(ValueError, match="guided_strategy must be one of"):
+    with pytest.raises(ValueError, match="not a valid CenterlineStrategy"):
         centerline(
             in_line="dummy.gpkg|line",
             in_raster="dummy.tif",
