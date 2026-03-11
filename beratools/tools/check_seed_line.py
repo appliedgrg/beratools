@@ -268,20 +268,80 @@ def _geometry_length_meters(geom, unit_ctx):
     return float(geom.length) * float(unit_ctx["unit_factor"])
 
 
+def _geographic_raster_cell_size_m(src, crs, x_res, y_res):
+    geod = crs.get_geod()
+    if geod is None:
+        raise ValueError("Unable to build geodesic calculator for geographic CRS.")
+
+    bounds = src.bounds
+    center_x = float((bounds.left + bounds.right) / 2.0)
+    center_y = float((bounds.bottom + bounds.top) / 2.0)
+    max_lat = 89.999999
+    min_lat = -89.999999
+    y_for_dx = min(max(center_y, min_lat), max_lat)
+    y_start = min(max(center_y, min_lat), max_lat)
+    y_for_dy = min(max(center_y + float(y_res), min_lat), max_lat)
+    dist_x = abs(geod.inv(center_x, y_for_dx, center_x + float(x_res), y_for_dx)[2])
+    dist_y = abs(geod.inv(center_x, y_start, center_x, y_for_dy)[2])
+    return min(dist_x, dist_y)
+
+
 def _default_close_distance_m(in_raster):
     fallback = 2.0
-    if not in_raster or rasterio is None:
+    max_auto_default = 30.0
+
+    def _fallback(reason, exc=None):
+        if exc is None:
+            logger.warning(
+                "Using fallback preclean distance %.2f m: %s (raster=%s)",
+                fallback,
+                reason,
+                in_raster,
+            )
+        else:
+            logger.warning(
+                "Using fallback preclean distance %.2f m: %s (raster=%s, error=%s)",
+                fallback,
+                reason,
+                in_raster,
+                exc,
+            )
         return fallback
+
+    if not in_raster or rasterio is None:
+        reason = "missing input raster"
+        if rasterio is None:
+            reason = "rasterio unavailable"
+        return _fallback(reason)
 
     try:
         with rasterio.open(in_raster) as src:
-            transform = src.transform
-            cell_size = min(abs(transform.a), abs(transform.e))
-            if math.isclose(cell_size, 0.0):
-                return fallback
-            return float(max(2.0, 1.5 * cell_size))
-    except Exception:
-        return fallback
+            crs = pyproj.CRS.from_user_input(src.crs) if src.crs else None
+            if crs is None:
+                return _fallback("raster CRS missing or unreadable")
+
+            x_res, y_res = src.res
+            cell_size_native = min(abs(float(x_res)), abs(float(y_res)))
+            if math.isclose(cell_size_native, 0.0):
+                return _fallback("raster resolution is zero")
+
+            if crs.is_geographic:
+                try:
+                    cell_size_m = _geographic_raster_cell_size_m(src, crs, x_res, y_res)
+                except ValueError as exc:
+                    return _fallback(str(exc))
+            else:
+                unit_factor = crs.axis_info[0].unit_conversion_factor if crs.axis_info else None
+                if unit_factor is None or unit_factor <= 0:
+                    return _fallback("unable to determine projected CRS linear unit factor")
+                cell_size_m = cell_size_native * float(unit_factor)
+
+            if math.isclose(cell_size_m, 0.0):
+                return _fallback("computed metric cell size is zero")
+            inferred_default = 1.5 * float(cell_size_m)
+            return float(min(max_auto_default, max(fallback, inferred_default)))
+    except Exception as exc:
+        return _fallback("failed to derive raster-based default", exc=exc)
 
 
 def _preclean_lines_full(gdf, close_distance_m, angle_tol_deg):

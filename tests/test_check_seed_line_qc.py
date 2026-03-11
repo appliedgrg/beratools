@@ -202,6 +202,96 @@ def test_densify_long_lines_projected_feet_converts_meter_threshold():
     assert all(seg <= 500.0 + bt_const.SMALL_BUFFER for seg in seg_lengths_m)
 
 
+class _DummyBounds:
+    def __init__(self, left, bottom, right, top):
+        self.left = left
+        self.bottom = bottom
+        self.right = right
+        self.top = top
+
+
+class _DummyRasterSrc:
+    def __init__(self, crs, x_res, y_res, bounds):
+        self.crs = crs
+        self.res = (x_res, y_res)
+        self.bounds = bounds
+
+
+class _DummyOpenCtx:
+    def __init__(self, src):
+        self._src = src
+
+    def __enter__(self):
+        return self._src
+
+    def __exit__(self, exc_type, exc, tb):
+        return False
+
+
+def test_default_close_distance_m_projected_feet_converts_to_meters(monkeypatch):
+    dummy_src = _DummyRasterSrc(
+        crs="EPSG:2263",
+        x_res=10.0,
+        y_res=-10.0,
+        bounds=_DummyBounds(0.0, 0.0, 100.0, 100.0),
+    )
+    monkeypatch.setattr(
+        csl,
+        "rasterio",
+        type(
+            "_DummyRasterio", (), {"open": staticmethod(lambda *_args, **_kwargs: _DummyOpenCtx(dummy_src))}
+        ),
+    )
+
+    dist_m = csl._default_close_distance_m("dummy.tif")
+    assert dist_m == pytest.approx(4.572009144018288, rel=1e-6)
+
+
+def test_default_close_distance_m_geographic_uses_geodesic_conversion(monkeypatch):
+    dummy_src = _DummyRasterSrc(
+        crs="EPSG:4326",
+        x_res=0.0001,
+        y_res=-0.0001,
+        bounds=_DummyBounds(-0.01, -0.01, 0.01, 0.01),
+    )
+    monkeypatch.setattr(
+        csl,
+        "rasterio",
+        type(
+            "_DummyRasterio", (), {"open": staticmethod(lambda *_args, **_kwargs: _DummyOpenCtx(dummy_src))}
+        ),
+    )
+
+    dist_m = csl._default_close_distance_m("dummy.tif")
+    assert dist_m > 10.0
+    assert dist_m < 20.0
+
+
+def test_default_close_distance_m_logs_warning_when_fallback_used(monkeypatch):
+    dummy_src = _DummyRasterSrc(
+        crs=None,
+        x_res=1.0,
+        y_res=-1.0,
+        bounds=_DummyBounds(0.0, 0.0, 1.0, 1.0),
+    )
+    monkeypatch.setattr(
+        csl,
+        "rasterio",
+        type(
+            "_DummyRasterio", (), {"open": staticmethod(lambda *_args, **_kwargs: _DummyOpenCtx(dummy_src))}
+        ),
+    )
+
+    warnings = []
+    monkeypatch.setattr(
+        csl.logger, "warning", lambda msg, *args: warnings.append(msg % args if args else msg)
+    )
+
+    dist_m = csl._default_close_distance_m("dummy.tif")
+    assert dist_m == 2.0
+    assert any("Using fallback preclean distance" in item for item in warnings)
+
+
 def test_normalize_to_lines_filters_non_line_parts():
     line = LineString([(0.0, 0.0), (1.0, 0.0)])
     mixed = GeometryCollection([line, Point(1.0, 0.0)])
