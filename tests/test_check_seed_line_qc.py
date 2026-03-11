@@ -70,7 +70,7 @@ def test_snap_close_endpoints_tie_break_by_lower_line_id():
     assert Point(line_with_higher_id.coords[-1]).equals(Point(2.5, 0.0))
 
 
-def test_snap_close_endpoints_locks_anchor_to_prevent_chain_disconnect():
+def test_snap_close_endpoints_component_snaps_chain_to_single_anchor():
     gdf = gpd.GeoDataFrame(
         {"line_id": [30, 20, 10]},
         geometry=[
@@ -88,7 +88,7 @@ def test_snap_close_endpoints_locks_anchor_to_prevent_chain_disconnect():
     c_end = Point(out.geometry.iloc[2].coords[-1])
 
     assert a_end.equals(b_end)
-    assert not b_end.equals(c_end)
+    assert b_end.equals(c_end)
 
 
 def test_snap_close_endpoints_anchor_can_snap_multiple_movers():
@@ -110,6 +110,30 @@ def test_snap_close_endpoints_anchor_can_snap_multiple_movers():
 
     assert a_end.equals(b_end)
     assert c_end.equals(b_end)
+
+
+def test_snap_close_endpoints_prefers_dominant_junction_anchor():
+    gdf = gpd.GeoDataFrame(
+        {"line_id": [100, 10, 20, 30]},
+        geometry=[
+            LineString([(0.0, 0.0), (1.0, 0.0)]),
+            LineString([(2.1, 0.0), (5.1, 0.0)]),
+            LineString([(2.0, -1.5), (2.0, 0.4)]),
+            LineString([(2.0, 1.6), (2.0, 0.6)]),
+        ],
+        crs="EPSG:3857",
+    )
+
+    out = csl._snap_close_endpoints(gdf, tolerance=1.25)
+
+    left_end = Point(out.geometry.iloc[0].coords[-1])
+    right_h_end = Point(out.geometry.iloc[1].coords[0])
+    right_v1_end = Point(out.geometry.iloc[2].coords[-1])
+    right_v2_end = Point(out.geometry.iloc[3].coords[-1])
+
+    assert left_end.equals(right_h_end)
+    assert left_end.equals(right_v1_end)
+    assert left_end.equals(right_v2_end)
 
 
 def test_snap_close_endpoints_geographic_uses_meter_tolerance():
