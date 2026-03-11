@@ -211,7 +211,6 @@ class ClickSlider(QtWidgets.QSlider):
         if event.button() == QtCore.Qt.LeftButton:
             val = self.pixel_pos_to_range_value(event.pos())
             self.setValue(val)
-            self.sliderMoved.emit(val)
 
     def pixel_pos_to_range_value(self, pos):
         opt = QtWidgets.QStyleOptionSlider()
@@ -262,12 +261,13 @@ class BTSlider(QtWidgets.QWidget):
         layout.addWidget(self.slider)
         self.setLayout(layout)
 
-        self.slider.sliderMoved.connect(self.slider_moved)
+        self.slider.valueChanged.connect(self.slider_moved)
 
     def slider_moved(self, value):
-        bt.set_selected_cpu_cores(value)
-        QtWidgets.QToolTip.showText(QtGui.QCursor.pos(), f"{value}")
-        self.label.setText(self.generate_label_text())
+        actual_value = int(self.slider.value())
+        bt.set_selected_cpu_cores(actual_value)
+        QtWidgets.QToolTip.showText(QtGui.QCursor.pos(), f"{actual_value}")
+        self.label.setText(self.generate_label_text(actual_value))
 
     def generate_label_text(self, value=None):
         if not value:
