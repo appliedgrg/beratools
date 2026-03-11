@@ -430,8 +430,9 @@ class SeedLineCorrection:
         self.vertex_grp.append(vertex_obj)
 
     def prepare_lines(self, lines_gdf=None):
-        print(f"Preparing lines...{self.in_line}", flush=True)
-        print(f"in_file: {self.in_line}, in_layer: {self.in_layer}")
+        print("Preparing lines...", flush=True)
+        print(f"in_file: {self.in_line}")
+        print(f"in_layer: {self.in_layer}")
 
         if lines_gdf is None:
             lines_gdf = algo_common.read_geospatial_file(self.in_line, layer=self.in_layer)
