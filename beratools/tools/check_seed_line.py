@@ -318,7 +318,7 @@ def check_seed_line(
             "layer_name": "qc_removed_preclean",
             "step": 6,
             "step_name": "preclean vertices",
-            "reason": "Lines removed by full-mode vertex precleaning",
+            "reason": "Removes near-duplicate endpoint vertices and simplifies close interior vertices with angle-aware bend preservation.",
             "feature_count": 0,
             "written": 0,
             "notes": "not triggered",
