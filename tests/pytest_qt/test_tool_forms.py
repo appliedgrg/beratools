@@ -58,7 +58,6 @@ class TestCheckSeedLines:
         assert isinstance(_find_widget(tw, "remove_short_lines"), BooleanInput)
         assert isinstance(_find_widget(tw, "snap_close_endpoints"), BooleanInput)
         assert isinstance(_find_widget(tw, "group_lines"), BooleanInput)
-        assert isinstance(_find_widget(tw, "merge_by_group"), BooleanInput)
         assert isinstance(_find_widget(tw, "densify_long_lines"), BooleanInput)
         assert isinstance(_find_widget(tw, "clip_to_chm_footprint"), BooleanInput)
         assert isinstance(_find_widget(tw, "chm_footprint_shrink"), NumericInput)
@@ -88,7 +87,6 @@ class TestCheckSeedLines:
                 "snap_close_endpoints": True,
                 "snap_tolerance": 5.0,
                 "group_lines": True,
-                "merge_by_group": False,
                 "densify_long_lines": False,
                 "max_segment_length": 500.0,
                 "apply_seed_line_correction": True,
@@ -110,7 +108,6 @@ class TestCheckSeedLines:
         assert args["snap_close_endpoints"] is True
         assert args["snap_tolerance"] == pytest.approx(5.0)
         assert args["group_lines"] is True
-        assert args["merge_by_group"] is False
         assert args["densify_long_lines"] is False
         assert args["max_segment_length"] == pytest.approx(500.0)
         assert args["apply_seed_line_correction"] is True

@@ -5,6 +5,7 @@ import shapely.geometry as sh_geom
 
 import beratools.core.algo_common as algo_common
 import beratools.core.constants as bt_const
+import beratools.core.algo_seed_line_correction as asc
 from beratools.core.algo_seed_line_correction import SeedLineCorrection
 from beratools.utility.spatial_common import decode_file_layer
 
@@ -219,3 +220,113 @@ def test_get_debug_layers_include_group_id(monkeypatch):
         layer_gdf = debug_layers[layer_name]
         assert "SLC_GROUP" in layer_gdf.columns
         assert set(layer_gdf["SLC_GROUP"].unique()) == {0, 1}
+
+
+def test_vertex_generate_anchor_pairs_for_crossing_four_lines():
+    search_distance = 1.0
+    cost_footprint = sh_geom.box(-10.0, -10.0, 10.0, 10.0)
+
+    line_gdfs = [
+        gpd.GeoDataFrame(
+            {"id": [1]}, geometry=[sh_geom.LineString([(0.0, 0.0), (2.0, 0.0)])], crs="EPSG:3857"
+        ),
+        gpd.GeoDataFrame(
+            {"id": [2]}, geometry=[sh_geom.LineString([(0.0, 0.0), (0.0, 2.0)])], crs="EPSG:3857"
+        ),
+        gpd.GeoDataFrame(
+            {"id": [3]}, geometry=[sh_geom.LineString([(0.0, 0.0), (-2.0, 0.0)])], crs="EPSG:3857"
+        ),
+        gpd.GeoDataFrame(
+            {"id": [4]}, geometry=[sh_geom.LineString([(0.0, 0.0), (0.0, -2.0)])], crs="EPSG:3857"
+        ),
+    ]
+
+    lines = [asc._SingleLine(line_gdf, idx, 0, search_distance) for idx, line_gdf in enumerate(line_gdfs)]
+    vertex = asc._Vertex(lines[0], in_raster="dummy.tif", line_radius=1.0, cost_footprint=cost_footprint)
+    for line in lines[1:]:
+        vertex.add_line(line)
+
+    anchors = vertex.generate_anchor_pairs()
+
+    assert anchors is not None
+    assert len(anchors) == 4
+    assert all(anchor is not None for anchor in anchors)
+
+
+def test_vertex_compute_four_anchors_sets_centroid_for_multipoint(monkeypatch):
+    line_gdf = gpd.GeoDataFrame(
+        {"id": [1]},
+        geometry=[sh_geom.LineString([(0.0, 0.0), (2.0, 0.0)])],
+        crs="EPSG:3857",
+    )
+    line_obj = asc._SingleLine(line_gdf, line_no=0, end_no=0, search_distance=1.0)
+    vertex = asc._Vertex(
+        line_obj,
+        in_raster="dummy.tif",
+        line_radius=1.0,
+        cost_footprint=sh_geom.box(-10.0, -10.0, 10.0, 10.0),
+    )
+
+    monkeypatch.setattr(
+        vertex,
+        "generate_anchor_pairs",
+        lambda: [
+            sh_geom.Point(-1.0, 0.0),
+            sh_geom.Point(1.0, 0.0),
+            sh_geom.Point(0.0, -1.0),
+            sh_geom.Point(0.0, 1.0),
+        ],
+    )
+    monkeypatch.setattr(asc.sp_common, "clip_raster", lambda *_args, **_kwargs: ("clip", {"meta": 1}))
+    monkeypatch.setattr(asc.algo_cost, "cost_raster", lambda raster, meta: (raster, meta))
+
+    lines = [
+        sh_geom.LineString([(-1.0, 0.0), (1.0, 0.0)]),
+        sh_geom.LineString([(0.0, -1.0), (0.0, 1.0)]),
+    ]
+    call_idx = {"idx": 0}
+
+    def _fake_path(*_args, **_kwargs):
+        out = lines[call_idx["idx"]]
+        call_idx["idx"] += 1
+        return out
+
+    monkeypatch.setattr(asc.algo_dijkstra, "find_least_cost_path", _fake_path)
+    monkeypatch.setattr(
+        asc.algo_common,
+        "intersection_of_lines",
+        lambda *_args, **_kwargs: sh_geom.MultiPoint([sh_geom.Point(0.0, 0.0), sh_geom.Point(0.0, 1.0)]),
+    )
+
+    vertex.compute()
+
+    assert vertex.vertex_opt is not None
+    assert vertex.vertex_opt.equals(sh_geom.Point(0.0, 0.5))
+    assert vertex.centerlines is not None
+    assert len([item for item in vertex.centerlines if item is not None]) == 2
+
+
+def test_vertex_should_process_seed_line_rejects_long_or_outside_footprint():
+    line_gdf = gpd.GeoDataFrame(
+        {"id": [1]},
+        geometry=[sh_geom.LineString([(0.0, 0.0), (2.0, 0.0)])],
+        crs="EPSG:3857",
+    )
+    line_obj = asc._SingleLine(line_gdf, line_no=0, end_no=0, search_distance=1.0)
+    vertex = asc._Vertex(
+        line_obj,
+        in_raster="dummy.tif",
+        line_radius=1.0,
+        cost_footprint=sh_geom.box(-2.0, -2.0, 2.0, 2.0),
+    )
+
+    assert vertex._should_process_seed_line(None) is False
+
+    too_long = sh_geom.LineString([(0.0, 0.0), (20.0, 0.0)])
+    assert vertex._should_process_seed_line(too_long) is False
+
+    outside = sh_geom.LineString([(100.0, 100.0), (101.0, 100.0)])
+    assert vertex._should_process_seed_line(outside) is False
+
+    valid = sh_geom.LineString([(0.0, 0.0), (1.0, 0.0)])
+    assert vertex._should_process_seed_line(valid) is True

@@ -5,6 +5,7 @@ __pycache__
 .spyproject
 .virtual_documents
 .vscode
+.coverage
 dist
 output
 agents

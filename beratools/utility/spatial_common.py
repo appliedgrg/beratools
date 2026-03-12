@@ -219,3 +219,17 @@ def compare_crs(crs_org, crs_dst):
                 return False
 
     return False
+
+
+def seedlines_within_chm_footprint(gdf, in_raster) -> bool:
+    """Check whether seed lines overlap the CHM raster footprint."""
+    from beratools.core.algo_common import generate_raster_footprint
+
+    footprint = generate_raster_footprint(in_raster, latlon=False)
+    if not footprint.is_empty and all(footprint.contains(gdf["geometry"])):
+        return True
+    elif not footprint.is_empty and any(footprint.intersects(gdf["geometry"])):
+        print("[Warning]: Some seedlines are partially intersect the CHM footprint.")
+        return True
+    else:
+        return False

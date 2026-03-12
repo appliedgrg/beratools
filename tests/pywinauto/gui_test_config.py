@@ -37,7 +37,6 @@ def make_test_data(testdata_dir, output_dir):
             "snap_close_endpoints": False,
             "snap_tolerance": 5.0,
             "group_lines": False,
-            "merge_by_group": False,
             "densify_long_lines": False,
             "max_segment_length": 500.0,
         },
@@ -157,7 +156,6 @@ PARAM_TYPES = {
     "snap_close_endpoints": {"type": "list", "subtype": "bool"},
     "snap_tolerance": {"type": "number", "subtype": "float"},
     "group_lines": {"type": "list", "subtype": "bool"},
-    "merge_by_group": {"type": "list", "subtype": "bool"},
     "densify_long_lines": {"type": "list", "subtype": "bool"},
     "max_segment_length": {"type": "number", "subtype": "float"},
     # Vertex Optimization
@@ -206,7 +204,6 @@ TOOL_PARAM_LABELS = {
         "snap_close_endpoints": "Snap close endpoints",
         "snap_tolerance": "Snap tolerance (m)",
         "group_lines": "Group lines",
-        "merge_by_group": "Merge by group",
         "densify_long_lines": "Densify long lines",
         "max_segment_length": "Max segment length (m)",
     },

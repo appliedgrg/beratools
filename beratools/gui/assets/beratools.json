@@ -113,7 +113,7 @@
             {
               "variable": "preclean_vertices",
               "label": "Preclean vertices",
-              "description": "Run full-mode vertex precleaning before endpoint snapping.",
+              "description": "Removes near-duplicate endpoint vertices and simplifies close interior vertices with angle-aware bend preservation.",
               "type": "list",
               "subtype": "bool",
               "data": [true, false],
@@ -124,7 +124,7 @@
             {
               "variable": "preclean_close_distance",
               "label": "Preclean close distance (m)",
-              "description": "Distance threshold for full-mode vertex precleaning before endpoint snapping.",
+              "description": "Distance threshold for remove vertices too close to endpoint.",
               "type": "number",
               "subtype": "float",
               "default": 2.0,
@@ -140,7 +140,7 @@
             {
               "variable": "preclean_angle_tolerance",
               "label": "Preclean angle tolerance (deg)",
-              "description": "Angle tolerance used by full-mode vertex precleaning decisions.",
+              "description": "Angle tolerance used by vertex precleaning decisions to reserve line shape.",
               "type": "number",
               "subtype": "float",
               "default": 10.0,
@@ -183,29 +183,13 @@
             {
               "variable": "group_lines",
               "label": "Group lines",
-              "description": "Run line grouping before optional merge by group.",
+              "description": "Group lines by endpoint connectivity (and optional angle compatibility) and assign shared BT_GROUP IDs.",
               "type": "list",
               "subtype": "bool",
               "data": [true, false],
               "default": false,
               "output": false,
               "optional": true
-            },
-            {
-              "variable": "merge_by_group",
-              "label": "Merge by group",
-              "description": "Merge grouped lines by BT_GROUP (ignored when Group lines is disabled).",
-              "type": "list",
-              "subtype": "bool",
-              "data": [true, false],
-              "default": false,
-              "output": false,
-              "optional": true,
-              "depends_on": {
-                "variable": "group_lines",
-                "condition": true,
-                "mode": "hide"
-              }
             },
             {
               "variable": "densify_long_lines",
