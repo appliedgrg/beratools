@@ -30,6 +30,10 @@ jobs:
 
     steps:
       - uses: actions/checkout@v6
+        with:
+          token: ${{ github.token }}
+          persist-credentials: true
+          fetch-depth: 1
 
       - name: Install GDAL system libs
         run: |
