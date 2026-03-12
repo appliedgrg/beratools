@@ -19,7 +19,7 @@ jobs:
 
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
 
       - name: Check if tagged commit is on main
         id: tag_guard
@@ -37,7 +37,7 @@ jobs:
 
       - name: Set up Python ${{ matrix.python-version }}
         if: steps.tag_guard.outputs.on_main == 'true'
-        uses: actions/setup-python@v4
+        uses: actions/setup-python@v6
         with:
           python-version: ${{ matrix.python-version }}
 
