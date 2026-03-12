@@ -284,79 +284,55 @@ class ToolWidgets(QtWidgets.QWidget):
             for controller_widget in controller_widgets:
                 self._connect_widget_change_signal(controller_widget, self._update_dependency_states)
 
-        label_anchor_width = self._get_label_anchor_width()
-        self._align_standard_labels(label_anchor_width)
-        self._align_inline_controller_checkboxes(inline_controller_widgets, label_anchor_width)
-        self._align_hide_dependent_labels(
-            hide_dependent_widgets, inline_controller_widgets, label_anchor_width
-        )
+        self._align_all_labels()
         self._update_dependency_states()
 
-    def _get_label_anchor_width(self):
-        max_width = BT_LABEL_MIN_WIDTH
+    def _align_all_labels(self):
+        """Set every widget's label (QLabel or QCheckBox) to the same fixed width
+        so that all input controls start at the same horizontal position.
+        Inline widgets are skipped — their label is hidden and alignment is
+        governed by the controller checkbox they are embedded in."""
+        inlined_vars = set(self._inline_controllers.values())
+        anchor_width = BT_LABEL_MIN_WIDTH
+        checkbox_indicator_overhead = 0
+
+        # First pass: measure natural widths of all labels (skip inlined widgets)
         for widget in self.widget_list:
-            if not widget or isinstance(widget, BooleanInput):
+            if not widget or widget.variable in inlined_vars:
                 continue
             label = getattr(widget, "label", None)
-            if isinstance(label, QtWidgets.QLabel):
-                max_width = max(max_width, label.sizeHint().width())
-        return max_width
-
-    def _align_standard_labels(self, label_anchor_width):
-        for widget in self.widget_list:
-            if not widget or isinstance(widget, BooleanInput):
+            if label is None:
                 continue
-            label = getattr(widget, "label", None)
-            if isinstance(label, QtWidgets.QLabel):
-                label.setMinimumWidth(label_anchor_width)
-                label.setMaximumWidth(label_anchor_width)
 
-    @staticmethod
-    def _align_inline_controller_checkboxes(controller_widgets, label_anchor_width):
-        unique_widgets = []
-        seen_ids = set()
-        for widget in controller_widgets:
-            widget_id = id(widget)
-            if widget_id in seen_ids:
-                continue
-            seen_ids.add(widget_id)
-            unique_widgets.append(widget)
-
-        if not unique_widgets:
-            return
-
-        max_text_width = 0
-        for controller in unique_widgets:
-            if isinstance(controller, BooleanInput):
-                max_text_width = max(
-                    max_text_width,
-                    controller.checkbox.fontMetrics().horizontalAdvance(controller.checkbox.text()),
+            if isinstance(widget, BooleanInput):
+                text_width = widget.checkbox.fontMetrics().horizontalAdvance(
+                    widget.checkbox.text()
                 )
+                if not checkbox_indicator_overhead:
+                    style = widget.checkbox.style()
+                    opt = QtWidgets.QStyleOptionButton()
+                    opt.initFrom(widget.checkbox)
+                    checkbox_indicator_overhead = (
+                        style.pixelMetric(
+                            QtWidgets.QStyle.PM_IndicatorWidth, opt, widget.checkbox
+                        )
+                        + style.pixelMetric(
+                            QtWidgets.QStyle.PM_CheckBoxLabelSpacing, opt, widget.checkbox
+                        )
+                    )
+                anchor_width = max(anchor_width, text_width + checkbox_indicator_overhead + 8)
+            elif isinstance(label, QtWidgets.QLabel):
+                anchor_width = max(anchor_width, label.sizeHint().width())
 
-        if max_text_width <= 0:
-            return
-
-        aligned_width = max(max_text_width + 8, BT_LABEL_MIN_WIDTH, label_anchor_width)
-        for controller in unique_widgets:
-            if isinstance(controller, BooleanInput):
-                controller.checkbox.setMinimumWidth(aligned_width)
-                controller.checkbox.setMaximumWidth(aligned_width)
-
-    @staticmethod
-    def _align_hide_dependent_labels(dependent_widgets, inline_controller_widgets, label_anchor_width):
-        if not dependent_widgets:
-            return
-
-        inline_anchor_width = 0
-        for controller in inline_controller_widgets:
-            if isinstance(controller, BooleanInput):
-                inline_anchor_width = max(inline_anchor_width, controller.checkbox.minimumWidth())
-
-        target_width = max(label_anchor_width, inline_anchor_width)
-        for widget in dependent_widgets:
-            if isinstance(widget, NumericInput):
-                widget.label.setMinimumWidth(target_width)
-                widget.label.setMaximumWidth(target_width)
+        # Second pass: apply the uniform width (skip inlined widgets)
+        for widget in self.widget_list:
+            if not widget or widget.variable in inlined_vars:
+                continue
+            label = getattr(widget, "label", None)
+            if label is None:
+                continue
+            label.setMinimumWidth(anchor_width)
+            label.setMaximumWidth(anchor_width)
 
     def _attach_inline_widget(self, controller_widget, dependent_widget):
         controller_layout = self._get_widget_layout(controller_widget)
@@ -364,12 +340,21 @@ class ToolWidgets(QtWidgets.QWidget):
             return False
 
         dependent_widget.set_inline_mode(getattr(dependent_widget, "unit", ""))
+        controller_layout.setContentsMargins(
+            controller_layout.contentsMargins().left(),
+            0,
+            controller_layout.contentsMargins().right(),
+            0,
+        )
+        controller_layout.setAlignment(QtCore.Qt.AlignVCenter)
+        # Remove trailing stretch so the inline widget can expand to fill available space
         insert_index = controller_layout.count()
         if insert_index > 0:
             last_item = controller_layout.itemAt(insert_index - 1)
             if last_item and last_item.spacerItem() is not None:
+                controller_layout.removeItem(last_item)
                 insert_index -= 1
-        controller_layout.insertWidget(insert_index, dependent_widget, 0, QtCore.Qt.AlignVCenter)
+        controller_layout.insertWidget(insert_index, dependent_widget, 1)
         return True
 
     @staticmethod
@@ -1154,13 +1139,17 @@ class OptionsInput(QtWidgets.QWidget):
         self.combobox.addItems(self.option_list)
         self.combobox.setCurrentIndex(default_index)
 
+        self.combobox.setFixedWidth(BT_NUMERIC_BOX_WIDTH)
         self.layout = QtWidgets.QHBoxLayout()
+        self.layout.setAlignment(QtCore.Qt.AlignLeft)
         self.layout.addWidget(self.label)
         self.layout.addWidget(self.combobox)
         self.setLayout(self.layout)
 
     def set_inline_mode(self, unit=""):
         self.label.setVisible(False)
+        self.label.setMinimumWidth(0)
+        self.label.setMaximumWidth(0)
         self.layout.setContentsMargins(0, 0, 0, 0)
 
     def selection_change(self, i):
@@ -1251,6 +1240,7 @@ class NumericInput(QtWidgets.QWidget):
         self.label.setMinimumWidth(0)
         self.label.setMaximumWidth(0)
         self.layout.setContentsMargins(0, 0, 0, 0)
+        self.layout.setAlignment(QtCore.Qt.AlignLeft)
         if unit:
             self.unit = unit
             self.unit_label.setText(unit)
