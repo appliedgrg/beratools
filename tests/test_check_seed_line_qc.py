@@ -719,6 +719,179 @@ def test_pipeline_skips_preclean_when_disabled(tmp_path, monkeypatch):
     assert call_order == ["snap", "split"]
 
 
+def test_check_seed_line_grouping_and_densify_enabled_paths(tmp_path, monkeypatch):
+    in_gpkg = _write_seed_input(
+        tmp_path,
+        [
+            LineString([(0.0, 0.0), (2.0, 0.0)]),
+            LineString([(3.0, 0.0), (6.0, 0.0)]),
+        ],
+        data={"id": [1, 2]},
+    )
+    out_gpkg = tmp_path / "seed_output.gpkg"
+
+    import beratools.core.algo_line_grouping as alg_lg
+
+    densify_calls = []
+
+    class _DummyLineGrouping:
+        def __init__(self, lines, use_angle_grouping=True):
+            self._lines = lines if isinstance(lines, gpd.GeoDataFrame) else gpd.GeoDataFrame(lines)
+            self._use_angle_grouping = use_angle_grouping
+            self.lines = None
+
+        def run_grouping(self):
+            self.lines = [
+                {"geometry": geom, bt_const.BT_GROUP: idx + 100}
+                for idx, geom in enumerate(self._lines.geometry)
+            ]
+
+    def _fake_densify(gdf, max_segment_length):
+        densify_calls.append(max_segment_length)
+        return gdf
+
+    monkeypatch.setattr(alg_lg, "LineGrouping", _DummyLineGrouping)
+    monkeypatch.setattr(csl, "qc_split_lines_at_intersections", lambda gdf: gdf)
+    monkeypatch.setattr(csl, "_densify_long_lines", _fake_densify)
+
+    csl.check_seed_line(
+        in_line=f"{in_gpkg.as_posix()}|seed_lines",
+        in_raster="",
+        out_line=f"{out_gpkg.as_posix()}|seed_checked",
+        clip_to_chm_footprint=False,
+        group_lines=True,
+        densify_long_lines=True,
+        max_segment_length=3,
+        preclean_close_distance=2.0,
+    )
+
+    out = gpd.read_file(out_gpkg, layer="seed_checked")
+    assert len(out) == 2
+    assert bt_const.BT_GROUP in out.columns
+    assert set(out[bt_const.BT_GROUP]) == {100, 101}
+    assert densify_calls == [3]
+
+
+def test_check_seed_line_runs_seed_line_correction_branch(tmp_path, monkeypatch):
+    in_gpkg = _write_seed_input(tmp_path, [LineString([(0.0, 0.0), (5.0, 0.0)])])
+    out_gpkg = tmp_path / "seed_output.gpkg"
+
+    import beratools.core.algo_seed_line_correction as asc
+
+    init_args = {}
+    saved_layers = []
+
+    class _DummySeedLineCorrection:
+        def __init__(
+            self,
+            in_file,
+            in_raster,
+            search_distance,
+            line_radius,
+            processes,
+            call_mode,
+            layer=None,
+            optimize_internal_vertices=False,
+        ):
+            init_args.update(
+                {
+                    "in_file": in_file,
+                    "in_raster": in_raster,
+                    "search_distance": search_distance,
+                    "line_radius": line_radius,
+                    "processes": processes,
+                    "call_mode": call_mode,
+                    "layer": layer,
+                    "optimize_internal_vertices": optimize_internal_vertices,
+                }
+            )
+            self._lines = None
+
+        def prepare_lines(self, lines_gdf=None):
+            assert lines_gdf is not None
+            self._lines = lines_gdf.copy()
+
+        def group_vertices(self):
+            return None
+
+        def optimize(self):
+            lines = self._lines
+            assert lines is not None
+            out = lines.copy()
+            out["slc_applied"] = 1
+            return out
+
+        def get_debug_layers(self):
+            lines = self._lines
+            assert lines is not None
+            crs = lines.crs
+            return {
+                "lc_paths": gpd.GeoDataFrame(
+                    {"id": [1]},
+                    geometry=[LineString([(0.0, 0.0), (1.0, 0.0)])],
+                    crs=crs,
+                ),
+                "anchors": gpd.GeoDataFrame({"id": [1]}, geometry=[Point(0.0, 0.0)], crs=crs),
+                "vertices": gpd.GeoDataFrame({"id": [1]}, geometry=[Point(1.0, 0.0)], crs=crs),
+            }
+
+    monkeypatch.setattr(asc, "SeedLineCorrection", _DummySeedLineCorrection)
+    monkeypatch.setattr(csl, "qc_split_lines_at_intersections", lambda gdf: gdf)
+    monkeypatch.setattr(
+        csl.algo_common,
+        "save_aux_layer",
+        lambda _gdf, _out_file, layer_name: saved_layers.append(layer_name),
+    )
+
+    csl.check_seed_line(
+        in_line=f"{in_gpkg.as_posix()}|seed_lines",
+        in_raster="",
+        out_line=f"{out_gpkg.as_posix()}|seed_checked",
+        clip_to_chm_footprint=False,
+        group_lines=False,
+        apply_seed_line_correction=True,
+        slc_optimize_internal_vertices=True,
+        preclean_close_distance=2.0,
+    )
+
+    out = gpd.read_file(out_gpkg, layer="seed_checked")
+    assert len(out) == 1
+    assert "slc_applied" in out.columns
+
+    assert init_args["in_raster"] == ""
+    assert init_args["layer"] == "seed_lines"
+    assert init_args["optimize_internal_vertices"] is True
+    assert {"lc_paths", "anchors", "vertices"}.issubset(set(saved_layers))
+
+
+def test_check_seed_line_bails_empty_after_skipped_steps(tmp_path, monkeypatch):
+    in_gpkg = _write_seed_input(tmp_path, [LineString([(0.0, 0.0), (5.0, 0.0)])])
+    out_gpkg = tmp_path / "seed_output.gpkg"
+
+    def _normalize_to_empty(gdf: gpd.GeoDataFrame):
+        return gdf.iloc[0:0].copy()
+
+    monkeypatch.setattr(csl, "_normalize_to_lines", _normalize_to_empty)
+
+    csl.check_seed_line(
+        in_line=f"{in_gpkg.as_posix()}|seed_lines",
+        in_raster="",
+        out_line=f"{out_gpkg.as_posix()}|seed_checked",
+        clip_to_chm_footprint=False,
+        remove_short_lines=False,
+        group_lines=False,
+        preclean_close_distance=2.0,
+    )
+
+    out = gpd.read_file(out_gpkg, layer="seed_checked")
+    assert out.empty
+
+    aux_gpkg = out_gpkg.with_stem(out_gpkg.stem + "_aux")
+    with sqlite3.connect(aux_gpkg.as_posix()) as conn:
+        output_count = conn.execute("SELECT output_feature_count FROM qc_run_summary").fetchone()[0]
+    assert output_count == 0
+
+
 def test_check_seed_line_prints_step_status_for_disabled_options(tmp_path, monkeypatch, capsys):
     in_gpkg = _write_seed_input(tmp_path, [LineString([(0.0, 0.0), (10.0, 0.0)])])
     out_gpkg = tmp_path / "seed_output.gpkg"
