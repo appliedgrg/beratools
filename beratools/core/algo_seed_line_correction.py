@@ -593,9 +593,7 @@ class SeedLineCorrection:
         return self.get_optimized_lines()
 
     def compute(self):
-        compute_processes = self.processes
-        if self.optimize_internal_vertices and (compute_processes is None or int(compute_processes) <= 0):
-            compute_processes = 1
+        compute_processes = self.processes if self.processes is not None else 0
 
         vertex_grp = bt_base.execute_multiprocessing(
             algo_common.process_single_item,

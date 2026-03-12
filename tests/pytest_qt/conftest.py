@@ -153,9 +153,9 @@ def make_file_selector(qtbot):
     """Factory: create a FileSelector from a param dict."""
     import json
 
-    def _make(param_dict):
+    def _make(param_dict, bt_data_obj=None):
         json_str = json.dumps(param_dict, sort_keys=True, indent=2)
-        w = FileSelector(json_str)
+        w = FileSelector(json_str, bt_data_obj=bt_data_obj)
         qtbot.addWidget(w)
         return w
 

@@ -426,6 +426,7 @@ class BTData(object):
         self.show_advanced = BT_SHOW_ADVANCED_OPTIONS
         self.selected_cpu_cores = -1
         self.recent_tool = None
+        self.last_browse_dir = None
         self.ascii_art = ""
         self.get_working_dir()
         self.get_user_folder()
@@ -457,6 +458,10 @@ class BTData(object):
         self.settings = self.settings_manager.settings
         gui_settings = self.settings.get("gui_parameters", {})
         self.recent_tool = gui_settings.get("recent_tool", None)
+        if "last_browse_dir" in gui_settings and gui_settings["last_browse_dir"] is not None:
+            saved_dir = Path(gui_settings["last_browse_dir"]).expanduser()
+            if saved_dir.exists() and saved_dir.is_dir():
+                self.last_browse_dir = saved_dir.as_posix()
         self.load_gui_data()
         self.get_tool_history()
 
@@ -654,6 +659,24 @@ class BTData(object):
                 api_result = self.get_bera_tool_api(self.recent_tool)
                 if not api_result:
                     self.recent_tool = None
+
+            if "last_browse_dir" in gui_settings and gui_settings["last_browse_dir"] is not None:
+                saved_dir = Path(gui_settings["last_browse_dir"]).expanduser()
+                if saved_dir.exists() and saved_dir.is_dir():
+                    self.last_browse_dir = saved_dir.as_posix()
+
+    def set_last_browse_dir(self, path_str):
+        if not path_str:
+            return
+
+        browse_dir = Path(path_str).expanduser()
+        if browse_dir.exists() and browse_dir.is_dir():
+            new_browse_dir = browse_dir.as_posix()
+            self.save_setting("last_browse_dir", new_browse_dir)
+            self.last_browse_dir = new_browse_dir
+
+    def get_last_browse_dir(self):
+        return self.last_browse_dir
 
     def load_gui_data(self):
         gui_settings = {}

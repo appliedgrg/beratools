@@ -19,7 +19,10 @@ jobs:
       - name: "Checking out code"
         run: echo "Checking out code"
       - name: Checkout Code
-        uses: actions/checkout@v3
+        uses: actions/checkout@v6
+        with:
+          token: ${{ github.token }}
+          persist-credentials: true
 
       - name: Install GDAL system libs
         run: |

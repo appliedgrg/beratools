@@ -30,6 +30,8 @@ from beratools.gui.geometry_types import (
 )
 
 BT_LABEL_MIN_WIDTH = 130
+BT_WIDGET_MIN_HEIGHT = 36
+BT_NUMERIC_BOX_WIDTH = 160
 
 
 class ToolWidgets(QtWidgets.QWidget):
@@ -37,12 +39,13 @@ class ToolWidgets(QtWidgets.QWidget):
 
     signal_save_tool_params = QtCore.pyqtSignal(object)
 
-    def __init__(self, tool_name, tool_args, show_advanced, parent=None):
+    def __init__(self, tool_name, tool_args, show_advanced, bt_data_obj=None, parent=None):
         super(ToolWidgets, self).__init__(parent)
 
         self.tool_name = tool_name
         self.show_advanced = show_advanced
         self.current_tool_api = ""
+        self.bt_data = bt_data_obj
         self.widget_list = []
         self.ui_widget_list = []
         self.widgets_by_variable = {}
@@ -52,8 +55,14 @@ class ToolWidgets(QtWidgets.QWidget):
 
         self.create_widgets(tool_args)
         layout = QtWidgets.QVBoxLayout()
+        layout.setAlignment(QtCore.Qt.AlignTop)
+        layout.setSpacing(8)
 
         for item in self.ui_widget_list:
+            item_layout = self._get_widget_layout(item)
+            if item_layout is not None:
+                m = item_layout.contentsMargins()
+                item_layout.setContentsMargins(m.left(), 0, m.right(), 0)
             layout.addWidget(item)
 
         self.save_button = QtWidgets.QPushButton("Save Parameters")
@@ -92,7 +101,7 @@ class ToolWidgets(QtWidgets.QWidget):
             widget = None
 
             if "ExistingFile" in pt or "NewFile" in pt or "Directory" in pt:
-                widget = FileSelector(json_str, None)
+                widget = FileSelector(json_str, None, bt_data_obj=self.bt_data)
             elif "FileList" in pt:
                 widget = MultiFileSelector(json_str, None)
             elif "Boolean" in pt:
@@ -135,6 +144,7 @@ class ToolWidgets(QtWidgets.QWidget):
 
             # hide optional widgets
             if widget:
+                widget.setMinimumHeight(BT_WIDGET_MIN_HEIGHT)
                 self._set_widget_tooltip(widget)
                 widget.depends_on = p.get("depends_on")
                 widget.unit = p.get("unit", "")
@@ -214,7 +224,6 @@ class ToolWidgets(QtWidgets.QWidget):
         self.ui_widget_list = [widget for widget in self.widget_list if widget]
         self._depends_on_specs = {}
         self._inline_controllers = {}
-        inline_controller_widgets = []
 
         for widget in self.widget_list:
             if not widget:
@@ -266,43 +275,61 @@ class ToolWidgets(QtWidgets.QWidget):
                     )
                 elif self._attach_inline_widget(controller_widgets[0], widget):
                     self._inline_controllers[controller_vars[0]] = widget.variable
-                    inline_controller_widgets.append(controller_widgets[0])
                     if widget in self.ui_widget_list:
                         self.ui_widget_list.remove(widget)
-
             self._depends_on_specs[widget.variable] = depends_on
             for controller_widget in controller_widgets:
                 self._connect_widget_change_signal(controller_widget, self._update_dependency_states)
 
-        self._align_inline_controller_checkboxes(inline_controller_widgets)
+        self._align_all_labels()
         self._update_dependency_states()
 
-    @staticmethod
-    def _align_inline_controller_checkboxes(controller_widgets):
-        unique_widgets = []
-        seen_ids = set()
-        for widget in controller_widgets:
-            widget_id = id(widget)
-            if widget_id in seen_ids:
+    def _align_all_labels(self):
+        """Set every widget's label (QLabel or QCheckBox) to the same fixed width
+        so that all input controls start at the same horizontal position.
+        Inline widgets are skipped — their label is hidden and alignment is
+        governed by the controller checkbox they are embedded in."""
+        inlined_vars = set(self._inline_controllers.values())
+        anchor_width = BT_LABEL_MIN_WIDTH
+        checkbox_indicator_overhead = 0
+
+        # First pass: measure natural widths of all labels (skip inlined widgets)
+        for widget in self.widget_list:
+            if not widget or widget.variable in inlined_vars:
                 continue
-            seen_ids.add(widget_id)
-            unique_widgets.append(widget)
+            label = getattr(widget, "label", None)
+            if label is None:
+                continue
 
-        if not unique_widgets:
-            return
+            if isinstance(widget, BooleanInput):
+                text_width = widget.checkbox.fontMetrics().horizontalAdvance(
+                    widget.checkbox.text()
+                )
+                if not checkbox_indicator_overhead:
+                    style = widget.checkbox.style()
+                    opt = QtWidgets.QStyleOptionButton()
+                    opt.initFrom(widget.checkbox)
+                    checkbox_indicator_overhead = (
+                        style.pixelMetric(
+                            QtWidgets.QStyle.PM_IndicatorWidth, opt, widget.checkbox
+                        )
+                        + style.pixelMetric(
+                            QtWidgets.QStyle.PM_CheckBoxLabelSpacing, opt, widget.checkbox
+                        )
+                    )
+                anchor_width = max(anchor_width, text_width + checkbox_indicator_overhead + 8)
+            elif isinstance(label, QtWidgets.QLabel):
+                anchor_width = max(anchor_width, label.sizeHint().width())
 
-        max_width = 0
-        for controller in unique_widgets:
-            if isinstance(controller, BooleanInput):
-                max_width = max(max_width, controller.checkbox.sizeHint().width())
-
-        if max_width <= 0:
-            return
-
-        aligned_width = max_width + 8
-        for controller in unique_widgets:
-            if isinstance(controller, BooleanInput):
-                controller.checkbox.setMinimumWidth(aligned_width)
+        # Second pass: apply the uniform width (skip inlined widgets)
+        for widget in self.widget_list:
+            if not widget or widget.variable in inlined_vars:
+                continue
+            label = getattr(widget, "label", None)
+            if label is None:
+                continue
+            label.setMinimumWidth(anchor_width)
+            label.setMaximumWidth(anchor_width)
 
     def _attach_inline_widget(self, controller_widget, dependent_widget):
         controller_layout = self._get_widget_layout(controller_widget)
@@ -310,12 +337,15 @@ class ToolWidgets(QtWidgets.QWidget):
             return False
 
         dependent_widget.set_inline_mode(getattr(dependent_widget, "unit", ""))
+        controller_layout.setAlignment(QtCore.Qt.AlignVCenter)
+        # Remove trailing stretch so the inline widget can expand to fill available space
         insert_index = controller_layout.count()
         if insert_index > 0:
             last_item = controller_layout.itemAt(insert_index - 1)
             if last_item and last_item.spacerItem() is not None:
+                controller_layout.removeItem(last_item)
                 insert_index -= 1
-        controller_layout.insertWidget(insert_index, dependent_widget)
+        controller_layout.insertWidget(insert_index, dependent_widget, 1)
         return True
 
     @staticmethod
@@ -452,8 +482,9 @@ class FileSelector(QtWidgets.QWidget):
                     return True
         return False
 
-    def __init__(self, json_str, parent=None):
+    def __init__(self, json_str, parent=None, bt_data_obj=None):
         super(FileSelector, self).__init__(parent)
+        self.bt_data = bt_data_obj
         self.selected_layer = ""
         self.parse_params(json_str)
         self.initialize_values()
@@ -774,8 +805,10 @@ class FileSelector(QtWidgets.QWidget):
         dialog.setViewMode(QtWidgets.QFileDialog.Detail)
         # Handle both string and dict values (for vector files)
         path_value = self.value.get("path", "") if isinstance(self.value, dict) else self.value
-        if path_value:
-            dialog.setDirectory(str(Path(path_value).parent))
+        start_dir, start_dir_source = self._resolve_dialog_start_directory(path_value)
+        if start_dir:
+            dialog.setDirectory(str(start_dir))
+        if path_value and start_dir_source == "path_value":
             dialog.selectFile(Path(path_value).name)
         dialog.setNameFilter(file_types)
         if "ExistingFile" in self.parameter_type:
@@ -783,6 +816,36 @@ class FileSelector(QtWidgets.QWidget):
         else:
             dialog.setFileMode(QtWidgets.QFileDialog.AnyFile)
         return dialog
+
+    def _resolve_dialog_start_directory(self, path_value):
+        if self.bt_data:
+            last_browse_dir = self.bt_data.get_last_browse_dir()
+            if last_browse_dir:
+                browse_dir = Path(last_browse_dir).expanduser()
+                if browse_dir.exists() and browse_dir.is_dir():
+                    return browse_dir, "last_browse"
+
+        if path_value:
+            current_path = Path(path_value).expanduser()
+            if current_path.exists():
+                if current_path.is_dir():
+                    return current_path, "path_value"
+                return current_path.parent, "path_value"
+
+            parent_dir = current_path.parent
+            if parent_dir.exists() and parent_dir.is_dir():
+                return parent_dir, "path_value"
+
+        return Path.home(), "home"
+
+    def _save_last_browse_dir(self, selected_path):
+        if not self.bt_data:
+            return
+
+        selected = Path(selected_path).expanduser()
+        browse_dir = selected if selected.is_dir() else selected.parent
+        if browse_dir.exists() and browse_dir.is_dir():
+            self.bt_data.set_last_browse_dir(str(browse_dir))
 
     def process_selected_file(self, result, dialog):
         """Handle file name modification, extension adding, and GeoPackage logic."""
@@ -829,6 +892,7 @@ class FileSelector(QtWidgets.QWidget):
                 return
             result = file_names[0]
             result = self.process_selected_file(result, dialog)
+            self._save_last_browse_dir(result)
             self.handle_gpkg_selection(result)
         except Exception as e:
             print(e)
@@ -1066,13 +1130,17 @@ class OptionsInput(QtWidgets.QWidget):
         self.combobox.addItems(self.option_list)
         self.combobox.setCurrentIndex(default_index)
 
+        self.combobox.setFixedWidth(BT_NUMERIC_BOX_WIDTH)
         self.layout = QtWidgets.QHBoxLayout()
+        self.layout.setAlignment(QtCore.Qt.AlignLeft)
         self.layout.addWidget(self.label)
         self.layout.addWidget(self.combobox)
         self.setLayout(self.layout)
 
     def set_inline_mode(self, unit=""):
         self.label.setVisible(False)
+        self.label.setMinimumWidth(0)
+        self.label.setMaximumWidth(0)
         self.layout.setContentsMargins(0, 0, 0, 0)
 
     def selection_change(self, i):
@@ -1146,7 +1214,10 @@ class NumericInput(QtWidgets.QWidget):
             except (ValueError, TypeError):
                 self.data_input.setValue(0)
             self.data_input.valueChanged.connect(self.update_value)
+            self.data_input.setSizePolicy(QtWidgets.QSizePolicy.Fixed, QtWidgets.QSizePolicy.Fixed)
+            self.data_input.setFixedWidth(BT_NUMERIC_BOX_WIDTH)
         self.layout = QtWidgets.QHBoxLayout()
+        self.layout.setAlignment(QtCore.Qt.AlignLeft)
         self.layout.addWidget(self.label)
         self.layout.addWidget(self.data_input)
         self.layout.addWidget(self.unit_label)
@@ -1157,7 +1228,10 @@ class NumericInput(QtWidgets.QWidget):
 
     def set_inline_mode(self, unit=""):
         self.label.setVisible(False)
+        self.label.setMinimumWidth(0)
+        self.label.setMaximumWidth(0)
         self.layout.setContentsMargins(0, 0, 0, 0)
+        self.layout.setAlignment(QtCore.Qt.AlignLeft)
         if unit:
             self.unit = unit
             self.unit_label.setText(unit)

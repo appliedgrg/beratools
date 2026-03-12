@@ -413,6 +413,17 @@ class _FakeFileDialog:
         return self._selected_filter
 
 
+class _FakeBrowseState:
+    def __init__(self, last_browse_dir=None):
+        self._last_browse_dir = last_browse_dir
+
+    def get_last_browse_dir(self):
+        return self._last_browse_dir
+
+    def set_last_browse_dir(self, directory):
+        self._last_browse_dir = directory
+
+
 class TestFileSelectorDialogInteraction:
     RASTER_PARAM = TestFileSelectorRaster.PARAM
     VECTOR_OUTPUT_PARAM = TestFileSelectorOutput.PARAM
@@ -456,6 +467,51 @@ class TestFileSelectorDialogInteraction:
 
         assert w.in_file.text() == raster
         assert w.get_value()["in_raster"] == raster
+
+    def test_setup_dialog_falls_back_to_home_when_no_saved_dir(self, make_file_selector):
+        w = make_file_selector(self.RASTER_PARAM, bt_data_obj=_FakeBrowseState())
+
+        dialog = w.setup_file_dialog(w.get_file_filters())
+        assert Path(dialog.directory().absolutePath()) == Path.home()
+
+    def test_select_file_updates_last_browse_dir(self, make_file_selector, qtbot, tmp_path):
+        browse_state = _FakeBrowseState()
+        raster_dir = tmp_path / "selected"
+        raster_dir.mkdir()
+        raster = str(raster_dir / "chm_aoi.tif")
+        fake_dialog = _FakeFileDialog(
+            file_names=[raster],
+            selected_filter="Tiff raster files (*.tif *.tiff)",
+        )
+
+        w = make_file_selector(self.RASTER_PARAM, bt_data_obj=browse_state)
+        with patch.object(w, "setup_file_dialog", return_value=fake_dialog):
+            qtbot.mouseClick(w.btn_select, Qt.LeftButton)
+
+        assert browse_state.get_last_browse_dir() == str(raster_dir)
+
+    def test_sequential_selectors_use_latest_browse_dir(self, make_file_selector, qtbot, tmp_path):
+        browse_state = _FakeBrowseState()
+        first_dir = tmp_path / "first"
+        second_start_dir = tmp_path / "older_prefill"
+        first_dir.mkdir()
+        second_start_dir.mkdir()
+
+        first_selected = str(first_dir / "first.tif")
+        fake_dialog = _FakeFileDialog(
+            file_names=[first_selected],
+            selected_filter="Tiff raster files (*.tif *.tiff)",
+        )
+
+        first_selector = make_file_selector(self.RASTER_PARAM, bt_data_obj=browse_state)
+        second_selector = make_file_selector(self.RASTER_PARAM, bt_data_obj=browse_state)
+        second_selector.set_value(str(second_start_dir / "prefilled.tif"))
+
+        with patch.object(first_selector, "setup_file_dialog", return_value=fake_dialog):
+            qtbot.mouseClick(first_selector.btn_select, Qt.LeftButton)
+
+        dialog = second_selector.setup_file_dialog(second_selector.get_file_filters())
+        assert Path(dialog.directory().absolutePath()) == first_dir
 
 
 class TestFileSelectorLayerComboInteraction:

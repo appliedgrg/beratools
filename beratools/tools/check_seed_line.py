@@ -521,12 +521,14 @@ def _choose_anchor(endpoint_a, endpoint_b):
     line_id_b = _parse_line_id(endpoint_b.get("line_id"))
 
     score_a = (
+        -int(endpoint_a.get("degree", 0)),
         -endpoint_a["line_length"],
         0 if line_id_a is not None else 1,
         line_id_a if line_id_a is not None else float("inf"),
         endpoint_a["discovery_order"],
     )
     score_b = (
+        -int(endpoint_b.get("degree", 0)),
         -endpoint_b["line_length"],
         0 if line_id_b is not None else 1,
         line_id_b if line_id_b is not None else float("inf"),
@@ -584,7 +586,7 @@ def _snap_close_endpoints(gdf, tolerance):
     if len(endpoints) < 2:
         return gdf
 
-    candidate_pairs = []
+    neighbor_graph = {idx: set() for idx in range(len(endpoints))}
     for i in range(len(endpoints)):
         for j in range(i + 1, len(endpoints)):
             ep_i = endpoints[i]
@@ -605,34 +607,55 @@ def _snap_close_endpoints(gdf, tolerance):
             if dist <= close_threshold:
                 continue
             if dist <= snap_threshold:
-                candidate_pairs.append((dist, ep_i, ep_j))
+                neighbor_graph[i].add(j)
+                neighbor_graph[j].add(i)
 
-    candidate_pairs.sort(
-        key=lambda x: (
-            x[0],
-            min(x[1]["discovery_order"], x[2]["discovery_order"]),
-            max(x[1]["discovery_order"], x[2]["discovery_order"]),
-        )
-    )
+    if not any(neighbor_graph.values()):
+        return gdf
+
+    for idx, endpoint in enumerate(endpoints):
+        endpoint["degree"] = len(neighbor_graph[idx])
+
+    visited = set()
+    components = []
+    active_nodes = [idx for idx, neighbors in neighbor_graph.items() if neighbors]
+    for node in active_nodes:
+        if node in visited:
+            continue
+        stack = [node]
+        component = []
+        while stack:
+            curr = stack.pop()
+            if curr in visited:
+                continue
+            visited.add(curr)
+            component.append(curr)
+            for neighbor in neighbor_graph[curr]:
+                if neighbor not in visited:
+                    stack.append(neighbor)
+
+        if len(component) > 1:
+            components.append(component)
+
+    if not components:
+        return gdf
 
     updates = {}
-    moved_keys = set()
-    anchor_locked_keys = set()
-    for _, ep_i, ep_j in candidate_pairs:
-        anchor, mover = _choose_anchor(ep_i, ep_j)
-        anchor_key = (anchor["gdf_index"], anchor["endpoint_idx"])
-        mover_key = (mover["gdf_index"], mover["endpoint_idx"])
+    for component in components:
+        anchor_endpoint = endpoints[component[0]]
+        for idx in component[1:]:
+            candidate = endpoints[idx]
+            anchor_endpoint, _ = _choose_anchor(anchor_endpoint, candidate)
 
-        if mover_key in moved_keys:
-            continue
-        if mover_key in anchor_locked_keys:
-            continue
-        if anchor_key in moved_keys:
-            continue
+        anchor_coord = tuple(anchor_endpoint["point"].coords[0])
+        anchor_key = (anchor_endpoint["gdf_index"], anchor_endpoint["endpoint_idx"])
 
-        updates[mover_key] = tuple(anchor["point"].coords[0])
-        moved_keys.add(mover_key)
-        anchor_locked_keys.add(anchor_key)
+        for idx in component:
+            endpoint = endpoints[idx]
+            endpoint_key = (endpoint["gdf_index"], endpoint["endpoint_idx"])
+            if endpoint_key == anchor_key:
+                continue
+            updates[endpoint_key] = anchor_coord
 
     if not updates:
         return gdf
@@ -1038,6 +1061,8 @@ def check_seed_line(
             raise ValueError("Input line and raster CRS do not match.")
 
     gdf = gpd.read_file(in_file, layer=in_layer)
+    if config.clip_to_chm_footprint and in_raster and not _seedlines_within_chm_footprint(gdf, in_raster):
+        raise ValueError("Input line(s) do not overlap input raster.")
     if "fid" in gdf.columns:
         gdf = gdf.rename(columns={"fid": "orig_fid"})
     input_count = len(gdf)

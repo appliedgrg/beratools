@@ -17,6 +17,7 @@ import json
 import os
 import platform
 import shlex
+import signal
 import sys
 import webbrowser
 from pathlib import Path
@@ -211,7 +212,6 @@ class ClickSlider(QtWidgets.QSlider):
         if event.button() == QtCore.Qt.LeftButton:
             val = self.pixel_pos_to_range_value(event.pos())
             self.setValue(val)
-            self.sliderMoved.emit(val)
 
     def pixel_pos_to_range_value(self, pos):
         opt = QtWidgets.QStyleOptionSlider()
@@ -262,12 +262,13 @@ class BTSlider(QtWidgets.QWidget):
         layout.addWidget(self.slider)
         self.setLayout(layout)
 
-        self.slider.sliderMoved.connect(self.slider_moved)
+        self.slider.valueChanged.connect(self.slider_moved)
 
     def slider_moved(self, value):
-        bt.set_selected_cpu_cores(value)
-        QtWidgets.QToolTip.showText(QtGui.QCursor.pos(), f"{value}")
-        self.label.setText(self.generate_label_text())
+        actual_value = int(self.slider.value())
+        bt.set_selected_cpu_cores(actual_value)
+        QtWidgets.QToolTip.showText(QtGui.QCursor.pos(), f"{actual_value}")
+        self.label.setText(self.generate_label_text(actual_value))
 
     def generate_label_text(self, value=None):
         if not value:
@@ -362,7 +363,6 @@ class MainWindow(QtWidgets.QMainWindow):
         self.action_bera_tools_guide = None
         self.action_about_bera_tools = None
         self._create_help_menu()
-        self.working_dir = bt.work_dir
         self.tool_api = None
         self.tool_name = "Centerline"
         self.recent_tool = bt.recent_tool
@@ -435,7 +435,13 @@ class MainWindow(QtWidgets.QMainWindow):
 
         # ToolWidgets
         tool_args = bt.get_bera_tool_args(self.tool_name)
-        self.tool_widget = ToolWidgets(self.recent_tool, tool_args, bt.show_advanced)
+        self.tool_widget = ToolWidgets(self.recent_tool, tool_args, bt.show_advanced, bt_data_obj=bt)
+        self.tool_scroll_area = QtWidgets.QScrollArea()
+        self.tool_scroll_area.setWidgetResizable(True)
+        self.tool_scroll_area.setHorizontalScrollBarPolicy(QtCore.Qt.ScrollBarAsNeeded)
+        self.tool_scroll_area.setVerticalScrollBarPolicy(QtCore.Qt.ScrollBarAsNeeded)
+        self.tool_scroll_area.setFrameShape(QtWidgets.QFrame.NoFrame)
+        self.tool_scroll_area.setWidget(self.tool_widget)
 
         # bottom buttons
         slider = BTSlider(bt.selected_cpu_cores, bt.max_cpu_cores)
@@ -460,7 +466,7 @@ class MainWindow(QtWidgets.QMainWindow):
 
         self.top_right_layout = QtWidgets.QVBoxLayout()
         self.top_right_layout.addLayout(self.btn_layout_top)
-        self.top_right_layout.addWidget(self.tool_widget)
+        self.top_right_layout.addWidget(self.tool_scroll_area)
         self.top_right_layout.addLayout(btn_layout_bottom)
         tool_widget_grp = QtWidgets.QGroupBox("Tool")
         tool_widget_grp.setLayout(self.top_right_layout)
@@ -469,6 +475,8 @@ class MainWindow(QtWidgets.QMainWindow):
         self.text_edit = QtWidgets.QPlainTextEdit()
         self.text_edit.setFont(QtGui.QFont("Consolas", 9))
         self.text_edit.setReadOnly(True)
+        self.text_edit.setContextMenuPolicy(QtCore.Qt.CustomContextMenu)
+        self.text_edit.customContextMenuRequested.connect(self._show_log_context_menu)
         self.print_about()
 
         # progress bar
@@ -549,10 +557,11 @@ class MainWindow(QtWidgets.QMainWindow):
         self.btn_layout_top.itemAt(0).widget().setText(self.tool_name)
 
         # update tool widget
-        self.tool_widget = ToolWidgets(self.tool_name, tool_args, bt.show_advanced)
-        widget = self.top_right_layout.itemAt(1).widget()
-        self.top_right_layout.removeWidget(widget)
-        self.top_right_layout.insertWidget(1, self.tool_widget)
+        self.tool_widget = ToolWidgets(self.tool_name, tool_args, bt.show_advanced, bt_data_obj=bt)
+        old_widget = self.tool_scroll_area.takeWidget()
+        if old_widget is not None:
+            old_widget.deleteLater()
+        self.tool_scroll_area.setWidget(self.tool_widget)
         self.top_right_layout.update()
 
     def save_tool_parameter(self):
@@ -629,6 +638,17 @@ class MainWindow(QtWidgets.QMainWindow):
         self.text_edit.insertPlainText(text)
         self.text_edit.moveCursor(QtGui.QTextCursor.End)
 
+    def clear_log_messages(self):
+        self.text_edit.clear()
+
+    def _show_log_context_menu(self, pos):
+        menu = self.text_edit.createStandardContextMenu()
+        menu.addSeparator()
+        clear_action = menu.addAction("Clear Messages")
+        action = menu.exec_(self.text_edit.mapToGlobal(pos))
+        if action == clear_action:
+            self.clear_log_messages()
+
     def print_line_to_output(self, text, tag=None):
         self.text_edit.moveCursor(QtGui.QTextCursor.End)
         self.text_edit.insertPlainText(text + "\n")
@@ -652,6 +672,8 @@ class MainWindow(QtWidgets.QMainWindow):
 
         self.tool_widget.adjustSize()
         self.tool_widget.updateGeometry()
+        self.tool_scroll_area.widget().adjustSize()
+        self.tool_scroll_area.viewport().update()
         self.top_right_layout.activate()
         self.top_right_layout.update()
 
@@ -807,4 +829,14 @@ def runner():
                 pass
 
     QtCore.QTimer.singleShot(100, signal_ready)
+
+    # Allow Ctrl+C in the terminal to quit the application.
+    # Qt overrides Python's SIGINT handler; use a custom handler that
+    # calls app.quit() and a timer to let Python process signals.
+    signal.signal(signal.SIGINT, lambda *_: app.quit())
+    timer = QtCore.QTimer(app)
+    timer.start(500)
+    timer.timeout.connect(lambda: None)
+    app.aboutToQuit.connect(timer.stop)
+
     app.exec_()
