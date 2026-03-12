@@ -221,8 +221,6 @@ class ToolWidgets(QtWidgets.QWidget):
         self.ui_widget_list = [widget for widget in self.widget_list if widget]
         self._depends_on_specs = {}
         self._inline_controllers = {}
-        inline_controller_widgets = []
-        hide_dependent_widgets = []
 
         for widget in self.widget_list:
             if not widget:
@@ -274,12 +272,8 @@ class ToolWidgets(QtWidgets.QWidget):
                     )
                 elif self._attach_inline_widget(controller_widgets[0], widget):
                     self._inline_controllers[controller_vars[0]] = widget.variable
-                    inline_controller_widgets.append(controller_widgets[0])
                     if widget in self.ui_widget_list:
                         self.ui_widget_list.remove(widget)
-            elif mode == "hide":
-                hide_dependent_widgets.append(widget)
-
             self._depends_on_specs[widget.variable] = depends_on
             for controller_widget in controller_widgets:
                 self._connect_widget_change_signal(controller_widget, self._update_dependency_states)
