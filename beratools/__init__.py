@@ -1,6 +1,6 @@
 __author__ = """Applied Geospatial Research Group"""
 __email__ = 'appliedgrg@gmail.com'
-__version__ = '0.3.9'
+__version__ = '0.3.10'
 __license__ = "GPL-3.0-or-later"
 __copyright__ = "Copyright (c) AppliedGRG"
 __status__ = "Pre-Alpha"

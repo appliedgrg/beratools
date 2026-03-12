@@ -158,8 +158,7 @@ def _record_skipped_step(skipped_steps, step_idx, step_name, reason):
     skipped_steps.append((step_idx, step_name, reason))
 
 
-def _bail_if_empty(gdf, step_name, out_file, out_layer, in_count, skipped_steps=None, summary_state=None):
-    del summary_state
+def _bail_if_empty(gdf, step_name, out_file, out_layer, in_count, skipped_steps=None):
     if not gdf.empty:
         return False
 
@@ -452,16 +451,6 @@ def _clean_line_geometries_min_length_m(line_gdf, min_length_m):
 
     return kept.reset_index(drop=True), rejected.reset_index(drop=True)
 
-
-def _seedlines_within_chm_footprint(gdf, in_raster) -> bool:
-    footprint = algo_common.generate_raster_footprint(in_raster, latlon=False)
-    if not footprint.is_empty and all(footprint.contains(gdf["geometry"])):
-        return True
-    elif not footprint.is_empty and any(footprint.intersects(gdf["geometry"])):
-        print("[Warning]: Some seedlines are partially intersect the CHM footprint.")
-        return True
-    else:
-        return False
 
 
 def _clip_to_chm_footprint(gdf, in_raster, shrink_m):
@@ -917,7 +906,6 @@ def check_seed_line(
     )
 
     skipped_steps = []
-    skipped_summary_state = None
 
     in_file, in_layer = sp_common.decode_file_layer(in_line)
     out_file, out_layer = sp_common.decode_file_layer(out_line)
@@ -1061,7 +1049,7 @@ def check_seed_line(
             raise ValueError("Input line and raster CRS do not match.")
 
     gdf = gpd.read_file(in_file, layer=in_layer)
-    if config.clip_to_chm_footprint and in_raster and not _seedlines_within_chm_footprint(gdf, in_raster):
+    if config.clip_to_chm_footprint and in_raster and not sp_common.seedlines_within_chm_footprint(gdf, in_raster):
         raise ValueError("Input line(s) do not overlap input raster.")
     if "fid" in gdf.columns:
         gdf = gdf.rename(columns={"fid": "orig_fid"})
@@ -1099,7 +1087,6 @@ def check_seed_line(
         out_layer,
         in_count,
         skipped_steps=skipped_steps,
-        summary_state=skipped_summary_state,
     ):
         _persist_qc_tables(input_count, 0)
         return
@@ -1120,7 +1107,6 @@ def check_seed_line(
         out_layer,
         in_count,
         skipped_steps=skipped_steps,
-        summary_state=skipped_summary_state,
     ):
         _persist_qc_tables(input_count, 0)
         return
@@ -1154,7 +1140,6 @@ def check_seed_line(
                 out_layer,
                 in_count,
                 skipped_steps=skipped_steps,
-                summary_state=skipped_summary_state,
             ):
                 _persist_qc_tables(input_count, 0)
                 return
@@ -1203,7 +1188,6 @@ def check_seed_line(
             out_layer,
             in_count,
             skipped_steps=skipped_steps,
-            summary_state=skipped_summary_state,
         ):
             _persist_qc_tables(input_count, 0)
             return
@@ -1236,7 +1220,6 @@ def check_seed_line(
         out_layer,
         in_count,
         skipped_steps=skipped_steps,
-        summary_state=skipped_summary_state,
     ):
         _persist_qc_tables(input_count, 0)
         return
@@ -1264,7 +1247,6 @@ def check_seed_line(
             out_layer,
             in_count,
             skipped_steps=skipped_steps,
-            summary_state=skipped_summary_state,
         ):
             _persist_qc_tables(input_count, 0)
             return
@@ -1298,7 +1280,6 @@ def check_seed_line(
             out_layer,
             in_count,
             skipped_steps=skipped_steps,
-            summary_state=skipped_summary_state,
         ):
             _persist_qc_tables(input_count, 0)
             return
@@ -1332,7 +1313,6 @@ def check_seed_line(
         out_layer,
         in_count,
         skipped_steps=skipped_steps,
-        summary_state=skipped_summary_state,
     ):
         _persist_qc_tables(input_count, 0)
         return
@@ -1354,7 +1334,6 @@ def check_seed_line(
             out_layer,
             in_count,
             skipped_steps=skipped_steps,
-            summary_state=skipped_summary_state,
         ):
             _persist_qc_tables(input_count, 0)
             return
@@ -1393,7 +1372,6 @@ def check_seed_line(
             out_layer,
             in_count,
             skipped_steps=skipped_steps,
-            summary_state=skipped_summary_state,
         ):
             _persist_qc_tables(input_count, 0)
             return
@@ -1432,7 +1410,6 @@ def check_seed_line(
             out_layer,
             in_count,
             skipped_steps=skipped_steps,
-            summary_state=skipped_summary_state,
         ):
             _persist_qc_tables(input_count, 0)
             return
@@ -1488,7 +1465,6 @@ def check_seed_line(
             out_layer,
             in_count,
             skipped_steps=skipped_steps,
-            summary_state=skipped_summary_state,
         ):
             _persist_qc_tables(input_count, 0)
             return

@@ -437,7 +437,7 @@ def test_check_seed_line_minimum_length_geographic_uses_meters(tmp_path, monkeyp
     monkeypatch.setattr(csl.sp_common, "vector_crs", lambda *_args, **_kwargs: object())
     monkeypatch.setattr(csl.sp_common, "raster_crs", lambda *_args, **_kwargs: object())
     monkeypatch.setattr(csl.sp_common, "compare_crs", lambda *_args, **_kwargs: True)
-    monkeypatch.setattr(csl, "_seedlines_within_chm_footprint", lambda *_args, **_kwargs: True)
+    monkeypatch.setattr(csl.sp_common, "seedlines_within_chm_footprint", lambda *_args, **_kwargs: True)
     monkeypatch.setattr(
         csl,
         "_clip_to_chm_footprint",
@@ -523,7 +523,7 @@ def test_pipeline_runs_preclean_snap_before_split(tmp_path, monkeypatch):
     monkeypatch.setattr(csl.sp_common, "vector_crs", lambda *_args, **_kwargs: object())
     monkeypatch.setattr(csl.sp_common, "raster_crs", lambda *_args, **_kwargs: object())
     monkeypatch.setattr(csl.sp_common, "compare_crs", lambda *_args, **_kwargs: True)
-    monkeypatch.setattr(csl, "_seedlines_within_chm_footprint", lambda *_args, **_kwargs: True)
+    monkeypatch.setattr(csl.sp_common, "seedlines_within_chm_footprint", lambda *_args, **_kwargs: True)
 
     call_order = []
 
