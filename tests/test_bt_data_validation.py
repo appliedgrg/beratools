@@ -101,3 +101,21 @@ def test_validate_list_text_option_rejects_unknown_value():
 
     with pytest.raises(ValueError, match="allowed options"):
         bt.validate_tool_parameter("legacy_mode", param)
+
+
+def test_set_last_browse_dir_keeps_latest_value_after_save_side_effect(monkeypatch, tmp_path):
+    bt = BTData()
+    old_dir = tmp_path / "old"
+    old_dir.mkdir()
+    new_dir = tmp_path / "new"
+    new_dir.mkdir()
+    bt.last_browse_dir = old_dir.as_posix()
+
+    def fake_save_setting(_key, _value):
+        bt.last_browse_dir = old_dir.as_posix()
+
+    monkeypatch.setattr(bt, "save_setting", fake_save_setting)
+
+    bt.set_last_browse_dir(new_dir.as_posix())
+
+    assert bt.get_last_browse_dir() == new_dir.as_posix()

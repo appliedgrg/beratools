@@ -37,12 +37,13 @@ class ToolWidgets(QtWidgets.QWidget):
 
     signal_save_tool_params = QtCore.pyqtSignal(object)
 
-    def __init__(self, tool_name, tool_args, show_advanced, parent=None):
+    def __init__(self, tool_name, tool_args, show_advanced, bt_data_obj=None, parent=None):
         super(ToolWidgets, self).__init__(parent)
 
         self.tool_name = tool_name
         self.show_advanced = show_advanced
         self.current_tool_api = ""
+        self.bt_data = bt_data_obj
         self.widget_list = []
         self.ui_widget_list = []
         self.widgets_by_variable = {}
@@ -92,7 +93,7 @@ class ToolWidgets(QtWidgets.QWidget):
             widget = None
 
             if "ExistingFile" in pt or "NewFile" in pt or "Directory" in pt:
-                widget = FileSelector(json_str, None)
+                widget = FileSelector(json_str, None, bt_data_obj=self.bt_data)
             elif "FileList" in pt:
                 widget = MultiFileSelector(json_str, None)
             elif "Boolean" in pt:
@@ -452,8 +453,9 @@ class FileSelector(QtWidgets.QWidget):
                     return True
         return False
 
-    def __init__(self, json_str, parent=None):
+    def __init__(self, json_str, parent=None, bt_data_obj=None):
         super(FileSelector, self).__init__(parent)
+        self.bt_data = bt_data_obj
         self.selected_layer = ""
         self.parse_params(json_str)
         self.initialize_values()
@@ -774,8 +776,10 @@ class FileSelector(QtWidgets.QWidget):
         dialog.setViewMode(QtWidgets.QFileDialog.Detail)
         # Handle both string and dict values (for vector files)
         path_value = self.value.get("path", "") if isinstance(self.value, dict) else self.value
-        if path_value:
-            dialog.setDirectory(str(Path(path_value).parent))
+        start_dir, start_dir_source = self._resolve_dialog_start_directory(path_value)
+        if start_dir:
+            dialog.setDirectory(str(start_dir))
+        if path_value and start_dir_source == "path_value":
             dialog.selectFile(Path(path_value).name)
         dialog.setNameFilter(file_types)
         if "ExistingFile" in self.parameter_type:
@@ -783,6 +787,36 @@ class FileSelector(QtWidgets.QWidget):
         else:
             dialog.setFileMode(QtWidgets.QFileDialog.AnyFile)
         return dialog
+
+    def _resolve_dialog_start_directory(self, path_value):
+        if self.bt_data:
+            last_browse_dir = self.bt_data.get_last_browse_dir()
+            if last_browse_dir:
+                browse_dir = Path(last_browse_dir).expanduser()
+                if browse_dir.exists() and browse_dir.is_dir():
+                    return browse_dir, "last_browse"
+
+        if path_value:
+            current_path = Path(path_value).expanduser()
+            if current_path.exists():
+                if current_path.is_dir():
+                    return current_path, "path_value"
+                return current_path.parent, "path_value"
+
+            parent_dir = current_path.parent
+            if parent_dir.exists() and parent_dir.is_dir():
+                return parent_dir, "path_value"
+
+        return Path.home(), "home"
+
+    def _save_last_browse_dir(self, selected_path):
+        if not self.bt_data:
+            return
+
+        selected = Path(selected_path).expanduser()
+        browse_dir = selected if selected.is_dir() else selected.parent
+        if browse_dir.exists() and browse_dir.is_dir():
+            self.bt_data.set_last_browse_dir(str(browse_dir))
 
     def process_selected_file(self, result, dialog):
         """Handle file name modification, extension adding, and GeoPackage logic."""
@@ -829,6 +863,7 @@ class FileSelector(QtWidgets.QWidget):
                 return
             result = file_names[0]
             result = self.process_selected_file(result, dialog)
+            self._save_last_browse_dir(result)
             self.handle_gpkg_selection(result)
         except Exception as e:
             print(e)

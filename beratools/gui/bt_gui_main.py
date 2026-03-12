@@ -362,7 +362,6 @@ class MainWindow(QtWidgets.QMainWindow):
         self.action_bera_tools_guide = None
         self.action_about_bera_tools = None
         self._create_help_menu()
-        self.working_dir = bt.work_dir
         self.tool_api = None
         self.tool_name = "Centerline"
         self.recent_tool = bt.recent_tool
@@ -435,7 +434,7 @@ class MainWindow(QtWidgets.QMainWindow):
 
         # ToolWidgets
         tool_args = bt.get_bera_tool_args(self.tool_name)
-        self.tool_widget = ToolWidgets(self.recent_tool, tool_args, bt.show_advanced)
+        self.tool_widget = ToolWidgets(self.recent_tool, tool_args, bt.show_advanced, bt_data_obj=bt)
 
         # bottom buttons
         slider = BTSlider(bt.selected_cpu_cores, bt.max_cpu_cores)
@@ -551,7 +550,7 @@ class MainWindow(QtWidgets.QMainWindow):
         self.btn_layout_top.itemAt(0).widget().setText(self.tool_name)
 
         # update tool widget
-        self.tool_widget = ToolWidgets(self.tool_name, tool_args, bt.show_advanced)
+        self.tool_widget = ToolWidgets(self.tool_name, tool_args, bt.show_advanced, bt_data_obj=bt)
         widget = self.top_right_layout.itemAt(1).widget()
         self.top_right_layout.removeWidget(widget)
         self.top_right_layout.insertWidget(1, self.tool_widget)
