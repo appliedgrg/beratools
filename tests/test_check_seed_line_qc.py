@@ -1,11 +1,12 @@
 import geopandas as gpd
 import pytest
-from shapely.geometry import GeometryCollection, LineString, Point, box
+from shapely.geometry import GeometryCollection, LineString, MultiLineString, Point, Polygon, box
 import json
 import sqlite3
 from pathlib import Path
 
 import beratools.core.constants as bt_const
+import beratools.core.algo_check_seed_line as acsl
 from beratools.core.algo_common import clean_line_geometries
 import beratools.tools.check_seed_line as csl
 
@@ -44,7 +45,7 @@ def test_snap_close_endpoints_directed_to_longer_line():
         crs="EPSG:3857",
     )
 
-    out = csl._snap_close_endpoints(gdf, tolerance=1.0)
+    out = acsl._snap_close_endpoints(gdf, tolerance=1.0)
     long_line = out.geometry.iloc[0]
     short_line = out.geometry.iloc[1]
 
@@ -62,7 +63,7 @@ def test_snap_close_endpoints_tie_break_by_lower_line_id():
         crs="EPSG:3857",
     )
 
-    out = csl._snap_close_endpoints(gdf, tolerance=1.0)
+    out = acsl._snap_close_endpoints(gdf, tolerance=1.0)
     line_with_higher_id = out.geometry.iloc[0]
     line_with_lower_id = out.geometry.iloc[1]
 
@@ -81,7 +82,7 @@ def test_snap_close_endpoints_component_snaps_chain_to_single_anchor():
         crs="EPSG:3857",
     )
 
-    out = csl._snap_close_endpoints(gdf, tolerance=0.6)
+    out = acsl._snap_close_endpoints(gdf, tolerance=0.6)
 
     a_end = Point(out.geometry.iloc[0].coords[-1])
     b_end = Point(out.geometry.iloc[1].coords[-1])
@@ -102,7 +103,7 @@ def test_snap_close_endpoints_anchor_can_snap_multiple_movers():
         crs="EPSG:3857",
     )
 
-    out = csl._snap_close_endpoints(gdf, tolerance=0.5)
+    out = acsl._snap_close_endpoints(gdf, tolerance=0.5)
 
     a_end = Point(out.geometry.iloc[0].coords[-1])
     b_end = Point(out.geometry.iloc[1].coords[-1])
@@ -124,7 +125,7 @@ def test_snap_close_endpoints_prefers_dominant_junction_anchor():
         crs="EPSG:3857",
     )
 
-    out = csl._snap_close_endpoints(gdf, tolerance=1.25)
+    out = acsl._snap_close_endpoints(gdf, tolerance=1.25)
 
     left_end = Point(out.geometry.iloc[0].coords[-1])
     right_h_end = Point(out.geometry.iloc[1].coords[0])
@@ -146,7 +147,7 @@ def test_snap_close_endpoints_geographic_uses_meter_tolerance():
         crs="EPSG:4326",
     )
 
-    out = csl._snap_close_endpoints(gdf, tolerance=5.0)
+    out = acsl._snap_close_endpoints(gdf, tolerance=5.0)
 
     a_end = Point(out.geometry.iloc[0].coords[-1])
     b_end = Point(out.geometry.iloc[1].coords[-1])
@@ -163,7 +164,7 @@ def test_snap_close_endpoints_geographic_snaps_with_larger_meter_tolerance():
         crs="EPSG:4326",
     )
 
-    out = csl._snap_close_endpoints(gdf, tolerance=20.0)
+    out = acsl._snap_close_endpoints(gdf, tolerance=20.0)
 
     a_end = Point(out.geometry.iloc[0].coords[-1])
     b_end = Point(out.geometry.iloc[1].coords[-1])
@@ -177,7 +178,7 @@ def test_densify_long_lines_preserves_feature_count_and_max_length():
         crs="EPSG:3857",
     )
 
-    out = csl._densify_long_lines(gdf, max_segment_length=2.0)
+    out = acsl._densify_long_lines(gdf, max_segment_length=2.0)
     assert len(out) == 1
     assert out.geometry.iloc[0].geom_type == "LineString"
 
@@ -193,14 +194,14 @@ def test_densify_long_lines_geographic_uses_meter_threshold():
         crs="EPSG:4326",
     )
 
-    out = csl._densify_long_lines(gdf, max_segment_length=500.0)
+    out = acsl._densify_long_lines(gdf, max_segment_length=500.0)
     coords = list(out.geometry.iloc[0].coords)
     assert len(coords) > 2
 
-    crs = csl._require_crs(out, "Max segment length (m)")
-    unit_ctx = csl._build_linear_unit_context(crs, out.unary_union.envelope)
+    crs = acsl._require_crs(out, "Max segment length (m)")
+    unit_ctx = acsl._build_linear_unit_context(crs, out.unary_union.envelope)
     seg_lengths_m = [
-        csl._geometry_length_meters(LineString([coords[i], coords[i + 1]]), unit_ctx)
+        acsl._geometry_length_meters(LineString([coords[i], coords[i + 1]]), unit_ctx)
         for i in range(len(coords) - 1)
     ]
     assert all(seg <= 500.0 + bt_const.SMALL_BUFFER for seg in seg_lengths_m)
@@ -213,14 +214,14 @@ def test_densify_long_lines_projected_feet_converts_meter_threshold():
         crs="EPSG:2263",
     )
 
-    out = csl._densify_long_lines(gdf, max_segment_length=500.0)
+    out = acsl._densify_long_lines(gdf, max_segment_length=500.0)
     coords = list(out.geometry.iloc[0].coords)
     assert len(coords) > 2
 
-    crs = csl._require_crs(out, "Max segment length (m)")
-    unit_ctx = csl._build_linear_unit_context(crs, out.unary_union.envelope)
+    crs = acsl._require_crs(out, "Max segment length (m)")
+    unit_ctx = acsl._build_linear_unit_context(crs, out.unary_union.envelope)
     seg_lengths_m = [
-        csl._geometry_length_meters(LineString([coords[i], coords[i + 1]]), unit_ctx)
+        acsl._geometry_length_meters(LineString([coords[i], coords[i + 1]]), unit_ctx)
         for i in range(len(coords) - 1)
     ]
     assert all(seg <= 500.0 + bt_const.SMALL_BUFFER for seg in seg_lengths_m)
@@ -260,14 +261,14 @@ def test_default_close_distance_m_projected_feet_converts_to_meters(monkeypatch)
         bounds=_DummyBounds(0.0, 0.0, 100.0, 100.0),
     )
     monkeypatch.setattr(
-        csl,
+        acsl,
         "rasterio",
         type(
             "_DummyRasterio", (), {"open": staticmethod(lambda *_args, **_kwargs: _DummyOpenCtx(dummy_src))}
         ),
     )
 
-    dist_m = csl._default_close_distance_m("dummy.tif")
+    dist_m = acsl._default_close_distance_m("dummy.tif")
     assert dist_m == pytest.approx(4.572009144018288, rel=1e-6)
 
 
@@ -279,14 +280,14 @@ def test_default_close_distance_m_geographic_uses_geodesic_conversion(monkeypatc
         bounds=_DummyBounds(-0.01, -0.01, 0.01, 0.01),
     )
     monkeypatch.setattr(
-        csl,
+        acsl,
         "rasterio",
         type(
             "_DummyRasterio", (), {"open": staticmethod(lambda *_args, **_kwargs: _DummyOpenCtx(dummy_src))}
         ),
     )
 
-    dist_m = csl._default_close_distance_m("dummy.tif")
+    dist_m = acsl._default_close_distance_m("dummy.tif")
     assert dist_m > 10.0
     assert dist_m < 20.0
 
@@ -299,7 +300,7 @@ def test_default_close_distance_m_logs_warning_when_fallback_used(monkeypatch):
         bounds=_DummyBounds(0.0, 0.0, 1.0, 1.0),
     )
     monkeypatch.setattr(
-        csl,
+        acsl,
         "rasterio",
         type(
             "_DummyRasterio", (), {"open": staticmethod(lambda *_args, **_kwargs: _DummyOpenCtx(dummy_src))}
@@ -308,10 +309,10 @@ def test_default_close_distance_m_logs_warning_when_fallback_used(monkeypatch):
 
     warnings = []
     monkeypatch.setattr(
-        csl.logger, "warning", lambda msg, *args: warnings.append(msg % args if args else msg)
+        acsl.logger, "warning", lambda msg, *args: warnings.append(msg % args if args else msg)
     )
 
-    dist_m = csl._default_close_distance_m("dummy.tif")
+    dist_m = acsl._default_close_distance_m("dummy.tif")
     assert dist_m == 2.0
     assert any("Using fallback preclean distance" in item for item in warnings)
 
@@ -321,9 +322,124 @@ def test_normalize_to_lines_filters_non_line_parts():
     mixed = GeometryCollection([line, Point(1.0, 0.0)])
     gdf = gpd.GeoDataFrame({"id": [1]}, geometry=[mixed], crs="EPSG:3857")
 
-    out = csl._normalize_to_lines(gdf)
+    out = acsl._normalize_to_lines(gdf)
     assert len(out) == 1
     assert out.geometry.iloc[0].geom_type == "LineString"
+
+
+def test_iter_line_parts_handles_various_geometry_types():
+    line_a = LineString([(0.0, 0.0), (1.0, 0.0)])
+    line_b = LineString([(2.0, 0.0), (3.0, 0.0)])
+    mixed = GeometryCollection(
+        [
+            Point(9.0, 9.0),
+            MultiLineString([line_a, line_b]),
+            GeometryCollection([Point(1.0, 1.0), LineString([(4.0, 0.0), (5.0, 0.0)])]),
+        ]
+    )
+
+    assert acsl._iter_line_parts(None) == []
+    assert acsl._iter_line_parts(Point(0.0, 0.0)) == []
+    assert len(acsl._iter_line_parts(line_a)) == 1
+    assert len(acsl._iter_line_parts(mixed)) == 3
+
+
+def test_normalize_to_lines_handles_none_and_empty_gdf():
+    assert acsl._normalize_to_lines(None) is None
+
+    empty = gpd.GeoDataFrame({"id": []}, geometry=[], crs="EPSG:3857")
+    out = acsl._normalize_to_lines(empty)
+    assert out.empty
+    assert out.crs == empty.crs
+
+
+def test_require_crs_raises_when_missing():
+    gdf = gpd.GeoDataFrame({"id": [1]}, geometry=[LineString([(0.0, 0.0), (1.0, 0.0)])])
+    with pytest.raises(ValueError, match="CRS is missing"):
+        acsl._require_crs(gdf, "Snap tolerance (m)")
+
+
+def test_choose_anchor_tie_break_order_line_id_then_discovery():
+    endpoint_a = {"degree": 2, "line_length": 10.0, "line_id": 8, "discovery_order": 5}
+    endpoint_b = {"degree": 2, "line_length": 10.0, "line_id": 3, "discovery_order": 1}
+    anchor, mover = acsl._choose_anchor(endpoint_a, endpoint_b)
+    assert anchor is endpoint_b
+    assert mover is endpoint_a
+
+    endpoint_c = {"degree": 1, "line_length": 4.0, "line_id": None, "discovery_order": 2}
+    endpoint_d = {"degree": 1, "line_length": 4.0, "line_id": None, "discovery_order": 9}
+    anchor, mover = acsl._choose_anchor(endpoint_c, endpoint_d)
+    assert anchor is endpoint_c
+    assert mover is endpoint_d
+
+
+def test_densify_linestring_edge_cases():
+    line = LineString([(0.0, 0.0), (1.0, 0.0)])
+    assert acsl._densify_linestring(line, max_segment_length=2.0).equals(line)
+    assert acsl._densify_linestring(None, max_segment_length=2.0) is None
+
+    polygon = Polygon([(0.0, 0.0), (1.0, 0.0), (1.0, 1.0), (0.0, 0.0)])
+    assert acsl._densify_linestring(polygon, max_segment_length=0.5).equals(polygon)
+
+    with pytest.raises(ValueError, match="greater than zero"):
+        acsl._densify_linestring(line, max_segment_length=0.0)
+
+
+def test_qc_merge_multilinestring_mixed_geometry_types(monkeypatch):
+    gdf = gpd.GeoDataFrame(
+        {"id": [1, 2, 3]},
+        geometry=[
+            MultiLineString(
+                [
+                    LineString([(0.0, 0.0), (1.0, 0.0)]),
+                    LineString([(1.0, 0.0), (2.0, 0.0)]),
+                ]
+            ),
+            Point(5.0, 5.0),
+            LineString([(10.0, 0.0), (11.0, 0.0)]),
+        ],
+        crs="EPSG:3857",
+    )
+
+    monkeypatch.setattr(
+        "beratools.core.algo_merge_lines.custom_line_merge",
+        lambda geom: MultiLineString(getattr(geom, "geoms", [])),
+    )
+
+    out = acsl.qc_merge_multilinestring(gdf)
+    assert len(out) == 3
+    assert all(geom.geom_type == "LineString" for geom in out.geometry)
+
+
+def test_qc_split_lines_at_intersections_basic_behavior():
+    gdf = gpd.GeoDataFrame(
+        {"id": [1, 2]},
+        geometry=[
+            LineString([(-1.0, 0.0), (1.0, 0.0)]),
+            LineString([(0.0, -1.0), (0.0, 1.0)]),
+        ],
+        crs="EPSG:3857",
+    )
+
+    out = acsl.qc_split_lines_at_intersections(gdf)
+    assert len(out) >= len(gdf)
+    assert all(getattr(geom, "geom_type", None) == "LineString" for geom in out.geometry)
+
+
+def test_vertex_precleaner_edge_cases_two_point_and_degenerate_coords():
+    cleaner = acsl.VertexPrecleaner(close_distance=1.0, angle_tol=10.0)
+
+    two_point = LineString([(0.0, 0.0), (2.0, 0.0)])
+    assert cleaner.cleanup_line(two_point, mode="full").equals(two_point)
+
+    with_duplicates = LineString([(0.0, 0.0), (0.0, 0.0), (2.0, 0.0)])
+    cleaned = cleaner.cleanup_line(with_duplicates, mode="full")
+    assert cleaned is not None
+    assert cleaned.geom_type == "LineString"
+    assert len(list(cleaned.coords)) == 2
+
+    collapsed = LineString([(1.0, 1.0), (1.0, 1.0), (1.0, 1.0)])
+    assert cleaner.cleanup_line(collapsed, mode="full") is None
 
 
 def test_check_seed_line_raises_when_seedlines_do_not_overlap_raster(tmp_path, monkeypatch):
@@ -394,7 +510,7 @@ def test_clip_to_chm_footprint_shrink_is_meters_for_geographic_crs(monkeypatch):
         lambda *_args, **_kwargs: box(-0.001, -0.001, 0.001, 0.001),
     )
 
-    out, rejected, footprint = csl._clip_to_chm_footprint(gdf, in_raster="dummy.tif", shrink_m=15.0)
+    out, rejected, footprint = acsl._clip_to_chm_footprint(gdf, in_raster="dummy.tif", shrink_m=15.0)
 
     assert not out.empty
     assert rejected.empty
@@ -419,7 +535,7 @@ def test_clip_to_chm_footprint_geographic_overshrink_raises(monkeypatch):
     )
 
     with pytest.raises(ValueError, match="CHM footprint became empty"):
-        csl._clip_to_chm_footprint(gdf, in_raster="dummy.tif", shrink_m=15.0)
+        acsl._clip_to_chm_footprint(gdf, in_raster="dummy.tif", shrink_m=15.0)
 
 
 def test_check_seed_line_minimum_length_geographic_uses_meters(tmp_path, monkeypatch):
