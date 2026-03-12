@@ -305,10 +305,11 @@ class ToolWidgets(QtWidgets.QWidget):
         if max_width <= 0:
             return
 
-        aligned_width = max_width + 8
+        aligned_width = max(max_width + 8, BT_LABEL_MIN_WIDTH)
         for controller in unique_widgets:
             if isinstance(controller, BooleanInput):
                 controller.checkbox.setMinimumWidth(aligned_width)
+                controller.checkbox.setMaximumWidth(aligned_width)
 
     def _attach_inline_widget(self, controller_widget, dependent_widget):
         controller_layout = self._get_widget_layout(controller_widget)
@@ -317,7 +318,11 @@ class ToolWidgets(QtWidgets.QWidget):
 
         dependent_widget.set_inline_mode(getattr(dependent_widget, "unit", ""))
         insert_index = controller_layout.count()
-        controller_layout.insertWidget(insert_index, dependent_widget)
+        if insert_index > 0:
+            last_item = controller_layout.itemAt(insert_index - 1)
+            if last_item and last_item.spacerItem() is not None:
+                insert_index -= 1
+        controller_layout.insertWidget(insert_index, dependent_widget, 0, QtCore.Qt.AlignVCenter)
         return True
 
     @staticmethod
@@ -1255,6 +1260,7 @@ class BooleanInput(QtWidgets.QWidget):
         self.checkbox.stateChanged.connect(self.update_value)
         self.label = self.checkbox  # Reference checkbox as label for styling
         self.layout = QtWidgets.QHBoxLayout()
+        self.layout.setContentsMargins(0, 0, 0, 0)
         self.layout.addWidget(self.checkbox)
         self.layout.addStretch()
         self.setLayout(self.layout)
