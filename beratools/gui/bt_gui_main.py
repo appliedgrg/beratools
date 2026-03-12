@@ -17,6 +17,7 @@ import json
 import os
 import platform
 import shlex
+import signal
 import sys
 import webbrowser
 from pathlib import Path
@@ -828,4 +829,14 @@ def runner():
                 pass
 
     QtCore.QTimer.singleShot(100, signal_ready)
+
+    # Allow Ctrl+C in the terminal to quit the application.
+    # Qt overrides Python's SIGINT handler; use a custom handler that
+    # calls app.quit() and a timer to let Python process signals.
+    signal.signal(signal.SIGINT, lambda *_: app.quit())
+    timer = QtCore.QTimer(app)
+    timer.start(500)
+    timer.timeout.connect(lambda: None)
+    app.aboutToQuit.connect(timer.stop)
+
     app.exec_()
