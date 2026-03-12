@@ -14,6 +14,9 @@ jobs:
     steps:
       - name: Checkout Code
         uses: actions/checkout@v6
+        with:
+          token: ${{ github.token }}
+          persist-credentials: true
       - name: Check if tagged commit is on main
         id: tag_guard
         run: |
