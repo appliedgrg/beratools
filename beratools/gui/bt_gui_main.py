@@ -469,6 +469,8 @@ class MainWindow(QtWidgets.QMainWindow):
         self.text_edit = QtWidgets.QPlainTextEdit()
         self.text_edit.setFont(QtGui.QFont("Consolas", 9))
         self.text_edit.setReadOnly(True)
+        self.text_edit.setContextMenuPolicy(QtCore.Qt.CustomContextMenu)
+        self.text_edit.customContextMenuRequested.connect(self._show_log_context_menu)
         self.print_about()
 
         # progress bar
@@ -628,6 +630,17 @@ class MainWindow(QtWidgets.QMainWindow):
         self.text_edit.moveCursor(QtGui.QTextCursor.End)
         self.text_edit.insertPlainText(text)
         self.text_edit.moveCursor(QtGui.QTextCursor.End)
+
+    def clear_log_messages(self):
+        self.text_edit.clear()
+
+    def _show_log_context_menu(self, pos):
+        menu = self.text_edit.createStandardContextMenu()
+        menu.addSeparator()
+        clear_action = menu.addAction("Clear Messages")
+        action = menu.exec_(self.text_edit.mapToGlobal(pos))
+        if action == clear_action:
+            self.clear_log_messages()
 
     def print_line_to_output(self, text, tag=None):
         self.text_edit.moveCursor(QtGui.QTextCursor.End)

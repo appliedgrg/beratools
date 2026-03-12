@@ -48,6 +48,9 @@ class TestMainWindowBasics:
     def test_text_edit_readonly(self, main_window):
         assert main_window.text_edit.isReadOnly()
 
+    def test_text_edit_uses_custom_context_menu(self, main_window):
+        assert main_window.text_edit.contextMenuPolicy() == Qt.CustomContextMenu
+
     def test_progress_bar_exists(self, main_window):
         assert main_window.progress_bar is not None
         assert main_window.progress_bar.value() in (-1, 0)
@@ -113,6 +116,21 @@ class _FakeProcess:
 class _ProcessEmitter(QtCore.QObject):
     stateChanged = QtCore.pyqtSignal(int)
     finished = QtCore.pyqtSignal()
+
+
+class _FakeMenu:
+    def __init__(self):
+        self.actions = []
+
+    def addSeparator(self):
+        return None
+
+    def addAction(self, text):
+        self.actions.append(text)
+        return text
+
+    def exec_(self, pos):
+        return self.actions[-1] if self.actions else None
 
 
 class TestButtonInteractions:
@@ -599,3 +617,23 @@ class TestErrorEdgeUi:
         main_window.custom_callback("10% working")
         main_window.process_finished()
         assert main_window.text_edit.isReadOnly()
+
+    def test_clear_log_messages_empties_output(self, main_window):
+        main_window.print_line_to_output("line one")
+        main_window.print_line_to_output("line two")
+        assert "line one" in main_window.text_edit.toPlainText()
+
+        main_window.clear_log_messages()
+
+        assert main_window.text_edit.toPlainText() == ""
+        assert main_window.text_edit.isReadOnly()
+
+    def test_log_context_menu_clear_action_clears_output(self, main_window):
+        fake_menu = _FakeMenu()
+        main_window.print_line_to_output("line one")
+
+        with patch.object(main_window.text_edit, "createStandardContextMenu", return_value=fake_menu):
+            main_window._show_log_context_menu(QtCore.QPoint(0, 0))
+
+        assert "Clear Messages" in fake_menu.actions
+        assert main_window.text_edit.toPlainText() == ""
