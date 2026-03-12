@@ -458,6 +458,10 @@ class BTData(object):
         self.settings = self.settings_manager.settings
         gui_settings = self.settings.get("gui_parameters", {})
         self.recent_tool = gui_settings.get("recent_tool", None)
+        if "last_browse_dir" in gui_settings and gui_settings["last_browse_dir"] is not None:
+            saved_dir = Path(gui_settings["last_browse_dir"]).expanduser()
+            if saved_dir.exists() and saved_dir.is_dir():
+                self.last_browse_dir = saved_dir.as_posix()
         self.load_gui_data()
         self.get_tool_history()
 
