@@ -59,6 +59,10 @@ class ToolWidgets(QtWidgets.QWidget):
         layout.setSpacing(8)
 
         for item in self.ui_widget_list:
+            item_layout = self._get_widget_layout(item)
+            if item_layout is not None:
+                m = item_layout.contentsMargins()
+                item_layout.setContentsMargins(m.left(), 0, m.right(), 0)
             layout.addWidget(item)
 
         self.save_button = QtWidgets.QPushButton("Save Parameters")
@@ -140,8 +144,7 @@ class ToolWidgets(QtWidgets.QWidget):
 
             # hide optional widgets
             if widget:
-                if widget.optional:
-                    widget.setMinimumHeight(BT_WIDGET_MIN_HEIGHT)
+                widget.setMinimumHeight(BT_WIDGET_MIN_HEIGHT)
                 self._set_widget_tooltip(widget)
                 widget.depends_on = p.get("depends_on")
                 widget.unit = p.get("unit", "")
@@ -334,12 +337,6 @@ class ToolWidgets(QtWidgets.QWidget):
             return False
 
         dependent_widget.set_inline_mode(getattr(dependent_widget, "unit", ""))
-        controller_layout.setContentsMargins(
-            controller_layout.contentsMargins().left(),
-            0,
-            controller_layout.contentsMargins().right(),
-            0,
-        )
         controller_layout.setAlignment(QtCore.Qt.AlignVCenter)
         # Remove trailing stretch so the inline widget can expand to fill available space
         insert_index = controller_layout.count()
