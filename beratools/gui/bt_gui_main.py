@@ -435,6 +435,12 @@ class MainWindow(QtWidgets.QMainWindow):
         # ToolWidgets
         tool_args = bt.get_bera_tool_args(self.tool_name)
         self.tool_widget = ToolWidgets(self.recent_tool, tool_args, bt.show_advanced, bt_data_obj=bt)
+        self.tool_scroll_area = QtWidgets.QScrollArea()
+        self.tool_scroll_area.setWidgetResizable(True)
+        self.tool_scroll_area.setHorizontalScrollBarPolicy(QtCore.Qt.ScrollBarAsNeeded)
+        self.tool_scroll_area.setVerticalScrollBarPolicy(QtCore.Qt.ScrollBarAsNeeded)
+        self.tool_scroll_area.setFrameShape(QtWidgets.QFrame.NoFrame)
+        self.tool_scroll_area.setWidget(self.tool_widget)
 
         # bottom buttons
         slider = BTSlider(bt.selected_cpu_cores, bt.max_cpu_cores)
@@ -459,7 +465,7 @@ class MainWindow(QtWidgets.QMainWindow):
 
         self.top_right_layout = QtWidgets.QVBoxLayout()
         self.top_right_layout.addLayout(self.btn_layout_top)
-        self.top_right_layout.addWidget(self.tool_widget)
+        self.top_right_layout.addWidget(self.tool_scroll_area)
         self.top_right_layout.addLayout(btn_layout_bottom)
         tool_widget_grp = QtWidgets.QGroupBox("Tool")
         tool_widget_grp.setLayout(self.top_right_layout)
@@ -551,9 +557,10 @@ class MainWindow(QtWidgets.QMainWindow):
 
         # update tool widget
         self.tool_widget = ToolWidgets(self.tool_name, tool_args, bt.show_advanced, bt_data_obj=bt)
-        widget = self.top_right_layout.itemAt(1).widget()
-        self.top_right_layout.removeWidget(widget)
-        self.top_right_layout.insertWidget(1, self.tool_widget)
+        old_widget = self.tool_scroll_area.takeWidget()
+        if old_widget is not None:
+            old_widget.deleteLater()
+        self.tool_scroll_area.setWidget(self.tool_widget)
         self.top_right_layout.update()
 
     def save_tool_parameter(self):
@@ -664,6 +671,8 @@ class MainWindow(QtWidgets.QMainWindow):
 
         self.tool_widget.adjustSize()
         self.tool_widget.updateGeometry()
+        self.tool_scroll_area.widget().adjustSize()
+        self.tool_scroll_area.viewport().update()
         self.top_right_layout.activate()
         self.top_right_layout.update()
 

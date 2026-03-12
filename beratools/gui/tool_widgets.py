@@ -30,6 +30,7 @@ from beratools.gui.geometry_types import (
 )
 
 BT_LABEL_MIN_WIDTH = 130
+BT_WIDGET_MIN_HEIGHT = 36
 
 
 class ToolWidgets(QtWidgets.QWidget):
@@ -53,6 +54,8 @@ class ToolWidgets(QtWidgets.QWidget):
 
         self.create_widgets(tool_args)
         layout = QtWidgets.QVBoxLayout()
+        layout.setAlignment(QtCore.Qt.AlignTop)
+        layout.setSpacing(8)
 
         for item in self.ui_widget_list:
             layout.addWidget(item)
@@ -136,6 +139,8 @@ class ToolWidgets(QtWidgets.QWidget):
 
             # hide optional widgets
             if widget:
+                if widget.optional:
+                    widget.setMinimumHeight(BT_WIDGET_MIN_HEIGHT)
                 self._set_widget_tooltip(widget)
                 widget.depends_on = p.get("depends_on")
                 widget.unit = p.get("unit", "")
@@ -312,10 +317,6 @@ class ToolWidgets(QtWidgets.QWidget):
 
         dependent_widget.set_inline_mode(getattr(dependent_widget, "unit", ""))
         insert_index = controller_layout.count()
-        if insert_index > 0:
-            last_item = controller_layout.itemAt(insert_index - 1)
-            if last_item and last_item.spacerItem() is not None:
-                insert_index -= 1
         controller_layout.insertWidget(insert_index, dependent_widget)
         return True
 
