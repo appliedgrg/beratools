@@ -183,29 +183,13 @@
             {
               "variable": "group_lines",
               "label": "Group lines",
-              "description": "Run line grouping before optional merge by group.",
+              "description": "Group lines by endpoint connectivity (and optional angle compatibility) and assign shared BT_GROUP IDs.",
               "type": "list",
               "subtype": "bool",
               "data": [true, false],
               "default": false,
               "output": false,
               "optional": true
-            },
-            {
-              "variable": "merge_by_group",
-              "label": "Merge by group",
-              "description": "Merge grouped lines by BT_GROUP (ignored when Group lines is disabled).",
-              "type": "list",
-              "subtype": "bool",
-              "data": [true, false],
-              "default": false,
-              "output": false,
-              "optional": true,
-              "depends_on": {
-                "variable": "group_lines",
-                "condition": true,
-                "mode": "hide"
-              }
             },
             {
               "variable": "densify_long_lines",

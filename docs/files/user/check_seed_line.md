@@ -12,7 +12,7 @@
 - optionally clip lines to CHM valid-data footprint (with inward shrink)
 - optionally snap close endpoints (endpoint-only, directed snap)
 - split lines at intersections
-- optionally group lines and merge by group
+- optionally group lines
 - optionally densify long lines by inserting internal vertices
 
 ## How do I use it?
@@ -34,10 +34,17 @@
 - **Minimum line length (m)**: Threshold in meters for short-line removal (default `5`). Geographic CRS inputs are evaluated in a local meter-based projection for this step.
 - **Snap close endpoints**: Enable endpoint-to-endpoint snapping only
 - **Snap tolerance (m)**: Maximum endpoint snap distance in meters (default `5`). Geographic CRS inputs are evaluated in a local meter-based projection for this step. If both short-line removal and snapping are enabled, effective tolerance is `max(snap_tolerance, minimum_line_length)`.
-- **Group lines**: Enable line grouping
-- **Merge by group**: Merge grouped lines (ignored when `Group lines` is off)
+- **Group lines**: Group nearby/intersecting lines and assign shared `BT_GROUP` values
 - **Densify long lines**: Insert equalized internal vertices on long lines
 - **Max segment length (m)**: Maximum segment length for densification (default `500`)
+
+## Group lines methodology
+
+- Builds endpoint nodes from each line and merges nearly coincident endpoints.
+- Creates a connectivity graph linking lines that meet at merged endpoints.
+- When angle grouping is enabled, uses endpoint direction to keep only angle-compatible links.
+- Assigns one shared `BT_GROUP` ID to each connected component.
+- This step assigns group IDs only; it does not dissolve/merge geometries.
 
 ## Tips
 

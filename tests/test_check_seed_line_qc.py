@@ -463,7 +463,7 @@ def test_check_seed_line_raises_when_seedlines_do_not_overlap_raster(tmp_path, m
         )
 
 
-def test_check_seed_line_merge_guard_assigns_unique_bt_group(tmp_path, monkeypatch):
+def test_check_seed_line_assigns_unique_bt_group_when_grouping_disabled(tmp_path, monkeypatch):
     in_gpkg = _write_seed_input(
         tmp_path,
         [
@@ -488,7 +488,6 @@ def test_check_seed_line_merge_guard_assigns_unique_bt_group(tmp_path, monkeypat
         in_raster="dummy.tif",
         out_line=f"{out_gpkg.as_posix()}|seed_checked",
         group_lines=False,
-        merge_by_group=True,
     )
 
     out = gpd.read_file(out_gpkg, layer="seed_checked")
@@ -737,7 +736,6 @@ def test_check_seed_line_prints_step_status_for_disabled_options(tmp_path, monke
         remove_short_lines=False,
         snap_close_endpoints=False,
         group_lines=False,
-        merge_by_group=False,
         densify_long_lines=False,
         apply_seed_line_correction=False,
     )

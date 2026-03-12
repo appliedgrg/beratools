@@ -65,7 +65,6 @@ class SeedLineQCConfig:
     snap_close_endpoints: bool = False
     snap_tolerance: float = 5.0
     group_lines: bool = False
-    merge_by_group: bool = False
     densify_long_lines: bool = False
     max_segment_length: float = bt_const.LP_SEGMENT_LENGTH
     use_angle_grouping: bool = True
@@ -206,7 +205,6 @@ def check_seed_line(
     snap_close_endpoints=False,
     snap_tolerance=5.0,
     group_lines=False,
-    merge_by_group=False,
     densify_long_lines=False,
     max_segment_length=bt_const.LP_SEGMENT_LENGTH,
     use_angle_grouping=True,
@@ -241,7 +239,6 @@ def check_seed_line(
         snap_close_endpoints=_to_bool(snap_close_endpoints),
         snap_tolerance=float(snap_tolerance),
         group_lines=_to_bool(group_lines),
-        merge_by_group=_to_bool(merge_by_group),
         densify_long_lines=_to_bool(densify_long_lines),
         max_segment_length=float(max_segment_length),
         use_angle_grouping=_to_bool(use_angle_grouping),
@@ -328,7 +325,7 @@ def check_seed_line(
         },
         "qc_removed_final": {
             "layer_name": "qc_removed_final",
-            "step": 12,
+            "step": 11,
             "step_name": "final cleanup",
             "reason": "Remaining invalid/empty/too-short lines",
             "feature_count": 0,
@@ -376,7 +373,6 @@ def check_seed_line(
             "snap_close_endpoints": int(config.snap_close_endpoints),
             "snap_tolerance_m": float(config.snap_tolerance),
             "group_lines": int(config.group_lines),
-            "merge_by_group": int(config.merge_by_group),
             "densify_long_lines": int(config.densify_long_lines),
             "max_segment_length_m": float(config.max_segment_length),
             "apply_seed_line_correction": int(config.apply_seed_line_correction),
@@ -700,52 +696,13 @@ def check_seed_line(
             skipped_steps=skipped_steps,
         )
 
-    step_name = "Merge by group"
-    in_count = len(gdf)
-    if config.merge_by_group and config.group_lines:
-        t0 = _step_timer()
-        gdf = gdf.dissolve(by=bt_const.BT_GROUP, as_index=False, aggfunc="first")
-        gdf = qc_merge_multilinestring(gdf).reset_index(drop=True)
-        _log_step(
-            10,
-            step_name,
-            in_count,
-            len(gdf),
-            _elapsed(t0),
-            verbose=verbose_steps,
-            skipped_steps=skipped_steps,
-        )
-        if _bail_if_empty(
-            gdf,
-            step_name,
-            out_file,
-            out_layer,
-            in_count,
-            skipped_steps=skipped_steps,
-        ):
-            _persist_qc_tables(input_count, 0)
-            return
-    else:
-        reason = "disabled"
-        if config.merge_by_group and not config.group_lines:
-            reason = "guarded because group_lines=false"
-        _log_step(
-            10,
-            step_name,
-            in_count,
-            in_count,
-            skipped_reason=reason,
-            verbose=verbose_steps,
-            skipped_steps=skipped_steps,
-        )
-
     step_name = "Densify long lines"
     in_count = len(gdf)
     if config.densify_long_lines:
         t0 = _step_timer()
         gdf = _densify_long_lines(gdf, config.max_segment_length).reset_index(drop=True)
         _log_step(
-            11,
+            10,
             step_name,
             in_count,
             len(gdf),
@@ -765,7 +722,7 @@ def check_seed_line(
             return
     else:
         _log_step(
-            11,
+            10,
             step_name,
             in_count,
             in_count,
@@ -800,7 +757,7 @@ def check_seed_line(
         algo_common.save_aux_layer(debug_layers.get("anchors"), out_file, "anchors")
         algo_common.save_aux_layer(debug_layers.get("vertices"), out_file, "vertices")
         _log_step(
-            12,
+            11,
             step_name,
             in_count,
             len(gdf),
@@ -820,7 +777,7 @@ def check_seed_line(
             return
     else:
         _log_step(
-            12,
+            11,
             step_name,
             in_count,
             in_count,
