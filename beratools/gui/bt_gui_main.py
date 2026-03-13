@@ -382,6 +382,7 @@ class MainWindow(QtWidgets.QMainWindow):
         # QProcess run tools
         self.process = None
         self.cancel_op = False
+        self._stdout_buffer = ""
 
         # BERA tool list
         self.bera_tools = bt.bera_tools
@@ -747,6 +748,7 @@ class MainWindow(QtWidgets.QMainWindow):
         if self.process is None:  # No process running.
             self.print_line_to_output(f"Tool {self.tool_name} started")
             self.print_line_to_output("-----------------------")
+            self._stdout_buffer = ""
             self.process = QtCore.QProcess()  # Keep a reference to the QProcess
             self.process.readyReadStandardOutput.connect(self.handle_stdout)
             self.process.readyReadStandardError.connect(self.handle_stderr)
@@ -771,19 +773,37 @@ class MainWindow(QtWidgets.QMainWindow):
             self.process.kill()
 
     def handle_stderr(self):
+        if not self.process:
+            return
         data = self.process.readAllStandardError()
         stderr = bytes(data).decode("utf8")
 
         self.message(stderr)
 
     def handle_stdout(self):
-        while self.process and self.process.canReadLine():
-            line = self.process.readLine()
-            line = bytes(line).decode("utf8")
-
-            # process line output
-            self.custom_callback(line)
+        self._drain_stdout(flush_partial=False)
         sys.stdout.flush()
+
+    def _drain_stdout(self, flush_partial=False):
+        if not self.process:
+            return
+
+        data = self.process.readAllStandardOutput()
+        chunk = bytes(data).decode("utf8") if data else ""
+        if chunk:
+            self._stdout_buffer += chunk
+
+        while True:
+            newline_idx = self._stdout_buffer.find("\n")
+            if newline_idx < 0:
+                break
+            line = self._stdout_buffer[: newline_idx + 1]
+            self._stdout_buffer = self._stdout_buffer[newline_idx + 1 :]
+            self.custom_callback(line)
+
+        if flush_partial and self._stdout_buffer:
+            self.custom_callback(self._stdout_buffer)
+            self._stdout_buffer = ""
 
     def handle_state(self, state):
         states = {
@@ -800,8 +820,16 @@ class MainWindow(QtWidgets.QMainWindow):
             self.btn_run.setEnabled(False)
 
     def process_finished(self):
+        if self.process:
+            self._drain_stdout(flush_partial=True)
+
+            stderr_data = self.process.readAllStandardError()
+            if stderr_data:
+                self.message(bytes(stderr_data).decode("utf8"))
+
         self.message("Process finished.")
         self.process = None
+        self._stdout_buffer = ""
         self.progress_bar.setValue(0)
         self.progress_label.setText("")
 
