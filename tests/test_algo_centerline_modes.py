@@ -1,5 +1,6 @@
 import pytest
 from pathlib import Path
+import geopandas as gpd
 import pyproj
 from shapely.geometry import LineString, Point, Polygon
 
@@ -298,6 +299,18 @@ def test_centerline_tool_converts_line_radius_meters_to_projected_native_units(m
         lambda *_args, **_kwargs: object(),
     )
     monkeypatch.setattr("beratools.tools.centerline.sp_common.compare_crs", lambda *_args, **_kwargs: True)
+    monkeypatch.setattr(
+        "beratools.tools.centerline.gpd.read_file",
+        lambda *_args, **_kwargs: gpd.GeoDataFrame(geometry=[LineString([(0, 0), (1, 0)])], crs="EPSG:2263"),
+    )
+    monkeypatch.setattr(
+        "beratools.tools.centerline.sp_common.check_vector_raster_overlap",
+        lambda *_args, **_kwargs: True,
+    )
+    monkeypatch.setattr(
+        "beratools.tools.centerline.sp_common.check_vector_raster_extent_overlap",
+        lambda *_args, **_kwargs: True,
+    )
 
     def _fake_generate(
         _in_file, _in_raster, line_radius, layer=None, proc_segments=True, guided_strategy=None
@@ -344,3 +357,130 @@ def test_centerline_tool_rejects_geographic_crs_for_meter_radius(monkeypatch):
             proc_segments=True,
             out_line="out.gpkg|centerline",
         )
+
+
+def test_centerline_tool_terminates_when_lines_do_not_overlap_raster(monkeypatch):
+    from beratools.tools.centerline import centerline
+
+    class _FakeOSR:
+        def ExportToWkt(self):
+            return pyproj.CRS.from_epsg(2263).to_wkt()
+
+    monkeypatch.setattr(
+        "beratools.tools.centerline.sp_common.vector_crs", lambda *_args, **_kwargs: _FakeOSR()
+    )
+    monkeypatch.setattr("beratools.tools.centerline.sp_common.raster_crs", lambda *_args, **_kwargs: object())
+    monkeypatch.setattr("beratools.tools.centerline.sp_common.compare_crs", lambda *_args, **_kwargs: True)
+    monkeypatch.setattr(
+        "beratools.tools.centerline.gpd.read_file",
+        lambda *_args, **_kwargs: gpd.GeoDataFrame(geometry=[LineString([(0, 0), (1, 0)])], crs="EPSG:2263"),
+    )
+    monkeypatch.setattr(
+        "beratools.tools.centerline.sp_common.check_vector_raster_overlap",
+        lambda *_args, **_kwargs: False,
+    )
+    monkeypatch.setattr(
+        "beratools.tools.centerline.sp_common.check_vector_raster_extent_overlap",
+        lambda *_args, **_kwargs: True,
+    )
+
+    called = {"generate": 0}
+
+    def _fake_generate(*_args, **_kwargs):
+        called["generate"] += 1
+        raise RuntimeError("should-not-be-called")
+
+    monkeypatch.setattr("beratools.tools.centerline.generate_line_class_list", _fake_generate)
+
+    result = centerline(
+        in_line="dummy.gpkg|line",
+        in_raster="dummy.tif",
+        line_radius=10.0,
+        proc_segments=True,
+        out_line="out.gpkg|centerline",
+    )
+
+    assert result is None
+    assert called["generate"] == 0
+
+
+def test_centerline_tool_continues_when_lines_partially_overlap_raster(monkeypatch):
+    from beratools.tools.centerline import centerline
+
+    class _FakeOSR:
+        def ExportToWkt(self):
+            return pyproj.CRS.from_epsg(2263).to_wkt()
+
+    monkeypatch.setattr(
+        "beratools.tools.centerline.sp_common.vector_crs", lambda *_args, **_kwargs: _FakeOSR()
+    )
+    monkeypatch.setattr("beratools.tools.centerline.sp_common.raster_crs", lambda *_args, **_kwargs: object())
+    monkeypatch.setattr("beratools.tools.centerline.sp_common.compare_crs", lambda *_args, **_kwargs: True)
+    monkeypatch.setattr(
+        "beratools.tools.centerline.gpd.read_file",
+        lambda *_args, **_kwargs: gpd.GeoDataFrame(geometry=[LineString([(0, 0), (1, 0)])], crs="EPSG:2263"),
+    )
+    monkeypatch.setattr(
+        "beratools.tools.centerline.sp_common.check_vector_raster_overlap",
+        lambda *_args, **_kwargs: True,
+    )
+    monkeypatch.setattr(
+        "beratools.tools.centerline.sp_common.check_vector_raster_extent_overlap",
+        lambda *_args, **_kwargs: True,
+    )
+
+    called = {"generate": 0}
+
+    def _fake_generate(*_args, **_kwargs):
+        called["generate"] += 1
+        return []
+
+    monkeypatch.setattr("beratools.tools.centerline.generate_line_class_list", _fake_generate)
+
+    result = centerline(
+        in_line="dummy.gpkg|line",
+        in_raster="dummy.tif",
+        line_radius=10.0,
+        proc_segments=True,
+        out_line="out.gpkg|centerline",
+    )
+
+    assert result == 1
+    assert called["generate"] == 1
+
+
+def test_centerline_tool_terminates_on_extent_precheck_without_loading_features(monkeypatch):
+    from beratools.tools.centerline import centerline
+
+    class _FakeOSR:
+        def ExportToWkt(self):
+            return pyproj.CRS.from_epsg(2263).to_wkt()
+
+    monkeypatch.setattr(
+        "beratools.tools.centerline.sp_common.vector_crs", lambda *_args, **_kwargs: _FakeOSR()
+    )
+    monkeypatch.setattr("beratools.tools.centerline.sp_common.raster_crs", lambda *_args, **_kwargs: object())
+    monkeypatch.setattr("beratools.tools.centerline.sp_common.compare_crs", lambda *_args, **_kwargs: True)
+    monkeypatch.setattr(
+        "beratools.tools.centerline.sp_common.check_vector_raster_extent_overlap",
+        lambda *_args, **_kwargs: False,
+    )
+
+    called = {"read": 0}
+
+    def _fake_read(*_args, **_kwargs):
+        called["read"] += 1
+        raise RuntimeError("should-not-read")
+
+    monkeypatch.setattr("beratools.tools.centerline.gpd.read_file", _fake_read)
+
+    result = centerline(
+        in_line="dummy.gpkg|line",
+        in_raster="dummy.tif",
+        line_radius=10.0,
+        proc_segments=True,
+        out_line="out.gpkg|centerline",
+    )
+
+    assert result is None
+    assert called["read"] == 0

@@ -458,6 +458,7 @@ class BTData(object):
         self.settings = self.settings_manager.settings
         gui_settings = self.settings.get("gui_parameters", {})
         self.recent_tool = gui_settings.get("recent_tool", None)
+        self.selected_cpu_cores = gui_settings.get("selected_cpu_cores", -1)
         if "last_browse_dir" in gui_settings and gui_settings["last_browse_dir"] is not None:
             saved_dir = Path(gui_settings["last_browse_dir"]).expanduser()
             if saved_dir.exists() and saved_dir.is_dir():
@@ -491,7 +492,15 @@ class BTData(object):
             if not data_path.exists():
                 data_path.mkdir()
 
-        self.load_saved_tool_info()
+        # Load settings dict from file without overwriting instance variables
+        if self.setting_file is not None:
+            json_file = Path(self.setting_file)
+            if json_file.exists():
+                with open(json_file, "r") as open_file:
+                    try:
+                        self.settings = json.load(open_file, object_pairs_hook=OrderedDict)
+                    except json.decoder.JSONDecodeError:
+                        pass
 
         if value is not None:
             if "gui_parameters" not in self.settings.keys():
@@ -617,53 +626,6 @@ class BTData(object):
             return ret
         except (OSError, ValueError) as err:
             return err
-
-    def load_saved_tool_info(self):
-        if self.setting_file is not None:
-            data_path = Path(self.setting_file).parent
-            if not data_path.exists():
-                data_path.mkdir()
-
-        saved_parameters = {}
-        if self.setting_file is not None:
-            json_file = Path(self.setting_file)
-            if not json_file.exists():
-                self.settings = saved_parameters
-                return
-            with open(json_file, "r") as open_file:
-                try:
-                    saved_parameters = json.load(open_file, object_pairs_hook=OrderedDict)
-                except json.decoder.JSONDecodeError:
-                    logging.error("Failed to decode settings JSON file of saved tool info.", exc_info=True)
-
-            self.settings = saved_parameters
-        else:
-            self.settings = saved_parameters
-            return
-
-        self.settings = saved_parameters
-
-        # parse file
-        if (
-            isinstance(self.settings, dict)
-            and "gui_parameters" in self.settings
-            and self.settings["gui_parameters"] is not None
-        ):
-            gui_settings = self.settings["gui_parameters"]
-
-            if "selected_cpu_cores" in gui_settings and gui_settings["selected_cpu_cores"] is not None:
-                self.selected_cpu_cores = gui_settings["selected_cpu_cores"]
-
-            if "recent_tool" in gui_settings and gui_settings["recent_tool"] is not None:
-                self.recent_tool = gui_settings["recent_tool"]
-                api_result = self.get_bera_tool_api(self.recent_tool)
-                if not api_result:
-                    self.recent_tool = None
-
-            if "last_browse_dir" in gui_settings and gui_settings["last_browse_dir"] is not None:
-                saved_dir = Path(gui_settings["last_browse_dir"]).expanduser()
-                if saved_dir.exists() and saved_dir.is_dir():
-                    self.last_browse_dir = saved_dir.as_posix()
 
     def set_last_browse_dir(self, path_str):
         if not path_str:

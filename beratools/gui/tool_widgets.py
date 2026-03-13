@@ -302,21 +302,14 @@ class ToolWidgets(QtWidgets.QWidget):
                 continue
 
             if isinstance(widget, BooleanInput):
-                text_width = widget.checkbox.fontMetrics().horizontalAdvance(
-                    widget.checkbox.text()
-                )
+                text_width = widget.checkbox.fontMetrics().horizontalAdvance(widget.checkbox.text())
                 if not checkbox_indicator_overhead:
                     style = widget.checkbox.style()
                     opt = QtWidgets.QStyleOptionButton()
                     opt.initFrom(widget.checkbox)
-                    checkbox_indicator_overhead = (
-                        style.pixelMetric(
-                            QtWidgets.QStyle.PM_IndicatorWidth, opt, widget.checkbox
-                        )
-                        + style.pixelMetric(
-                            QtWidgets.QStyle.PM_CheckBoxLabelSpacing, opt, widget.checkbox
-                        )
-                    )
+                    checkbox_indicator_overhead = style.pixelMetric(
+                        QtWidgets.QStyle.PM_IndicatorWidth, opt, widget.checkbox
+                    ) + style.pixelMetric(QtWidgets.QStyle.PM_CheckBoxLabelSpacing, opt, widget.checkbox)
                 anchor_width = max(anchor_width, text_width + checkbox_indicator_overhead + 8)
             elif isinstance(label, QtWidgets.QLabel):
                 anchor_width = max(anchor_width, label.sizeHint().width())
@@ -598,16 +591,22 @@ class FileSelector(QtWidgets.QWidget):
         # Populate combo box if vector and file exists
         if self.is_vector and self.value["path"] and Path(self.value["path"]).exists():
             try:
+                requested_layer = self.value.get("layer", "")
                 layers_dict = get_layers(self.value["path"])
+                self.layer_combo.blockSignals(True)
                 self.layer_combo.clear()
                 for layer_name, geometry_type in layers_dict.items():
                     self.layer_combo.addItem(f"{layer_name} ({geometry_type})")
                 self.layer_combo.setVisible(True)
-                if self.value["layer"]:
-                    index = self.layer_combo.findText(self.value["layer"])
+                if requested_layer:
+                    index = self._find_layer_index_by_name(requested_layer)
                     if index >= 0:
                         self.layer_combo.setCurrentIndex(index)
+                        self.value["layer"] = requested_layer
+                self.layer_combo.blockSignals(False)
+                self.set_layer(self.layer_combo.currentText())
             except Exception:
+                self.layer_combo.blockSignals(False)
                 self.layer_combo.clear()
                 self.layer_combo.setVisible(False)
         self.in_file.textChanged.connect(self.file_name_edited)
@@ -695,6 +694,25 @@ class FileSelector(QtWidgets.QWidget):
         default_name = self._unique_layer_name("Result_layer")
         self.layer_combo.addItem(default_name)
 
+    @staticmethod
+    def _layer_name_from_combo_text(combo_text):
+        if not combo_text or combo_text == FileSelector.NO_COMPATIBLE_LAYER_TEXT:
+            return ""
+        if " (" in combo_text:
+            return combo_text.split(" (", 1)[0]
+        return combo_text
+
+    def _find_layer_index_by_name(self, layer_name):
+        target = (layer_name or "").strip()
+        if not target:
+            return -1
+
+        for index in range(self.layer_combo.count()):
+            if self._layer_name_from_combo_text(self.layer_combo.itemText(index)) == target:
+                return index
+
+        return -1
+
     def _on_vector_path_changed(self, path, is_output, selected_layer=""):
         is_gpkg = bool(path) and path.lower().endswith(".gpkg")
         if not is_gpkg:
@@ -712,7 +730,7 @@ class FileSelector(QtWidgets.QWidget):
                 if is_output and self.layer_combo.isEditable():
                     self.layer_combo.setCurrentText(selected_layer)
                 else:
-                    index = self.layer_combo.findText(selected_layer)
+                    index = self._find_layer_index_by_name(selected_layer)
                     if index >= 0:
                         self.layer_combo.setCurrentIndex(index)
             self.layer_combo.adjustSize()
