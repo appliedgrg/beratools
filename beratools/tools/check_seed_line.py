@@ -15,7 +15,6 @@ Description:
 
 import logging
 import time
-import builtins
 from datetime import datetime, timezone
 from dataclasses import dataclass
 from typing import Optional
@@ -101,7 +100,7 @@ def _log_step(
 
     if skipped_reason:
         if verbose:
-            builtins.print(f"↷ {label} {in_count} -> {out_count}", flush=True)
+            print(f"↷ {label} {in_count} -> {out_count}")
         elif skipped_steps is not None:
             _record_skipped_step(skipped_steps, step_idx, step_name, skipped_reason)
         logger.debug(
@@ -115,19 +114,10 @@ def _log_step(
         return
 
     if elapsed is None:
-        builtins.print(f"✓ {label} {in_count} -> {out_count}", flush=True)
-        logger.debug("Step %s - %s: %s -> %s", step_idx, step_name, in_count, out_count)
+        print(f"✓ {label} {in_count} -> {out_count}")
         return
 
-    builtins.print(f"✓ {label} {in_count} -> {out_count} {elapsed:.3f}s", flush=True)
-    logger.debug(
-        "Step %s - %s: %s -> %s (%.3fs)",
-        step_idx,
-        step_name,
-        in_count,
-        out_count,
-        elapsed,
-    )
+    print(f"✓ {label} {in_count} -> {out_count} {elapsed:.3f}s")
 
 
 def _print_skipped_summary(skipped_steps):
@@ -152,7 +142,22 @@ def _print_skipped_summary(skipped_steps):
     for _, step_name, _ in skipped_steps:
         label = step_name.ljust(34)
         lines.append(f"↷ {label} skipped")
-    builtins.print("\n".join(lines), flush=True)
+    print("\n".join(lines))
+
+
+def _print_qc_summary(qc_summary, aux_file):
+    if qc_summary["total"] > 0:
+        print("QC Report Summary:")
+        print(f"  Short lines:           {qc_summary['short_line']} issues")
+        print(f"  Close vertices:        {qc_summary['close_vertices']} issues")
+        print(f"  Unsnapped endpoints:   {qc_summary['unsnapped_endpoint']} issues")
+        print(f"  Self-crossing:         {qc_summary['self_crossing']} issues")
+        print(f"  Overlapping lines:     {qc_summary['overlap']} issues")
+        print(f"  {'-' * 35}")
+        print(f"  Total issues:          {qc_summary['total']}")
+        print(f"  Details saved to: {aux_file} (layer: qc_report_issues)")
+    else:
+        print("QC Report: No issues found.")
 
 
 def _record_skipped_step(skipped_steps, step_idx, step_name, reason):
@@ -177,6 +182,7 @@ def _bail_if_empty(gdf, step_name, out_file, out_layer, in_count, skipped_steps=
         step_name,
         in_count,
     )
+    print("QC Report skipped: output became empty before Step 12.")
     _write_output(gdf.iloc[0:0].copy(), out_file, out_layer)
     return True
 
@@ -343,6 +349,15 @@ def check_seed_line(
             "step": 11,
             "step_name": "final cleanup",
             "reason": "Remaining invalid/empty/too-short lines",
+            "feature_count": 0,
+            "written": 0,
+            "notes": "not triggered",
+        },
+        "qc_report_issues": {
+            "layer_name": "qc_report_issues",
+            "step": 12,
+            "step_name": "QC report",
+            "reason": "Post-processing QC check results (using 2x thresholds)",
             "feature_count": 0,
             "written": 0,
             "notes": "not triggered",
@@ -760,23 +775,27 @@ def check_seed_line(
         )
 
         t0 = _step_timer()
-        slc = SeedLineCorrection(
-            in_file,
-            in_raster,
-            slc_search_distance_native,
-            slc_line_radius_native,
-            processes,
-            call_mode,
-            layer=in_layer,
-            optimize_internal_vertices=config.slc_optimize_internal_vertices,
-        )
-        slc.prepare_lines(lines_gdf=gdf)
-        slc.group_vertices()
-        gdf = _ensure_gdf(slc.optimize(), gdf.crs).reset_index(drop=True)
-        debug_layers = slc.get_debug_layers()
-        algo_common.save_aux_layer(debug_layers.get("lc_paths"), out_file, "lc_paths")
-        algo_common.save_aux_layer(debug_layers.get("anchors"), out_file, "anchors")
-        algo_common.save_aux_layer(debug_layers.get("vertices"), out_file, "vertices")
+        try:
+            slc = SeedLineCorrection(
+                in_file,
+                in_raster,
+                slc_search_distance_native,
+                slc_line_radius_native,
+                processes,
+                call_mode,
+                layer=in_layer,
+                optimize_internal_vertices=config.slc_optimize_internal_vertices,
+            )
+            slc.prepare_lines(lines_gdf=gdf)
+            slc.group_vertices()
+            gdf = _ensure_gdf(slc.optimize(), gdf.crs).reset_index(drop=True)
+            debug_layers = slc.get_debug_layers()
+            algo_common.save_aux_layer(debug_layers.get("lc_paths"), out_file, "lc_paths")
+            algo_common.save_aux_layer(debug_layers.get("anchors"), out_file, "anchors")
+            algo_common.save_aux_layer(debug_layers.get("vertices"), out_file, "vertices")
+        except Exception:
+            logger.exception("Apply Seed Line Correction failed; QC report step was not reached.")
+            raise
         _log_step(
             11,
             step_name,
@@ -810,6 +829,29 @@ def check_seed_line(
     gdf, removed_gdf = _clean_line_geometries_min_length_m(gdf, bt_const.SMALL_BUFFER)
     gdf = gdf.reset_index(drop=True)
     _mark_layer("qc_removed_final", removed_gdf, notes="written" if _has_rows(removed_gdf) else "empty")
+
+    step_name = "Generate QC Report"
+    from beratools.core.algo_check_seed_line_validate import generate_qc_report
+
+    print("Running final validation pass to detect remaining issues after all previous steps...")
+    t0 = _step_timer()
+    qc_issues_gdf, qc_summary = generate_qc_report(
+        gdf,
+        min_length_m=config.minimum_line_length * 2.0,
+        close_distance_m=effective_preclean_close_distance * 2.0,
+        snap_tolerance_m=config.snap_tolerance * 2.0,
+    )
+    _mark_layer("qc_report_issues", qc_issues_gdf)
+    _log_step(
+        12,
+        step_name,
+        len(gdf),
+        qc_summary["total"],
+        _elapsed(t0),
+        verbose=verbose_steps,
+        skipped_steps=skipped_steps,
+    )
+    _print_qc_summary(qc_summary, aux_file)
 
     if not verbose_steps and skipped_steps:
         _print_skipped_summary(skipped_steps)

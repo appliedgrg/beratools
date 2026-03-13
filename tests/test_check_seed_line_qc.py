@@ -7,6 +7,7 @@ from pathlib import Path
 
 import beratools.core.constants as bt_const
 import beratools.core.algo_check_seed_line as acsl
+import beratools.core.algo_check_seed_line_validate as acsl_report
 from beratools.core.algo_common import clean_line_geometries
 import beratools.tools.check_seed_line as csl
 
@@ -31,8 +32,9 @@ def test_clean_line_geometries_respects_min_length():
     )
 
     out = clean_line_geometries(gdf, min_length=1.0)
+    out_records = out.to_dict("records")
     assert len(out) == 1
-    assert out.iloc[0]["id"] == 3
+    assert out_records[0]["id"] == 3
 
 
 def test_snap_close_endpoints_directed_to_longer_line():
@@ -227,6 +229,96 @@ def test_densify_long_lines_projected_feet_converts_meter_threshold():
     assert all(seg <= 500.0 + bt_const.SMALL_BUFFER for seg in seg_lengths_m)
 
 
+def test_qc_report_overlap_detects_shared_segments():
+    gdf = gpd.GeoDataFrame(
+        {"id": [1, 2]},
+        geometry=[
+            LineString([(0.0, 0.0), (10.0, 0.0)]),
+            LineString([(5.0, 0.0), (15.0, 0.0)]),
+        ],
+        crs="EPSG:3857",
+    )
+
+    issues_gdf, summary = acsl_report.generate_qc_report(
+        gdf,
+        min_length_m=1.0,
+        close_distance_m=0.5,
+        snap_tolerance_m=0.5,
+    )
+
+    overlap_rows = issues_gdf[issues_gdf["issue_type"] == "overlap"]
+    overlap_records = overlap_rows.to_dict("records")
+    assert summary["overlap"] >= 1
+    assert len(overlap_records) >= 1
+    assert overlap_records[0]["line_id"] in (0, 1)
+    assert overlap_records[0]["line_id_2"] in (0, 1)
+    assert overlap_records[0]["line_id"] != overlap_records[0]["line_id_2"]
+
+
+def test_check_seed_line_qc_report_updates_manifest_and_prints_summary(tmp_path, monkeypatch, capsys):
+    in_gpkg = _write_seed_input(tmp_path, [LineString([(0.0, 0.0), (10.0, 0.0)])])
+    out_gpkg = tmp_path / "seed_output.gpkg"
+
+    monkeypatch.setattr(csl.sp_common, "vector_crs", lambda *_args, **_kwargs: object())
+    monkeypatch.setattr(csl.sp_common, "raster_crs", lambda *_args, **_kwargs: object())
+    monkeypatch.setattr(csl.sp_common, "compare_crs", lambda *_args, **_kwargs: True)
+    monkeypatch.setattr(csl, "qc_split_lines_at_intersections", lambda gdf: gdf)
+
+    def _fake_generate_qc_report(gdf, min_length_m, close_distance_m, snap_tolerance_m):
+        issue = gpd.GeoDataFrame(
+            [
+                {
+                    "issue_type": "overlap",
+                    "description": "fake overlap",
+                    "line_id": 0,
+                    "line_id_2": 1,
+                    "value": 3.0,
+                    "threshold": 0.0,
+                    "geometry": Point(1.0, 0.0),
+                }
+            ],
+            geometry="geometry",
+            crs=gdf.crs,
+        )
+        return issue, {
+            "short_line": 0,
+            "close_vertices": 0,
+            "unsnapped_endpoint": 0,
+            "self_crossing": 0,
+            "overlap": 1,
+            "total": 1,
+        }
+
+    monkeypatch.setattr(acsl_report, "generate_qc_report", _fake_generate_qc_report)
+
+    csl.check_seed_line(
+        in_line=f"{in_gpkg.as_posix()}|seed_lines",
+        in_raster="",
+        out_line=f"{out_gpkg.as_posix()}|seed_checked",
+        clip_to_chm_footprint=False,
+        remove_short_lines=False,
+        preclean_vertices=False,
+        snap_close_endpoints=False,
+        group_lines=False,
+        densify_long_lines=False,
+        apply_seed_line_correction=False,
+    )
+
+    output = capsys.readouterr().out
+    assert "QC Report Summary:" in output
+    assert "Overlapping lines:" in output
+
+    aux_gpkg = out_gpkg.with_stem(out_gpkg.stem + "_aux")
+    with sqlite3.connect(aux_gpkg.as_posix()) as conn:
+        row = conn.execute(
+            "SELECT feature_count, written FROM qc_manifest WHERE layer_name='qc_report_issues'"
+        ).fetchone()
+
+    assert row is not None
+    assert row[0] == 1
+    assert row[1] == 1
+
+
 class _DummyBounds:
     def __init__(self, left, bottom, right, top):
         self.left = left
@@ -375,7 +467,9 @@ def test_choose_anchor_tie_break_order_line_id_then_discovery():
 
 def test_densify_linestring_edge_cases():
     line = LineString([(0.0, 0.0), (1.0, 0.0)])
-    assert acsl._densify_linestring(line, max_segment_length=2.0).equals(line)
+    densified_line = acsl._densify_linestring(line, max_segment_length=2.0)
+    assert densified_line is not None
+    assert densified_line.equals(line)
     assert acsl._densify_linestring(None, max_segment_length=2.0) is None
 
     polygon = Polygon([(0.0, 0.0), (1.0, 0.0), (1.0, 1.0), (0.0, 0.0)])

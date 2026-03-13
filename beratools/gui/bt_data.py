@@ -502,6 +502,9 @@ class BTData(object):
                     except json.decoder.JSONDecodeError:
                         pass
 
+        # Keep SettingsManager in sync so save_tool_info writes current data
+        self.settings_manager.settings = self.settings
+
         if value is not None:
             if "gui_parameters" not in self.settings.keys():
                 self.settings["gui_parameters"] = {}

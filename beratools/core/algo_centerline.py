@@ -99,7 +99,10 @@ def snap_end_to_end(in_line, line_reference, max_snap_dist=None):
     if type(in_line) is sh_geom.MultiLineString:
         in_line = sh_ops.linemerge(in_line)
         if type(in_line) is sh_geom.MultiLineString:
-            print(f"algo_centerline: MultiLineString found {in_line.centroid}, pass.")
+            algo_common.log_file_only(
+                f"algo_centerline: MultiLineString found {in_line.centroid}, pass.",
+                logger_name=__name__,
+            )
             return None
 
     pts = list(in_line.coords)
@@ -218,7 +221,7 @@ def find_centerline(poly, input_line, guided_strategy="main_route"):
     effective_strategy = guided_strategy
 
     if not poly:
-        print("find_centerline: No polygon found")
+        algo_common.log_file_only("find_centerline: No polygon found")
         return default_return
 
     poly = shapely.segmentize(poly, max_segment_length=CenterlineParams.SEGMENTIZE_LENGTH)
@@ -252,11 +255,18 @@ def find_centerline(poly, input_line, guided_strategy="main_route"):
             guided_strategy,
         )
     except Exception as e:
-        print(f"find_centerline: {e}")
+        error_msg = str(e)
+        if error_msg == "endpoint-guided extraction failed for provided endpoints":
+            algo_common.log_file_only(f"find_centerline: {error_msg}")
+        else:
+            print(f"find_centerline: {e}")
         centerline = None
 
     if not centerline and guided_strategy in {"pairwise", "virtual_nodes", "direct_insert"}:
-        print(f"find_centerline: {guided_strategy} guidance failed, retrying main_route")
+        if guided_strategy == "pairwise":
+            algo_common.log_file_only("find_centerline: pairwise guidance failed, retrying main_route")
+        else:
+            print(f"find_centerline: {guided_strategy} guidance failed, retrying main_route")
         try:
             centerline = _extract_centerline_from_polygon(
                 poly,
@@ -305,7 +315,7 @@ def find_centerline(poly, input_line, guided_strategy="main_route"):
     # Check centerline. If valid, regenerate by splitting polygon into two halves.
     if not centerline_is_valid(centerline, input_line):
         try:
-            print("Regenerating line ...")
+            algo_common.log_file_only("Regenerating line ...", logger_name=__name__)
             centerline = regenerate_centerline(poly, input_line)
             return centerline, CenterlineStatus.REGENERATE_SUCCESS
         except Exception as e:
@@ -447,7 +457,9 @@ def regenerate_centerline(poly, input_line):
     poly_split = sh_ops.split(poly_exterior, perp)
 
     if len(poly_split.geoms) < 2:
-        print("regenerate_centerline: polygon sh_ops.split failed, pass.")
+        algo_common.log_file_only(
+            "regenerate_centerline: polygon sh_ops.split failed, pass.", logger_name=__name__
+        )
         return None
 
     poly_1 = poly_split.geoms[0]
@@ -480,7 +492,7 @@ def regenerate_centerline(poly, input_line):
     except Exception as e:
         print(f"regenerate_centerline: {e}")
 
-    print("Centerline is regenerated.")
+    algo_common.log_file_only("Centerline is regenerated.", logger_name=__name__)
     return sh_ops.linemerge(sh_geom.MultiLineString([center_line_1, center_line_2]))
 
 
@@ -531,7 +543,7 @@ class SeedLine:
 
         # search for centerline
         if len(lc_path_coords) < 2:
-            print("No least cost path detected, use input line.")
+            algo_common.log_file_only("No least cost path detected, use input line.", logger_name=__name__)
             self.line["cl_status"] = CenterlineStatus.FAILED.value
             return
 

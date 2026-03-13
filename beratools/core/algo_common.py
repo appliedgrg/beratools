@@ -39,6 +39,30 @@ DISTANCE_THRESHOLD = 2  # 1 meter for intersection neighborhood
 logger = logging.getLogger(__name__)
 
 
+def log_file_only(message, level=logging.INFO, logger_name=None):
+    """Log a message to file handlers only, skipping console/gui handlers."""
+    target_logger = logging.getLogger(logger_name) if logger_name else logging.getLogger(__name__)
+    record = target_logger.makeRecord(
+        name=target_logger.name,
+        level=level,
+        fn="",
+        lno=0,
+        msg=message,
+        args=(),
+        exc_info=None,
+    )
+
+    root_logger = logging.getLogger()
+    wrote_to_file = False
+    for handler in root_logger.handlers:
+        if isinstance(handler, logging.FileHandler):
+            handler.handle(record)
+            wrote_to_file = True
+
+    if not wrote_to_file:
+        target_logger.log(level, message)
+
+
 def process_single_item(cls_obj):
     """
     Process a class object for universal multiprocessing.
