@@ -1,4 +1,6 @@
 import pytest
+from pathlib import Path
+import pyproj
 from shapely.geometry import LineString, Point, Polygon
 
 import beratools.core.algo_centerline as algo_centerline
@@ -181,3 +183,164 @@ def test_find_centerline_virtual_forwards_guidance(monkeypatch):
     assert captured["guided_strategy"] == "virtual_nodes"
     assert isinstance(captured["src_geom"], Point)
     assert isinstance(captured["dst_geom"], Point)
+
+
+def test_validate_simplify_diameter_accepts_zero():
+    from beratools.core import tool_geo_simplify
+
+    assert tool_geo_simplify.validate_diameter(0) == 0.0
+
+
+def test_validate_simplify_diameter_rejects_negative():
+    from beratools.core import tool_geo_simplify
+
+    with pytest.raises(ValueError, match=">= 0"):
+        tool_geo_simplify.validate_diameter(-1)
+
+
+def test_run_geo_simplify_reduce_bend_builds_expected_command(monkeypatch, tmp_path):
+    from beratools.core import tool_geo_simplify
+
+    captured = {}
+
+    class _Result:
+        returncode = 0
+        stdout = ""
+        stderr = ""
+
+    def _fake_run(command, capture_output, text):
+        captured["command"] = command
+        captured["capture_output"] = capture_output
+        captured["text"] = text
+        return _Result()
+
+    monkeypatch.setattr(tool_geo_simplify, "_geo_simplify_resolve_binary_path", lambda: Path("geo-simplify"))
+    monkeypatch.setattr(tool_geo_simplify.subprocess, "run", _fake_run)
+
+    tool_geo_simplify.run_reduce_bend(
+        input_file=tmp_path / "centerline_temp.gpkg",
+        in_layer="centerline_temp",
+        output_file=str(tmp_path / "out.gpkg"),
+        out_layer="centerline",
+        diameter=10.0,
+        smooth_line=True,
+    )
+
+    assert captured["capture_output"] is True
+    assert captured["text"] is True
+    assert captured["command"] == [
+        "geo-simplify",
+        "reduce-bend",
+        "--input",
+        str(tmp_path / "centerline_temp.gpkg"),
+        "--in-layer",
+        "centerline_temp",
+        "--output",
+        str(tmp_path / "out.gpkg"),
+        "--diameter",
+        "10.0",
+        "--smooth-line",
+        "--out-layer",
+        "centerline",
+    ]
+
+
+def test_run_geo_simplify_reduce_bend_omits_out_layer_when_empty(monkeypatch, tmp_path):
+    from beratools.core import tool_geo_simplify
+
+    captured = {}
+
+    class _Result:
+        returncode = 0
+        stdout = ""
+        stderr = ""
+
+    def _fake_run(command, capture_output, text):
+        captured["command"] = command
+        return _Result()
+
+    monkeypatch.setattr(tool_geo_simplify, "_geo_simplify_resolve_binary_path", lambda: Path("geo-simplify"))
+    monkeypatch.setattr(tool_geo_simplify.subprocess, "run", _fake_run)
+
+    tool_geo_simplify.run_reduce_bend(
+        input_file=tmp_path / "centerline_temp.gpkg",
+        in_layer="centerline_temp",
+        output_file=str(tmp_path / "out.gpkg"),
+        out_layer=None,
+        diameter=10.0,
+        smooth_line=True,
+    )
+
+    assert "--smooth-line" in captured["command"]
+    assert "--out-layer" not in captured["command"]
+
+
+def test_centerline_tool_converts_line_radius_meters_to_projected_native_units(monkeypatch):
+    from beratools.tools.centerline import centerline
+
+    captured = {}
+
+    class _FakeOSR:
+        def __init__(self, crs_text):
+            self._crs_text = crs_text
+
+        def ExportToWkt(self):
+            return self._crs_text
+
+    feet_crs_wkt = pyproj.CRS.from_epsg(2263).to_wkt()
+
+    monkeypatch.setattr(
+        "beratools.tools.centerline.sp_common.vector_crs",
+        lambda *_args, **_kwargs: _FakeOSR(feet_crs_wkt),
+    )
+    monkeypatch.setattr(
+        "beratools.tools.centerline.sp_common.raster_crs",
+        lambda *_args, **_kwargs: object(),
+    )
+    monkeypatch.setattr("beratools.tools.centerline.sp_common.compare_crs", lambda *_args, **_kwargs: True)
+
+    def _fake_generate(
+        _in_file, _in_raster, line_radius, layer=None, proc_segments=True, guided_strategy=None
+    ):
+        captured["line_radius"] = line_radius
+        return []
+
+    monkeypatch.setattr("beratools.tools.centerline.generate_line_class_list", _fake_generate)
+
+    result = centerline(
+        in_line="dummy.gpkg|line",
+        in_raster="dummy.tif",
+        line_radius=10.0,
+        proc_segments=True,
+        out_line="out.gpkg|centerline",
+    )
+
+    assert result == 1
+    assert captured["line_radius"] == pytest.approx(32.8083333333, rel=1e-6)
+
+
+def test_centerline_tool_rejects_geographic_crs_for_meter_radius(monkeypatch):
+    from beratools.tools.centerline import centerline
+
+    class _FakeOSR:
+        def __init__(self, crs_text):
+            self._crs_text = crs_text
+
+        def ExportToWkt(self):
+            return self._crs_text
+
+    geo_crs_wkt = pyproj.CRS.from_epsg(4326).to_wkt()
+
+    monkeypatch.setattr(
+        "beratools.tools.centerline.sp_common.vector_crs",
+        lambda *_args, **_kwargs: _FakeOSR(geo_crs_wkt),
+    )
+
+    with pytest.raises(ValueError, match="requires a projected CRS"):
+        centerline(
+            in_line="dummy.gpkg|line",
+            in_raster="dummy.tif",
+            line_radius=10.0,
+            proc_segments=True,
+            out_line="out.gpkg|centerline",
+        )

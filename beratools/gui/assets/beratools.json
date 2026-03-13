@@ -411,6 +411,33 @@
               "optional": true
             },
             {
+              "variable": "simplify_centerline",
+              "label": "Simplify Centerline",
+              "description": "Run geo-simplify reduce-bend on extracted centerlines.",
+              "type": "list",
+              "subtype": "bool",
+              "data": [true, false],
+              "default": false,
+              "output": false,
+              "optional": true
+            },
+            {
+              "variable": "simplify_diameter",
+              "label": "Simplify Diameter (m)",
+              "description": "Diameter used by simplify reduce-bend. Uses layer CRS units (meters in projected CRS).",
+              "type": "number",
+              "subtype": "float",
+              "default": 10.0,
+              "output": false,
+              "optional": true,
+              "unit": "m",
+              "depends_on": {
+                "variable": "simplify_centerline",
+                "condition": true,
+                "mode": "inline"
+              }
+            },
+            {
               "variable": "out_line",
               "label": "Output Centerline",
               "description": "Output centerline file.",
@@ -478,8 +505,8 @@
             },
             {
               "variable": "max_ln_width",
-              "label": "Maximum Line Width",
-              "description": "Maximum processing width for input lines. A large value may increase processing times whereas a small value may cause undesired clipping.",
+              "label": "Maximum Line Width (m)",
+              "description": "Maximum processing width for input lines in meters. Internally converted to layer CRS units. A large value may increase processing times whereas a small value may cause undesired clipping.",
               "type": "number",
               "subtype": "float",
               "default": 32.0,
@@ -764,8 +791,8 @@
             },
             {
               "variable": "offset",
-              "label": "Perpendicular line length",
-              "description": "The length of the perpendicular line",
+              "label": "Perpendicular line length (m)",
+              "description": "The length of the perpendicular line in meters. Internally converted to layer CRS units.",
               "type": "number",
               "subtype": "float",
               "default": 30.0,

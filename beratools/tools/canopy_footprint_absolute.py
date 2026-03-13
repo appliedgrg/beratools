@@ -31,6 +31,7 @@ from beratools.core.algo_canopy_footprint_absolute import (
 )
 import beratools.core.tool_base as bt_base
 import beratools.utility.spatial_common as sp_common
+import beratools.utility.unit_conversion as unit_conversion
 from beratools.core.logger import Logger
 from beratools.utility.tool_args import CallMode
 
@@ -90,6 +91,14 @@ def canopy_footprint_abs(
     mode = str(footprint_mode).strip().lower()
     if mode not in {"absolute", "adaptive"}:
         raise ValueError("footprint_mode must be 'absolute' or 'adaptive'")
+
+    in_file, in_layer = sp_common.decode_file_layer(request.in_line)
+    vec_crs_osr = sp_common.vector_crs(in_file, in_layer)
+    request.max_ln_width = unit_conversion.convert_meters_param_projected_from_osr(
+        vec_crs_osr,
+        request.max_ln_width,
+        "Maximum Line Width (m)",
+    )
 
     if mode == "adaptive":
         result = _run_adaptive_request(request)

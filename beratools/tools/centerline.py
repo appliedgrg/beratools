@@ -14,13 +14,16 @@ Description:
 """
 
 import logging
+from pathlib import Path
 
 import pandas as pd
 
 import beratools.core.algo_centerline as algo_centerline
 import beratools.core.algo_common as algo_common
 import beratools.core.constants as bt_const
+import beratools.core.tool_geo_simplify as tool_geo_simplify
 import beratools.utility.spatial_common as sp_common
+import beratools.utility.unit_conversion as unit_conversion
 from beratools.core.logger import Logger
 from beratools.core.tool_base import execute_multiprocessing
 from beratools.utility.tool_args import CallMode
@@ -30,13 +33,27 @@ logger = log.get_logger()
 print = log.print
 
 
+def _to_bool(value):
+    if isinstance(value, bool):
+        return value
+
+    if isinstance(value, str):
+        lowered = value.strip().lower()
+        if lowered in {"true", "1", "yes", "y", "on"}:
+            return True
+        if lowered in {"false", "0", "no", "n", "off"}:
+            return False
+
+    return bool(value)
+
+
 def generate_line_class_list(
     in_vector,
     in_raster,
     line_radius,
     layer=None,
     proc_segments=True,
-    guided_strategy=bt_const.CENTERLINE_GUIDED_STRATEGY,
+    guided_strategy=bt_const.CENTERLINE_GUIDED_STRATEGY.value,
 ) -> list:
     line_classes = []
     line_list = algo_common.prepare_lines_gdf(in_vector, layer, proc_segments)
@@ -66,7 +83,9 @@ def centerline(
     line_radius,
     proc_segments,
     out_line,
-    guided_strategy=bt_const.CENTERLINE_GUIDED_STRATEGY,
+    guided_strategy=bt_const.CENTERLINE_GUIDED_STRATEGY.value,
+    simplify_centerline=False,
+    simplify_diameter=10.0,
     use_angle_grouping=True,
     processes=0,
     call_mode=CallMode.CLI,
@@ -83,22 +102,32 @@ def centerline(
     if isinstance(guided_strategy, str):
         guided_strategy = bt_const.CenterlineStrategy(guided_strategy)
 
-    guided_strategy = guided_strategy.value
+    guided_strategy_value = guided_strategy.value
 
     in_file, in_layer = sp_common.decode_file_layer(in_line)
     out_file, out_layer = sp_common.decode_file_layer(out_line)
+    simplify_enabled = _to_bool(simplify_centerline)
+    diameter = tool_geo_simplify.validate_diameter(simplify_diameter)
+    line_radius_m = float(line_radius)
 
-    if not sp_common.compare_crs(sp_common.vector_crs(in_file, in_layer), sp_common.raster_crs(in_raster)):
+    vec_crs_osr = sp_common.vector_crs(in_file, in_layer)
+    line_radius_native = unit_conversion.convert_meters_param_projected_from_osr(
+        vec_crs_osr,
+        line_radius_m,
+        "Line Processing Radius (m)",
+    )
+
+    if not sp_common.compare_crs(vec_crs_osr, sp_common.raster_crs(in_raster)):
         print("Line and CHM have different spatial references, please check.")
         return
 
     line_class_list = generate_line_class_list(
         in_file,
         in_raster,
-        line_radius=float(line_radius),
+        line_radius=line_radius_native,
         layer=in_layer,
         proc_segments=proc_segments,
-        guided_strategy=guided_strategy,
+        guided_strategy=guided_strategy_value,
     )
 
     print("{} lines to be processed.".format(len(line_class_list)))
@@ -138,7 +167,30 @@ def centerline(
         out_file=out_file,
         layer="rejected_output_centerlines",
     )
-    centerline_list.to_file(out_file, layer=out_layer)
+    if simplify_enabled and diameter > 0:
+        temp_file = tool_geo_simplify.build_temp_output_same_folder(
+            out_file,
+            prefix=f"{Path(out_file).stem}_centerline_tmp_",
+        )
+        temp_layer = "centerline_temp"
+        try:
+            centerline_list.to_file(temp_file.as_posix(), layer=temp_layer)
+            tool_geo_simplify.run_reduce_bend(
+                input_file=temp_file,
+                in_layer=temp_layer,
+                output_file=out_file,
+                out_layer=out_layer,
+                diameter=diameter,
+                smooth_line=True,
+            )
+        finally:
+            if temp_file.exists():
+                temp_file.unlink()
+    else:
+        if simplify_enabled and diameter == 0:
+            print("Centerline simplify enabled with diameter 0; skipping simplify step.")
+        centerline_list.to_file(out_file, layer=out_layer)
+
     print(f"Saved centerlines to: {out_file}")
 
     aux_file = algo_common.get_aux_path(out_file)

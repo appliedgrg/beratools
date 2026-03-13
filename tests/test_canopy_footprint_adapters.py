@@ -5,6 +5,7 @@ from types import SimpleNamespace
 import geopandas as gpd
 import shapely.geometry as sh_geom
 import pytest
+import pyproj
 
 from beratools.core.algo_canopy_footprint_absolute import CanopyFootprintRequest, cast_request_types
 from beratools.tools.canopy_footprint_absolute import (
@@ -109,6 +110,68 @@ def test_canopy_footprint_abs_rejects_invalid_mode():
             in_chm="dummy.tif",
             out_footprint="out.gpkg|fp",
             footprint_mode="adpative",
+        )
+
+
+def test_canopy_footprint_abs_converts_max_ln_width_meters_to_native_units(monkeypatch):
+    captured = {}
+
+    class _FakeOSR:
+        def __init__(self, crs_text):
+            self._crs_text = crs_text
+
+        def ExportToWkt(self):
+            return self._crs_text
+
+    monkeypatch.setattr(
+        "beratools.tools.canopy_footprint_absolute.sp_common.vector_crs",
+        lambda *_args, **_kwargs: _FakeOSR(pyproj.CRS.from_epsg(2263).to_wkt()),
+    )
+
+    def _fake_run_absolute(req):
+        captured["max_ln_width"] = req.max_ln_width
+        return SimpleNamespace(messages=[], footprints_gdf=gpd.GeoDataFrame(), aux_layers={}, stats={})
+
+    monkeypatch.setattr(
+        "beratools.tools.canopy_footprint_absolute._run_absolute_request",
+        _fake_run_absolute,
+    )
+    monkeypatch.setattr(
+        "beratools.tools.canopy_footprint_absolute.save_main_footprint",
+        lambda *_args, **_kwargs: True,
+    )
+
+    canopy_footprint_abs(
+        in_line="dummy.gpkg|line",
+        in_chm="dummy.tif",
+        out_footprint="out.gpkg|fp",
+        footprint_mode="absolute",
+        max_ln_width=10.0,
+    )
+
+    assert captured["max_ln_width"] == pytest.approx(32.8083333333, rel=1e-6)
+
+
+def test_canopy_footprint_abs_rejects_geographic_crs_for_max_width(monkeypatch):
+    class _FakeOSR:
+        def __init__(self, crs_text):
+            self._crs_text = crs_text
+
+        def ExportToWkt(self):
+            return self._crs_text
+
+    monkeypatch.setattr(
+        "beratools.tools.canopy_footprint_absolute.sp_common.vector_crs",
+        lambda *_args, **_kwargs: _FakeOSR(pyproj.CRS.from_epsg(4326).to_wkt()),
+    )
+
+    with pytest.raises(ValueError, match="requires a projected CRS"):
+        canopy_footprint_abs(
+            in_line="dummy.gpkg|line",
+            in_chm="dummy.tif",
+            out_footprint="out.gpkg|fp",
+            footprint_mode="absolute",
+            max_ln_width=10.0,
         )
 
 

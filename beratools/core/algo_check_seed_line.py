@@ -11,6 +11,7 @@ import shapely.geometry as sh_geom
 
 import beratools.core.constants as bt_const
 import beratools.core.algo_common as algo_common
+import beratools.utility.unit_conversion as unit_conversion
 
 try:
     import rasterio
@@ -227,53 +228,19 @@ def _normalize_to_lines(gdf):
 
 
 def _require_crs(gdf, parameter_label):
-    crs = pyproj.CRS.from_user_input(gdf.crs) if gdf.crs else None
-    if crs is None:
-        raise ValueError(f"Input line CRS is missing; cannot apply '{parameter_label}'.")
-    return crs
+    return unit_conversion.require_crs(gdf, parameter_label)
 
 
 def _build_linear_unit_context(crs, reference_geom):
-    if crs.is_geographic:
-        if reference_geom is None or reference_geom.is_empty:
-            raise ValueError("Unable to determine reference geometry for geographic CRS unit conversion.")
-        ref_point = reference_geom.representative_point()
-        metric_crs = pyproj.CRS.from_proj4(
-            f"+proj=aeqd +lat_0={ref_point.y} +lon_0={ref_point.x} +datum=WGS84 +units=m +no_defs"
-        )
-        to_metric = pyproj.Transformer.from_crs(crs, metric_crs, always_xy=True)
-        to_source = pyproj.Transformer.from_crs(metric_crs, crs, always_xy=True)
-        return {
-            "is_geographic": True,
-            "to_metric": to_metric,
-            "to_source": to_source,
-            "unit_factor": None,
-        }
-
-    unit_factor = crs.axis_info[0].unit_conversion_factor if crs.axis_info else None
-    if unit_factor is None or unit_factor <= 0:
-        raise ValueError("Unable to determine projected CRS linear units.")
-    return {
-        "is_geographic": False,
-        "to_metric": None,
-        "to_source": None,
-        "unit_factor": unit_factor,
-    }
+    return unit_conversion.build_linear_unit_context(crs, reference_geom)
 
 
 def _meters_to_native_units(distance_m, unit_ctx):
-    if unit_ctx["is_geographic"]:
-        return float(distance_m)
-    return float(distance_m) / float(unit_ctx["unit_factor"])
+    return unit_conversion.meters_to_native_units(distance_m, unit_ctx)
 
 
 def _geometry_length_meters(geom, unit_ctx):
-    if geom is None or geom.is_empty:
-        return 0.0
-    if unit_ctx["is_geographic"]:
-        geom_metric = sh_ops.transform(unit_ctx["to_metric"].transform, geom)
-        return float(geom_metric.length)
-    return float(geom.length) * float(unit_ctx["unit_factor"])
+    return unit_conversion.geometry_length_meters(geom, unit_ctx)
 
 
 def _geographic_raster_cell_size_m(src, crs, x_res, y_res):
@@ -844,4 +811,3 @@ def qc_split_lines_at_intersections(gdf):
             return splitter.split_lines_gdf.reset_index(drop=True)
         return splitter.split_lines_gdf
     return gdf.reset_index(drop=True)
-

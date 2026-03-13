@@ -254,6 +254,13 @@ if (-not (Test-Path (Join-Path $dstBeratools "__init__.py"))) {
     exit 1
 }
 
+$geoSimplifyBinary = Join-Path $dstBeratools "external\geo_simplify\geo-simplify-win-x64.exe"
+if (-not (Test-Path $geoSimplifyBinary)) {
+    Write-Host "Missing geo-simplify Windows binary at $geoSimplifyBinary" -ForegroundColor Red
+    Write-Host "Ensure beratools/external/geo_simplify/geo-simplify-win-x64.exe is committed." -ForegroundColor Yellow
+    exit 1
+}
+
 Write-Host ("Application files copied to " + $dstBeratools) -ForegroundColor Green
 
 # Step 9: Build installer with Inno Setup

@@ -1131,3 +1131,19 @@ def test_schema_centerline_exposes_guided_strategy_parameter():
     assert gs["type"] == "list"
     assert gs["default"] == "pairwise"
     assert set(gs["data"]) == {"pairwise", "main_route"}
+
+    assert "simplify_centerline" in params
+    simplify = params["simplify_centerline"]
+    assert simplify["type"] == "list"
+    assert simplify["subtype"] == "bool"
+    assert simplify["default"] is False
+    assert set(simplify["data"]) == {True, False}
+
+    assert "simplify_diameter" in params
+    simplify_diameter = params["simplify_diameter"]
+    assert simplify_diameter["type"] == "number"
+    assert simplify_diameter["subtype"] == "float"
+    assert simplify_diameter["default"] == 10.0
+    assert simplify_diameter["depends_on"]["variable"] == "simplify_centerline"
+    assert simplify_diameter["depends_on"]["condition"] is True
+    assert simplify_diameter["depends_on"]["mode"] == "inline"
