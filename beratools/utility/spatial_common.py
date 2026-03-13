@@ -380,4 +380,7 @@ def check_vector_vector_overlap(gdf1, gdf2) -> bool:
 
 def seedlines_within_chm_footprint(gdf, in_raster) -> bool:
     """Check whether seed lines overlap the CHM raster footprint."""
+    if gdf is None or gdf.empty:
+        return True
+
     return check_vector_raster_overlap(gdf, in_raster)

@@ -463,6 +463,31 @@ def test_check_seed_line_raises_when_seedlines_do_not_overlap_raster(tmp_path, m
         )
 
 
+def test_check_seed_line_allows_empty_input_with_clip_to_chm_enabled(tmp_path, monkeypatch):
+    in_gpkg = _write_seed_input(tmp_path, [], data={"id": []})
+    out_gpkg = tmp_path / "seed_output.gpkg"
+
+    monkeypatch.setattr(csl.sp_common, "vector_crs", lambda *_args, **_kwargs: object())
+    monkeypatch.setattr(csl.sp_common, "raster_crs", lambda *_args, **_kwargs: object())
+    monkeypatch.setattr(csl.sp_common, "compare_crs", lambda *_args, **_kwargs: True)
+
+    csl.check_seed_line(
+        in_line=f"{in_gpkg.as_posix()}|seed_lines",
+        in_raster="dummy.tif",
+        out_line=f"{out_gpkg.as_posix()}|seed_checked",
+        clip_to_chm_footprint=True,
+        group_lines=False,
+    )
+
+    out = gpd.read_file(out_gpkg, layer="seed_checked")
+    assert out.empty
+
+    aux_gpkg = out_gpkg.with_stem(out_gpkg.stem + "_aux")
+    with sqlite3.connect(aux_gpkg.as_posix()) as conn:
+        output_count = conn.execute("SELECT output_feature_count FROM qc_run_summary").fetchone()[0]
+    assert output_count == 0
+
+
 def test_check_seed_line_assigns_unique_bt_group_when_grouping_disabled(tmp_path, monkeypatch):
     in_gpkg = _write_seed_input(
         tmp_path,
