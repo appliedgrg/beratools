@@ -25,7 +25,6 @@ import geopandas as gpd
 import beratools.core.constants as bt_const
 import beratools.core.algo_common as algo_common
 from beratools.core.algo_check_seed_line import (
-    _build_linear_unit_context,
     _choose_anchor,
     _clean_line_geometries_min_length_m,
     _clip_to_chm_footprint,
@@ -35,16 +34,15 @@ from beratools.core.algo_check_seed_line import (
     _geometry_length_meters,
     _interp_coord,
     _iter_line_parts,
-    _meters_to_native_units,
     _normalize_to_lines,
     _parse_line_id,
     _preclean_lines_full,
-    _require_crs,
     _snap_close_endpoints,
     qc_merge_multilinestring,
     qc_split_lines_at_intersections,
 )
 import beratools.utility.spatial_common as sp_common
+import beratools.utility.unit_conversion as unit_conversion
 from beratools.core.logger import Logger
 from beratools.utility.tool_args import CallMode
 
@@ -189,6 +187,28 @@ def _step_timer():
 
 def _elapsed(start_t):
     return time.perf_counter() - start_t
+
+
+def _convert_slc_meter_params_to_native_units(lines_gdf, search_distance_m, line_radius_m):
+    """Convert SLC meter parameters to source CRS linear units."""
+    crs = unit_conversion.require_crs(lines_gdf, "Seed Line Correction distance parameters (m)")
+    reference_geom = lines_gdf.unary_union.envelope if not lines_gdf.empty else None
+    unit_ctx = unit_conversion.build_linear_unit_context(crs, reference_geom)
+
+    if unit_ctx["is_geographic"]:
+        raise ValueError(
+            "Apply Seed Line Correction requires a projected CRS for meter-based distance parameters."
+        )
+
+    search_distance_native = max(
+        unit_conversion.meters_to_native_units(search_distance_m, unit_ctx),
+        bt_const.SMALL_BUFFER,
+    )
+    line_radius_native = max(
+        unit_conversion.meters_to_native_units(line_radius_m, unit_ctx),
+        bt_const.SMALL_BUFFER,
+    )
+    return search_distance_native, line_radius_native
 
 
 def check_seed_line(
@@ -738,12 +758,18 @@ def check_seed_line(
 
         print("Starting Seed Line Correction...", flush=True)
 
+        slc_search_distance_native, slc_line_radius_native = _convert_slc_meter_params_to_native_units(
+            gdf,
+            config.slc_search_distance,
+            config.slc_line_radius,
+        )
+
         t0 = _step_timer()
         slc = SeedLineCorrection(
             in_file,
             in_raster,
-            config.slc_search_distance,
-            config.slc_line_radius,
+            slc_search_distance_native,
+            slc_line_radius_native,
             processes,
             call_mode,
             layer=in_layer,

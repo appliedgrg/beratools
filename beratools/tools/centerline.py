@@ -23,6 +23,7 @@ import beratools.core.algo_common as algo_common
 import beratools.core.constants as bt_const
 import beratools.core.tool_geo_simplify as tool_geo_simplify
 import beratools.utility.spatial_common as sp_common
+import beratools.utility.unit_conversion as unit_conversion
 from beratools.core.logger import Logger
 from beratools.core.tool_base import execute_multiprocessing
 from beratools.utility.tool_args import CallMode
@@ -107,15 +108,31 @@ def centerline(
     out_file, out_layer = sp_common.decode_file_layer(out_line)
     simplify_enabled = _to_bool(simplify_centerline)
     diameter = tool_geo_simplify.validate_diameter(simplify_diameter)
+    line_radius_m = float(line_radius)
 
-    if not sp_common.compare_crs(sp_common.vector_crs(in_file, in_layer), sp_common.raster_crs(in_raster)):
+    vec_crs_osr = sp_common.vector_crs(in_file, in_layer)
+    vec_crs = unit_conversion.require_crs(
+        vec_crs_osr.ExportToWkt(),
+        "Line Processing Radius (m)",
+    )
+    if vec_crs.is_geographic:
+        raise ValueError("Line Processing Radius (m) requires a projected CRS.")
+
+    line_radius_native = unit_conversion.convert_meters_param(
+        vec_crs,
+        line_radius_m,
+        "Line Processing Radius (m)",
+        allow_geographic=False,
+    )
+
+    if not sp_common.compare_crs(vec_crs_osr, sp_common.raster_crs(in_raster)):
         print("Line and CHM have different spatial references, please check.")
         return
 
     line_class_list = generate_line_class_list(
         in_file,
         in_raster,
-        line_radius=float(line_radius),
+        line_radius=line_radius_native,
         layer=in_layer,
         proc_segments=proc_segments,
         guided_strategy=guided_strategy_value,

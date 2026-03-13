@@ -1,5 +1,6 @@
 import pytest
 from pathlib import Path
+import pyproj
 from shapely.geometry import LineString, Point, Polygon
 
 import beratools.core.algo_centerline as algo_centerline
@@ -272,3 +273,74 @@ def test_run_geo_simplify_reduce_bend_omits_out_layer_when_empty(monkeypatch, tm
 
     assert "--smooth-line" in captured["command"]
     assert "--out-layer" not in captured["command"]
+
+
+def test_centerline_tool_converts_line_radius_meters_to_projected_native_units(monkeypatch):
+    from beratools.tools.centerline import centerline
+
+    captured = {}
+
+    class _FakeOSR:
+        def __init__(self, crs_text):
+            self._crs_text = crs_text
+
+        def ExportToWkt(self):
+            return self._crs_text
+
+    feet_crs_wkt = pyproj.CRS.from_epsg(2263).to_wkt()
+
+    monkeypatch.setattr(
+        "beratools.tools.centerline.sp_common.vector_crs",
+        lambda *_args, **_kwargs: _FakeOSR(feet_crs_wkt),
+    )
+    monkeypatch.setattr(
+        "beratools.tools.centerline.sp_common.raster_crs",
+        lambda *_args, **_kwargs: object(),
+    )
+    monkeypatch.setattr("beratools.tools.centerline.sp_common.compare_crs", lambda *_args, **_kwargs: True)
+
+    def _fake_generate(
+        _in_file, _in_raster, line_radius, layer=None, proc_segments=True, guided_strategy=None
+    ):
+        captured["line_radius"] = line_radius
+        return []
+
+    monkeypatch.setattr("beratools.tools.centerline.generate_line_class_list", _fake_generate)
+
+    result = centerline(
+        in_line="dummy.gpkg|line",
+        in_raster="dummy.tif",
+        line_radius=10.0,
+        proc_segments=True,
+        out_line="out.gpkg|centerline",
+    )
+
+    assert result == 1
+    assert captured["line_radius"] == pytest.approx(32.8083333333, rel=1e-6)
+
+
+def test_centerline_tool_rejects_geographic_crs_for_meter_radius(monkeypatch):
+    from beratools.tools.centerline import centerline
+
+    class _FakeOSR:
+        def __init__(self, crs_text):
+            self._crs_text = crs_text
+
+        def ExportToWkt(self):
+            return self._crs_text
+
+    geo_crs_wkt = pyproj.CRS.from_epsg(4326).to_wkt()
+
+    monkeypatch.setattr(
+        "beratools.tools.centerline.sp_common.vector_crs",
+        lambda *_args, **_kwargs: _FakeOSR(geo_crs_wkt),
+    )
+
+    with pytest.raises(ValueError, match="requires a projected CRS"):
+        centerline(
+            in_line="dummy.gpkg|line",
+            in_raster="dummy.tif",
+            line_radius=10.0,
+            proc_segments=True,
+            out_line="out.gpkg|centerline",
+        )
