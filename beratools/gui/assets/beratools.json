@@ -505,8 +505,8 @@
             },
             {
               "variable": "max_ln_width",
-              "label": "Maximum Line Width",
-              "description": "Maximum processing width for input lines. A large value may increase processing times whereas a small value may cause undesired clipping.",
+              "label": "Maximum Line Width (m)",
+              "description": "Maximum processing width for input lines in meters. Internally converted to layer CRS units. A large value may increase processing times whereas a small value may cause undesired clipping.",
               "type": "number",
               "subtype": "float",
               "default": 32.0,
@@ -791,8 +791,8 @@
             },
             {
               "variable": "offset",
-              "label": "Perpendicular line length",
-              "description": "The length of the perpendicular line",
+              "label": "Perpendicular line length (m)",
+              "description": "The length of the perpendicular line in meters. Internally converted to layer CRS units.",
               "type": "number",
               "subtype": "float",
               "default": 30.0,

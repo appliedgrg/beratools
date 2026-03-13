@@ -27,6 +27,7 @@ import shapely.ops as sh_ops
 import beratools.core.algo_common as algo_common
 import beratools.core.constants as bt_const
 import beratools.utility.spatial_common as sp_common
+import beratools.utility.unit_conversion as unit_conversion
 from beratools.core.algo_line_grouping import LineGrouping
 from beratools.core.algo_merge_lines import custom_line_merge
 from beratools.core.algo_split_with_lines import LineSplitter
@@ -294,6 +295,13 @@ def ground_footprint(
         line_gdf = line_gdf.rename(columns={"fid": "orig_fid"})
     line_gdf = algo_common.clean_geometries(line_gdf, stage="input")
     line_gdf = line_gdf.reset_index(drop=True)
+    offset = unit_conversion.convert_meters_param_projected(
+        line_gdf,
+        offset,
+        "Perpendicular line length (m)",
+        min_value=bt_const.SMALL_BUFFER,
+    )
+
     if bt_const.BT_GROUP not in line_gdf.columns:
         line_gdf[bt_const.BT_GROUP] = range(1, len(line_gdf) + 1)
 

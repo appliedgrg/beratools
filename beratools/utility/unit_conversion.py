@@ -80,3 +80,40 @@ def convert_meters_param(
     if min_value is not None:
         value_native = max(float(min_value), float(value_native))
     return float(value_native)
+
+
+def convert_meters_param_projected(
+    gdf_or_crs,
+    value_m,
+    parameter_label,
+    reference_geom=None,
+    min_value=None,
+):
+    """Convert a meter-based parameter that requires projected CRS units."""
+    crs = require_crs(gdf_or_crs, parameter_label)
+    if crs.is_geographic:
+        raise ValueError(f"{parameter_label} requires a projected CRS.")
+    return convert_meters_param(
+        crs,
+        value_m,
+        parameter_label,
+        reference_geom=reference_geom,
+        allow_geographic=False,
+        min_value=min_value,
+    )
+
+
+def convert_meters_param_projected_from_osr(
+    osr_crs,
+    value_m,
+    parameter_label,
+    min_value=None,
+):
+    """Convert a meter parameter using an OSR CRS object or CRS text."""
+    crs_input = osr_crs.ExportToWkt() if hasattr(osr_crs, "ExportToWkt") else osr_crs
+    return convert_meters_param_projected(
+        crs_input,
+        value_m,
+        parameter_label,
+        min_value=min_value,
+    )

@@ -191,22 +191,17 @@ def _elapsed(start_t):
 
 def _convert_slc_meter_params_to_native_units(lines_gdf, search_distance_m, line_radius_m):
     """Convert SLC meter parameters to source CRS linear units."""
-    crs = unit_conversion.require_crs(lines_gdf, "Seed Line Correction distance parameters (m)")
-    reference_geom = lines_gdf.unary_union.envelope if not lines_gdf.empty else None
-    unit_ctx = unit_conversion.build_linear_unit_context(crs, reference_geom)
-
-    if unit_ctx["is_geographic"]:
-        raise ValueError(
-            "Apply Seed Line Correction requires a projected CRS for meter-based distance parameters."
-        )
-
-    search_distance_native = max(
-        unit_conversion.meters_to_native_units(search_distance_m, unit_ctx),
-        bt_const.SMALL_BUFFER,
+    search_distance_native = unit_conversion.convert_meters_param_projected(
+        lines_gdf,
+        search_distance_m,
+        "Apply Seed Line Correction search distance (m)",
+        min_value=bt_const.SMALL_BUFFER,
     )
-    line_radius_native = max(
-        unit_conversion.meters_to_native_units(line_radius_m, unit_ctx),
-        bt_const.SMALL_BUFFER,
+    line_radius_native = unit_conversion.convert_meters_param_projected(
+        lines_gdf,
+        line_radius_m,
+        "Apply Seed Line Correction line radius (m)",
+        min_value=bt_const.SMALL_BUFFER,
     )
     return search_distance_native, line_radius_native
 

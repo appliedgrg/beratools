@@ -111,18 +111,10 @@ def centerline(
     line_radius_m = float(line_radius)
 
     vec_crs_osr = sp_common.vector_crs(in_file, in_layer)
-    vec_crs = unit_conversion.require_crs(
-        vec_crs_osr.ExportToWkt(),
-        "Line Processing Radius (m)",
-    )
-    if vec_crs.is_geographic:
-        raise ValueError("Line Processing Radius (m) requires a projected CRS.")
-
-    line_radius_native = unit_conversion.convert_meters_param(
-        vec_crs,
+    line_radius_native = unit_conversion.convert_meters_param_projected_from_osr(
+        vec_crs_osr,
         line_radius_m,
         "Line Processing Radius (m)",
-        allow_geographic=False,
     )
 
     if not sp_common.compare_crs(vec_crs_osr, sp_common.raster_crs(in_raster)):
