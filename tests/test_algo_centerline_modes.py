@@ -185,20 +185,20 @@ def test_find_centerline_virtual_forwards_guidance(monkeypatch):
 
 
 def test_validate_simplify_diameter_accepts_zero():
-    from beratools.tools import centerline as centerline_tool
+    from beratools.core import tool_geo_simplify
 
-    assert centerline_tool._validate_simplify_diameter(0) == 0.0
+    assert tool_geo_simplify.validate_diameter(0) == 0.0
 
 
 def test_validate_simplify_diameter_rejects_negative():
-    from beratools.tools import centerline as centerline_tool
+    from beratools.core import tool_geo_simplify
 
     with pytest.raises(ValueError, match=">= 0"):
-        centerline_tool._validate_simplify_diameter(-1)
+        tool_geo_simplify.validate_diameter(-1)
 
 
 def test_run_geo_simplify_reduce_bend_builds_expected_command(monkeypatch, tmp_path):
-    from beratools.tools import centerline as centerline_tool
+    from beratools.core import tool_geo_simplify
 
     captured = {}
 
@@ -213,15 +213,16 @@ def test_run_geo_simplify_reduce_bend_builds_expected_command(monkeypatch, tmp_p
         captured["text"] = text
         return _Result()
 
-    monkeypatch.setattr(centerline_tool, "_resolve_geo_simplify_binary", lambda: Path("geo-simplify"))
-    monkeypatch.setattr(centerline_tool.subprocess, "run", _fake_run)
+    monkeypatch.setattr(tool_geo_simplify, "_geo_simplify_resolve_binary_path", lambda: Path("geo-simplify"))
+    monkeypatch.setattr(tool_geo_simplify.subprocess, "run", _fake_run)
 
-    centerline_tool._run_geo_simplify_reduce_bend(
-        temp_input=tmp_path / "centerline_temp.gpkg",
-        temp_layer="centerline_temp",
-        out_file=str(tmp_path / "out.gpkg"),
+    tool_geo_simplify.run_reduce_bend(
+        input_file=tmp_path / "centerline_temp.gpkg",
+        in_layer="centerline_temp",
+        output_file=str(tmp_path / "out.gpkg"),
         out_layer="centerline",
         diameter=10.0,
+        smooth_line=True,
     )
 
     assert captured["capture_output"] is True
@@ -244,7 +245,7 @@ def test_run_geo_simplify_reduce_bend_builds_expected_command(monkeypatch, tmp_p
 
 
 def test_run_geo_simplify_reduce_bend_omits_out_layer_when_empty(monkeypatch, tmp_path):
-    from beratools.tools import centerline as centerline_tool
+    from beratools.core import tool_geo_simplify
 
     captured = {}
 
@@ -257,15 +258,16 @@ def test_run_geo_simplify_reduce_bend_omits_out_layer_when_empty(monkeypatch, tm
         captured["command"] = command
         return _Result()
 
-    monkeypatch.setattr(centerline_tool, "_resolve_geo_simplify_binary", lambda: Path("geo-simplify"))
-    monkeypatch.setattr(centerline_tool.subprocess, "run", _fake_run)
+    monkeypatch.setattr(tool_geo_simplify, "_geo_simplify_resolve_binary_path", lambda: Path("geo-simplify"))
+    monkeypatch.setattr(tool_geo_simplify.subprocess, "run", _fake_run)
 
-    centerline_tool._run_geo_simplify_reduce_bend(
-        temp_input=tmp_path / "centerline_temp.gpkg",
-        temp_layer="centerline_temp",
-        out_file=str(tmp_path / "out.gpkg"),
+    tool_geo_simplify.run_reduce_bend(
+        input_file=tmp_path / "centerline_temp.gpkg",
+        in_layer="centerline_temp",
+        output_file=str(tmp_path / "out.gpkg"),
         out_layer=None,
         diameter=10.0,
+        smooth_line=True,
     )
 
     assert "--smooth-line" in captured["command"]

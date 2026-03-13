@@ -14,11 +14,6 @@ Description:
 """
 
 import logging
-import os
-import platform
-import stat
-import subprocess
-import tempfile
 from pathlib import Path
 
 import pandas as pd
@@ -26,6 +21,7 @@ import pandas as pd
 import beratools.core.algo_centerline as algo_centerline
 import beratools.core.algo_common as algo_common
 import beratools.core.constants as bt_const
+import beratools.core.tool_geo_simplify as tool_geo_simplify
 import beratools.utility.spatial_common as sp_common
 from beratools.core.logger import Logger
 from beratools.core.tool_base import execute_multiprocessing
@@ -48,83 +44,6 @@ def _to_bool(value):
             return False
 
     return bool(value)
-
-
-def _validate_simplify_diameter(value):
-    try:
-        diameter = float(value)
-    except (TypeError, ValueError):
-        raise ValueError("simplify_diameter must be a number >= 0.")
-
-    if diameter < 0:
-        raise ValueError("simplify_diameter must be >= 0.")
-
-    return diameter
-
-
-def _resolve_geo_simplify_binary():
-    external_dir = Path(__file__).resolve().parents[1] / "external" / "geo_simplify"
-    system_name = platform.system()
-
-    if system_name == "Windows":
-        binary_path = external_dir / "geo-simplify-win-x64.exe"
-    elif system_name == "Linux":
-        binary_path = external_dir / "geo-simplify-linux-x64"
-    else:
-        raise RuntimeError(f"Centerline simplify is not supported on OS: {system_name}")
-
-    if not binary_path.exists():
-        raise FileNotFoundError(f"Missing geo-simplify binary: {binary_path}")
-
-    if system_name == "Linux":
-        mode = binary_path.stat().st_mode
-        if not (mode & stat.S_IXUSR):
-            binary_path.chmod(mode | stat.S_IXUSR | stat.S_IXGRP | stat.S_IXOTH)
-
-    return binary_path
-
-
-def _build_temp_centerline_output(out_file):
-    out_path = Path(out_file)
-    out_dir = out_path.parent if out_path.parent else Path(".")
-    out_dir.mkdir(parents=True, exist_ok=True)
-    fd, temp_path = tempfile.mkstemp(
-        prefix=f"{out_path.stem}_centerline_tmp_",
-        suffix=".gpkg",
-        dir=out_dir,
-    )
-    os.close(fd)
-    return Path(temp_path)
-
-
-def _run_geo_simplify_reduce_bend(temp_input, temp_layer, out_file, out_layer, diameter):
-    binary_path = _resolve_geo_simplify_binary()
-    command = [
-        str(binary_path),
-        "reduce-bend",
-        "--input",
-        str(temp_input),
-        "--in-layer",
-        temp_layer,
-        "--output",
-        out_file,
-        "--diameter",
-        str(diameter),
-        "--smooth-line",
-    ]
-
-    if out_layer:
-        command.extend(["--out-layer", out_layer])
-
-    result = subprocess.run(command, capture_output=True, text=True)
-    if result.returncode != 0:
-        raise RuntimeError(
-            "geo-simplify reduce-bend failed "
-            f"(exit code {result.returncode})\n"
-            f"Command: {' '.join(command)}\n"
-            f"stdout:\n{result.stdout}\n"
-            f"stderr:\n{result.stderr}"
-        )
 
 
 def generate_line_class_list(
@@ -187,7 +106,7 @@ def centerline(
     in_file, in_layer = sp_common.decode_file_layer(in_line)
     out_file, out_layer = sp_common.decode_file_layer(out_line)
     simplify_enabled = _to_bool(simplify_centerline)
-    diameter = _validate_simplify_diameter(simplify_diameter)
+    diameter = tool_geo_simplify.validate_diameter(simplify_diameter)
 
     if not sp_common.compare_crs(sp_common.vector_crs(in_file, in_layer), sp_common.raster_crs(in_raster)):
         print("Line and CHM have different spatial references, please check.")
@@ -240,16 +159,20 @@ def centerline(
         layer="rejected_output_centerlines",
     )
     if simplify_enabled and diameter > 0:
-        temp_file = _build_temp_centerline_output(out_file)
+        temp_file = tool_geo_simplify.build_temp_output_same_folder(
+            out_file,
+            prefix=f"{Path(out_file).stem}_centerline_tmp_",
+        )
         temp_layer = "centerline_temp"
         try:
             centerline_list.to_file(temp_file.as_posix(), layer=temp_layer)
-            _run_geo_simplify_reduce_bend(
-                temp_input=temp_file,
-                temp_layer=temp_layer,
-                out_file=out_file,
+            tool_geo_simplify.run_reduce_bend(
+                input_file=temp_file,
+                in_layer=temp_layer,
+                output_file=out_file,
                 out_layer=out_layer,
                 diameter=diameter,
+                smooth_line=True,
             )
         finally:
             if temp_file.exists():
