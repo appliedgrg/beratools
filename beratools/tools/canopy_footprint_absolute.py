@@ -100,6 +100,19 @@ def canopy_footprint_abs(
         "Maximum Line Width (m)",
     )
 
+    if not sp_common.compare_crs(vec_crs_osr, sp_common.raster_crs(request.in_chm)):
+        print("Line and CHM have different spatial references, please check.")
+        return
+
+    if not sp_common.check_vector_raster_extent_overlap(in_file, in_layer, request.in_chm):
+        print("Input line extent does not overlap input raster extent.")
+        return
+
+    line_gdf = gpd.read_file(in_file, layer=in_layer)
+    if not sp_common.check_vector_raster_overlap(line_gdf, request.in_chm):
+        print("Input line(s) do not overlap input raster.")
+        return
+
     if mode == "adaptive":
         result = _run_adaptive_request(request)
         rejected_layer_name = "rejected_output_canopy_footprint_adaptive"

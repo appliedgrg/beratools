@@ -16,6 +16,7 @@ Description:
 import logging
 from pathlib import Path
 
+import geopandas as gpd
 import pandas as pd
 
 import beratools.core.algo_centerline as algo_centerline
@@ -119,6 +120,15 @@ def centerline(
 
     if not sp_common.compare_crs(vec_crs_osr, sp_common.raster_crs(in_raster)):
         print("Line and CHM have different spatial references, please check.")
+        return
+
+    if not sp_common.check_vector_raster_extent_overlap(in_file, in_layer, in_raster):
+        print("Input line extent does not overlap input raster extent.")
+        return
+
+    line_gdf = gpd.read_file(in_file, layer=in_layer)
+    if not sp_common.check_vector_raster_overlap(line_gdf, in_raster):
+        print("Input line(s) do not overlap input raster.")
         return
 
     line_class_list = generate_line_class_list(

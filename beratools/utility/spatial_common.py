@@ -19,7 +19,7 @@ import geopandas as gpd
 import numpy as np
 import pyproj
 import rasterio
-from osgeo import gdal, osr, version_info
+from osgeo import gdal, ogr, osr, version_info
 from pyogrio import set_gdal_config_options
 from rasterio import mask
 
@@ -113,14 +113,14 @@ def decode_file_layer(encoded):
     return file_path, layer_name
 
 
-def vector_crs(in_vector,gpd_layer):
+def vector_crs(in_vector, gpd_layer):
     osr_crs = osr.SpatialReference()
     from pyproj.enums import WktVersion
 
     vec_crs = None
     # open input vector data as GeoDataFrame
-    if gpd_layer!=None:
-        gpd_vector = gpd.GeoDataFrame.from_file(in_vector,layer=gpd_layer)
+    if gpd_layer != None:
+        gpd_vector = gpd.GeoDataFrame.from_file(in_vector, layer=gpd_layer)
     else:
         gpd_vector = gpd.GeoDataFrame.from_file(in_vector)
     try:
@@ -221,15 +221,163 @@ def compare_crs(crs_org, crs_dst):
     return False
 
 
-def seedlines_within_chm_footprint(gdf, in_raster) -> bool:
-    """Check whether seed lines overlap the CHM raster footprint."""
+def _extents_overlap(ext1, ext2) -> bool:
+    """Return whether two extents overlap."""
+    minx1, miny1, maxx1, maxy1 = ext1
+    minx2, miny2, maxx2, maxy2 = ext2
+    return not (maxx1 < minx2 or minx1 > maxx2 or maxy1 < miny2 or miny1 > maxy2)
+
+
+def _vector_extent_from_gpkg_contents(in_vector, layer_name):
+    """Read vector extent from GeoPackage metadata when available."""
+    ds = ogr.Open(in_vector)
+    if ds is None:
+        return None
+
+    try:
+        target_layer = layer_name
+        if target_layer is None:
+            layer0 = ds.GetLayerByIndex(0)
+            if layer0 is None:
+                return None
+            target_layer = layer0.GetName()
+
+        layer_sql_name = target_layer.replace("'", "''")
+        sql = f"SELECT min_x, min_y, max_x, max_y FROM gpkg_contents WHERE table_name = '{layer_sql_name}'"
+        result = ds.ExecuteSQL(sql)
+        if result is None:
+            return None
+
+        try:
+            feat = result.GetNextFeature()
+            if feat is None:
+                return None
+
+            min_x = feat.GetField("min_x")
+            min_y = feat.GetField("min_y")
+            max_x = feat.GetField("max_x")
+            max_y = feat.GetField("max_y")
+            if None in (min_x, min_y, max_x, max_y):
+                return None
+
+            return float(min_x), float(min_y), float(max_x), float(max_y)
+        finally:
+            ds.ReleaseResultSet(result)
+    finally:
+        ds = None
+
+
+def get_vector_extent_fast(in_vector, layer_name=None):
+    """Get vector extent with metadata-first strategy and safe fallback."""
+    extent = None
+
+    if str(in_vector).lower().endswith(".gpkg"):
+        extent = _vector_extent_from_gpkg_contents(in_vector, layer_name)
+        if extent is not None:
+            return extent
+
+    ds = ogr.Open(in_vector)
+    if ds is None:
+        return None
+
+    try:
+        layer = ds.GetLayerByName(layer_name) if layer_name else ds.GetLayerByIndex(0)
+        if layer is None:
+            return None
+
+        extent_ogr = layer.GetExtent(force=0)
+        if extent_ogr is None:
+            extent_ogr = layer.GetExtent(force=1)
+        if extent_ogr is None:
+            return None
+
+        min_x, max_x, min_y, max_y = extent_ogr
+        return float(min_x), float(min_y), float(max_x), float(max_y)
+    finally:
+        ds = None
+
+
+def get_raster_extent(in_raster):
+    """Get raster extent as (minx, miny, maxx, maxy)."""
+    with rasterio.open(in_raster) as raster_file:
+        bounds = raster_file.bounds
+        return float(bounds.left), float(bounds.bottom), float(bounds.right), float(bounds.top)
+
+
+def check_vector_raster_extent_overlap(in_vector, in_layer, in_raster) -> bool:
+    """Fast extent precheck for vector/raster overlap.
+
+    Returns False only for definite disjoint extents. Returns True when overlap
+    exists or extents cannot be determined.
+    """
+    vector_extent = get_vector_extent_fast(in_vector, in_layer)
+    raster_extent = get_raster_extent(in_raster)
+
+    if vector_extent is None or raster_extent is None:
+        return True
+
+    return _extents_overlap(vector_extent, raster_extent)
+
+
+def check_vector_vector_extent_overlap(in_vector1, in_layer1, in_vector2, in_layer2) -> bool:
+    """Fast extent precheck for vector/vector overlap.
+
+    Returns False only for definite disjoint extents. Returns True when overlap
+    exists or extents cannot be determined.
+    """
+    extent1 = get_vector_extent_fast(in_vector1, in_layer1)
+    extent2 = get_vector_extent_fast(in_vector2, in_layer2)
+
+    if extent1 is None or extent2 is None:
+        return True
+
+    return _extents_overlap(extent1, extent2)
+
+
+def check_vector_raster_overlap(gdf, in_raster) -> bool:
+    """Check whether vector geometries overlap a raster footprint."""
     from beratools.core.algo_common import generate_raster_footprint
 
-    footprint = generate_raster_footprint(in_raster, latlon=False)
-    if not footprint.is_empty and all(footprint.contains(gdf["geometry"])):
-        return True
-    elif not footprint.is_empty and any(footprint.intersects(gdf["geometry"])):
-        print("[Warning]: Some seedlines are partially intersect the CHM footprint.")
-        return True
-    else:
+    if gdf is None or gdf.empty:
         return False
+
+    geometries = gdf["geometry"]
+    footprint = generate_raster_footprint(in_raster, latlon=False)
+
+    if footprint.is_empty:
+        return False
+
+    if all(footprint.contains(geometries)):
+        return True
+
+    if any(footprint.intersects(geometries)):
+        print("[Warning]: Some input features are partially outside the raster footprint.")
+        return True
+
+    return False
+
+
+def check_vector_vector_overlap(gdf1, gdf2) -> bool:
+    """Check whether vector geometries in gdf1 overlap those in gdf2."""
+    if gdf1 is None or gdf1.empty or gdf2 is None or gdf2.empty:
+        return False
+
+    geom1 = gdf1["geometry"]
+    union2 = gdf2.geometry.union_all()
+
+    if union2 is None or union2.is_empty:
+        return False
+
+    if all(union2.contains(geom1)):
+        return True
+
+    if any(union2.intersects(geom1)):
+        print("[Warning]: Some input features are partially outside the reference footprint.")
+        return True
+
+    return False
+
+
+def seedlines_within_chm_footprint(gdf, in_raster) -> bool:
+    """Check whether seed lines overlap the CHM raster footprint."""
+    return check_vector_raster_overlap(gdf, in_raster)

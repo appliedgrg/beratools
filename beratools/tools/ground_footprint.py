@@ -289,6 +289,10 @@ def ground_footprint(
     offset = float(offset)
     width_percentile = int(width_percentile)
 
+    if not sp_common.check_vector_vector_extent_overlap(in_file, in_layer, in_fp_file, in_layer_fp):
+        print("Input line extent does not overlap input footprint extent.")
+        return
+
     # TODO: refactor this code for better line quality check
     line_gdf = gpd.read_file(in_file, layer=in_layer)
     if "fid" in line_gdf.columns:
@@ -328,6 +332,16 @@ def ground_footprint(
     poly_gdf = algo_common.clean_geometries(poly_gdf, stage="input")
     poly_gdf = poly_gdf.reset_index(drop=True)
     poly_gdf["geometry"] = poly_gdf["geometry"].apply(algo_common.remove_holes)
+
+    if not sp_common.compare_crs(
+        sp_common.vector_crs(in_file, in_layer), sp_common.vector_crs(in_fp_file, in_layer_fp)
+    ):
+        print("Input line and footprint have different spatial references, please check.")
+        return
+
+    if not sp_common.check_vector_vector_overlap(line_gdf, poly_gdf):
+        print("Input line(s) do not overlap input footprint.")
+        return
 
     # merge group and/or split lines at intersections
     merged_line_gdf = line_gdf.copy(deep=True)
