@@ -23,6 +23,8 @@
 - **CHM Raster**: Path to your input raster file
 - **Process Segments**: Process each segment between vertices (True/False, default: True)
 - **Guided Strategy**: Centerline extraction strategy (`pairwise` or `main_route`, default: `pairwise`)
+- **Simplify Centerline**: Optionally run `geo-simplify reduce-bend` after centerline extraction
+- **Simplify Diameter (m)**: Reduce-bend diameter (default: `10.0`, `0` skips simplify)
 - **Output Centerline**: Path for the output file
 
 ## Tips

@@ -17,7 +17,8 @@ Extract a centerline path guided by a raster cost surface and seed-line endpoint
 2. Derive graph/candidate route structures for each line context.
 3. Solve least-cost path(s) according to mode.
 4. Apply endpoint/trim post-processing.
-5. Write centerline and supporting outputs.
+5. Optionally run `geo-simplify reduce-bend` on extracted centerlines.
+6. Write centerline and supporting outputs.
 
 ## Centerline modes
 

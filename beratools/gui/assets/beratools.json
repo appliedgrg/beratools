@@ -411,6 +411,33 @@
               "optional": true
             },
             {
+              "variable": "simplify_centerline",
+              "label": "Simplify Centerline",
+              "description": "Run geo-simplify reduce-bend on extracted centerlines.",
+              "type": "list",
+              "subtype": "bool",
+              "data": [true, false],
+              "default": false,
+              "output": false,
+              "optional": true
+            },
+            {
+              "variable": "simplify_diameter",
+              "label": "Simplify Diameter (m)",
+              "description": "Diameter used by simplify reduce-bend. Uses layer CRS units (meters in projected CRS).",
+              "type": "number",
+              "subtype": "float",
+              "default": 10.0,
+              "output": false,
+              "optional": true,
+              "unit": "m",
+              "depends_on": {
+                "variable": "simplify_centerline",
+                "condition": true,
+                "mode": "inline"
+              }
+            },
+            {
               "variable": "out_line",
               "label": "Output Centerline",
               "description": "Output centerline file.",
