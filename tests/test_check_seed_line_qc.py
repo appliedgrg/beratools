@@ -7,7 +7,7 @@ from pathlib import Path
 
 import beratools.core.constants as bt_const
 import beratools.core.algo_check_seed_line as acsl
-import beratools.core.algo_check_seed_line_report as acsl_report
+import beratools.core.algo_check_seed_line_validate as acsl_report
 from beratools.core.algo_common import clean_line_geometries
 import beratools.tools.check_seed_line as csl
 

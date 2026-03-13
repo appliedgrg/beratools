@@ -1,4 +1,4 @@
-"""Post-processing QC checks for check_seed_line outputs."""
+"""Final validation pass on check_seed_line outputs to detect remaining issues."""
 
 import geopandas as gpd
 from shapely.geometry import GeometryCollection, LineString, MultiLineString, MultiPoint, Point

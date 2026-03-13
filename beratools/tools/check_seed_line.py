@@ -15,7 +15,6 @@ Description:
 
 import logging
 import time
-import builtins
 from datetime import datetime, timezone
 from dataclasses import dataclass
 from typing import Optional
@@ -101,7 +100,7 @@ def _log_step(
 
     if skipped_reason:
         if verbose:
-            builtins.print(f"↷ {label} {in_count} -> {out_count}", flush=True)
+            print(f"↷ {label} {in_count} -> {out_count}")
         elif skipped_steps is not None:
             _record_skipped_step(skipped_steps, step_idx, step_name, skipped_reason)
         logger.debug(
@@ -115,19 +114,10 @@ def _log_step(
         return
 
     if elapsed is None:
-        builtins.print(f"✓ {label} {in_count} -> {out_count}", flush=True)
-        logger.debug("Step %s - %s: %s -> %s", step_idx, step_name, in_count, out_count)
+        print(f"✓ {label} {in_count} -> {out_count}")
         return
 
-    builtins.print(f"✓ {label} {in_count} -> {out_count} {elapsed:.3f}s", flush=True)
-    logger.debug(
-        "Step %s - %s: %s -> %s (%.3fs)",
-        step_idx,
-        step_name,
-        in_count,
-        out_count,
-        elapsed,
-    )
+    print(f"✓ {label} {in_count} -> {out_count} {elapsed:.3f}s")
 
 
 def _print_skipped_summary(skipped_steps):
@@ -152,32 +142,22 @@ def _print_skipped_summary(skipped_steps):
     for _, step_name, _ in skipped_steps:
         label = step_name.ljust(34)
         lines.append(f"↷ {label} skipped")
-    builtins.print("\n".join(lines), flush=True)
+    print("\n".join(lines))
 
 
 def _print_qc_summary(qc_summary, aux_file):
     if qc_summary["total"] > 0:
-        logger.info("QC Report Summary:")
-        logger.info("  Short lines:           %s issues", qc_summary["short_line"])
-        logger.info("  Close vertices:        %s issues", qc_summary["close_vertices"])
-        logger.info("  Unsnapped endpoints:   %s issues", qc_summary["unsnapped_endpoint"])
-        logger.info("  Self-crossing:         %s issues", qc_summary["self_crossing"])
-        logger.info("  Overlapping lines:     %s issues", qc_summary["overlap"])
-        logger.info("  -----------------------------------")
-        logger.info("  Total issues:          %s", qc_summary["total"])
-        logger.info("  Details saved to: %s (layer: qc_report_issues)", aux_file)
-        builtins.print("QC Report Summary:", flush=True)
-        builtins.print(f"  Short lines:           {qc_summary['short_line']} issues", flush=True)
-        builtins.print(f"  Close vertices:        {qc_summary['close_vertices']} issues", flush=True)
-        builtins.print(f"  Unsnapped endpoints:   {qc_summary['unsnapped_endpoint']} issues", flush=True)
-        builtins.print(f"  Self-crossing:         {qc_summary['self_crossing']} issues", flush=True)
-        builtins.print(f"  Overlapping lines:     {qc_summary['overlap']} issues", flush=True)
-        builtins.print(f"  {'-' * 35}", flush=True)
-        builtins.print(f"  Total issues:          {qc_summary['total']}", flush=True)
-        builtins.print(f"  Details saved to: {aux_file} (layer: qc_report_issues)", flush=True)
+        print("QC Report Summary:")
+        print(f"  Short lines:           {qc_summary['short_line']} issues")
+        print(f"  Close vertices:        {qc_summary['close_vertices']} issues")
+        print(f"  Unsnapped endpoints:   {qc_summary['unsnapped_endpoint']} issues")
+        print(f"  Self-crossing:         {qc_summary['self_crossing']} issues")
+        print(f"  Overlapping lines:     {qc_summary['overlap']} issues")
+        print(f"  {'-' * 35}")
+        print(f"  Total issues:          {qc_summary['total']}")
+        print(f"  Details saved to: {aux_file} (layer: qc_report_issues)")
     else:
-        logger.info("QC Report: No issues found.")
-        builtins.print("QC Report: No issues found.", flush=True)
+        print("QC Report: No issues found.")
 
 
 def _record_skipped_step(skipped_steps, step_idx, step_name, reason):
@@ -202,8 +182,7 @@ def _bail_if_empty(gdf, step_name, out_file, out_layer, in_count, skipped_steps=
         step_name,
         in_count,
     )
-    logger.info("QC report skipped: output became empty before Step 12.")
-    builtins.print("QC Report skipped: output became empty before Step 12.", flush=True)
+    print("QC Report skipped: output became empty before Step 12.")
     _write_output(gdf.iloc[0:0].copy(), out_file, out_layer)
     return True
 
@@ -852,8 +831,9 @@ def check_seed_line(
     _mark_layer("qc_removed_final", removed_gdf, notes="written" if _has_rows(removed_gdf) else "empty")
 
     step_name = "Generate QC Report"
-    from beratools.core.algo_check_seed_line_report import generate_qc_report
+    from beratools.core.algo_check_seed_line_validate import generate_qc_report
 
+    print("Running final validation pass to detect remaining issues after all previous steps...")
     t0 = _step_timer()
     qc_issues_gdf, qc_summary = generate_qc_report(
         gdf,

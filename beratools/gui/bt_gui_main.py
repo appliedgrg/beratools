@@ -777,11 +777,12 @@ class MainWindow(QtWidgets.QMainWindow):
         self.message(stderr)
 
     def handle_stdout(self):
-        line = self.process.readLine()
-        line = bytes(line).decode("utf8")
+        while self.process and self.process.canReadLine():
+            line = self.process.readLine()
+            line = bytes(line).decode("utf8")
 
-        # process line output
-        self.custom_callback(line)
+            # process line output
+            self.custom_callback(line)
         sys.stdout.flush()
 
     def handle_state(self, state):

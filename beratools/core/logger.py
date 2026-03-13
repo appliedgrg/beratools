@@ -66,6 +66,7 @@ class Logger(object):
         if flush:
             for handler in self.logger.handlers:
                 handler.flush()
+            sys.stdout.flush()
 
     def setup_logger(self):
         # Change root logger level from WARNING (default) to NOTSET
