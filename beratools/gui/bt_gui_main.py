@@ -254,7 +254,12 @@ class BTSlider(QtWidgets.QWidget):
         self.slider.setTickInterval(2)
         self.slider.setTickPosition(QtWidgets.QSlider.TicksAbove)
         self.slider.setRange(1, maximum)
+
+        # Block signals while setting initial value to avoid triggering save
+        self.slider.blockSignals(True)
         self.slider.setValue(current)
+        self.slider.blockSignals(False)
+
         self.label = QtWidgets.QLabel(self.generate_label_text(current))
 
         layout = QtWidgets.QHBoxLayout()
@@ -370,7 +375,9 @@ class MainWindow(QtWidgets.QMainWindow):
             self.tool_name = self.recent_tool
             self.tool_api = bt.get_bera_tool_api(self.tool_name)
 
-        self.update_procs(bt.get_max_cpu_cores())
+        # Only set to max if not already loaded from saved settings
+        if bt.selected_cpu_cores <= 0:
+            self.update_procs(bt.get_max_cpu_cores())
 
         # QProcess run tools
         self.process = None
@@ -567,7 +574,6 @@ class MainWindow(QtWidgets.QMainWindow):
     def save_tool_parameter(self):
         # Retrieve tool parameters from GUI
         args = self.tool_widget.get_widgets_arguments()
-        # bt.load_saved_tool_info()
         bt.add_tool_history(self.tool_api, args)
         bt.save_tool_info()
 
