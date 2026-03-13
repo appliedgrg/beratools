@@ -546,6 +546,24 @@ class TestFileSelectorLayerComboInteraction:
         w.layer_combo.setCurrentText("centerline (MultiLineString)")
         assert w.value["layer"] == "centerline"
 
+    def test_saved_layer_name_restores_when_combo_items_include_geometry_suffix(
+        self, make_file_selector, patched_layers, tmp_path
+    ):
+        gpkg = str(tmp_path / "input.gpkg")
+        Path(gpkg).write_text("", encoding="utf-8")
+        patched_layers.return_value = {
+            "seed_line_checked_kirby": "LineString",
+            "seed_line_checked_bohn": "MultiLineString",
+        }
+
+        param = dict(self.VECTOR_PARAM)
+        param["saved_value"] = f"{gpkg}|seed_line_checked_bohn"
+
+        w = make_file_selector(param)
+
+        assert w.value["layer"] == "seed_line_checked_bohn"
+        assert w.layer_combo.currentText().startswith("seed_line_checked_bohn")
+
     @pytest.mark.parametrize(
         ("ext", "expected_visible"),
         [(".gpkg", True), (".shp", False)],
