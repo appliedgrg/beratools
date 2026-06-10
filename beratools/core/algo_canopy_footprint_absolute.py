@@ -188,6 +188,7 @@ class FootprintCanopyAdaptive:
         canopy_avoidance=0.0,
         exponent=1.0,
         canopy_thresh_percentage=50.0,
+        exp_shk_cell=0,
     ):
         in_file, in_layer = sp_common.decode_file_layer(in_geom)
         data = algo_common.read_geospatial_file(in_file, layer=in_layer)
@@ -206,6 +207,7 @@ class FootprintCanopyAdaptive:
                 canopy_avoidance=canopy_avoidance,
                 exponent=exponent,
                 canopy_thresh_percentage=canopy_thresh_percentage,
+                exp_shk_cell=exp_shk_cell,
             )
             self.lines.append(line)
 
@@ -294,6 +296,7 @@ class LineInfo:
         canopy_avoidance=0.0,
         exponent=1.0,
         canopy_thresh_percentage=50.0,
+        exp_shk_cell=0,
     ):
         self.line = line_gdf
         self.in_chm = in_chm
@@ -309,6 +312,7 @@ class LineInfo:
         self.canopy_thresh_percentage = canopy_thresh_percentage
         self.canopy_avoidance = canopy_avoidance
         self.exponent = exponent
+        self.exp_shk_cell = exp_shk_cell
         self.max_line_width = max_line_width
         self.max_line_dist = max_line_dist
         self.tree_radius = tree_radius
@@ -667,7 +671,7 @@ class LineInfo:
 
             corridor_thresh = np.ma.where(corridor_norm >= corridor_threshold, 1.0, 0.0)
             clean_raster = algo_common.morph_raster(
-                corridor_thresh, canopy_raster, self.exponent, cell_size_x
+                corridor_thresh, canopy_raster, self.exp_shk_cell, cell_size_x
             )
 
             # create mask for non-polygon area
