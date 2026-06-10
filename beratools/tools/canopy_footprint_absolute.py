@@ -60,6 +60,10 @@ def canopy_footprint_abs(
     canopy_avoidance=0.0,
     exponent=1.0,
     canopy_thresh_percentage=50,
+    simplify_footprint_polygon=True,
+    footprint_simplify_length=0.5,
+    smooth_footprint_polygon=False,
+    footprint_polygon_smooth_iterations=1,
     processes=0,
     call_mode=CallMode.CLI,
     log_level="INFO",
@@ -82,6 +86,10 @@ def canopy_footprint_abs(
             canopy_avoidance=canopy_avoidance,
             exponent=exponent,
             canopy_thresh_percentage=canopy_thresh_percentage,
+            simplify_footprint_polygon=simplify_footprint_polygon,
+            footprint_simplify_length=footprint_simplify_length,
+            smooth_footprint_polygon=smooth_footprint_polygon,
+            footprint_polygon_smooth_iterations=footprint_polygon_smooth_iterations,
             processes=processes,
             call_mode=call_mode,
             log_level=log_level,
@@ -148,6 +156,10 @@ def _run_absolute_request(req: CanopyFootprintRequest) -> CanopyFootprintResult:
         corridor_thresh,
         req.max_ln_width,
         exp_shk_cell,
+        req.simplify_footprint_polygon,
+        req.footprint_simplify_length,
+        req.smooth_footprint_polygon,
+        req.footprint_polygon_smooth_iterations,
         in_layer,
     )
 
@@ -205,6 +217,10 @@ def _run_adaptive_request(req: CanopyFootprintRequest) -> CanopyFootprintResult:
             if req.canopy_thresh_percentage is not None
             else 50.0,
             exp_shk_cell=req.exp_shk_cell if req.exp_shk_cell is not None else 0,
+            simplify_footprint_polygon=req.simplify_footprint_polygon,
+            footprint_simplify_length=req.footprint_simplify_length,
+            smooth_footprint_polygon=req.smooth_footprint_polygon,
+            footprint_polygon_smooth_iterations=req.footprint_polygon_smooth_iterations,
         )
     except Exception as err:
         result.messages.append(f"Failed to initialize FootprintCanopyAdaptive: {err}")

@@ -740,6 +740,57 @@
               }
             },
             {
+              "variable": "simplify_footprint_polygon",
+              "label": "Simplify Footprint Polygon",
+              "description": "Simplify the output footprint polygon with topology preservation after raster-to-polygon conversion.",
+              "type": "list",
+              "subtype": "bool",
+              "data": [true, false],
+              "default": true,
+              "output": false,
+              "optional": true
+            },
+            {
+              "variable": "footprint_simplify_length",
+              "label": "Footprint Simplify Length (m)",
+              "description": "Topology-preserving simplification tolerance for output footprint polygons.",
+              "type": "number",
+              "subtype": "float",
+              "default": 0.5,
+              "output": false,
+              "optional": true,
+              "unit": "m",
+              "depends_on": {
+                "variable": "simplify_footprint_polygon",
+                "condition": true
+              }
+            },
+            {
+              "variable": "smooth_footprint_polygon",
+              "label": "Smooth Footprint Polygon",
+              "description": "Apply Chaikin smoothing to output footprint polygons after optional simplification.",
+              "type": "list",
+              "subtype": "bool",
+              "data": [true, false],
+              "default": false,
+              "output": false,
+              "optional": true
+            },
+            {
+              "variable": "footprint_polygon_smooth_iterations",
+              "label": "Footprint Smooth Iterations",
+              "description": "Number of Chaikin smoothing iterations for output footprint polygons.",
+              "type": "number",
+              "subtype": "int",
+              "default": 1,
+              "output": false,
+              "optional": true,
+              "depends_on": {
+                "variable": "smooth_footprint_polygon",
+                "condition": true
+              }
+            },
+            {
               "variable": "out_footprint",
               "label": "Output Footprint",
               "description": "Output footprint polygon file.",

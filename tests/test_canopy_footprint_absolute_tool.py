@@ -1,6 +1,6 @@
 import geopandas as gpd
 import pyproj
-from shapely.geometry import LineString
+from shapely.geometry import LineString, Polygon
 
 import beratools.tools.canopy_footprint_absolute as cfa
 
@@ -70,6 +70,55 @@ def test_canopy_footprint_absolute_continues_when_partial_overlap(monkeypatch):
     )
 
     assert called["run"] == 1
+
+
+def test_canopy_footprint_forwards_polygon_processing_options(monkeypatch):
+    _patch_common_guards(monkeypatch, overlap_result=True)
+
+    captured = {}
+
+    def _fake_run(req):
+        captured["request"] = req
+        return cfa.CanopyFootprintResult(messages=[])
+
+    monkeypatch.setattr(cfa, "_run_absolute_request", _fake_run)
+    monkeypatch.setattr(cfa, "save_main_footprint", lambda *_args, **_kwargs: True)
+
+    cfa.canopy_footprint_abs(
+        in_line="line.gpkg|line",
+        in_chm="chm.tif",
+        out_footprint="out.gpkg|footprint",
+        footprint_mode="absolute",
+        simplify_footprint_polygon=False,
+        footprint_simplify_length=1.25,
+        smooth_footprint_polygon=True,
+        footprint_polygon_smooth_iterations=2,
+    )
+
+    req = captured["request"]
+    assert req.simplify_footprint_polygon is False
+    assert req.footprint_simplify_length == 1.25
+    assert req.smooth_footprint_polygon is True
+    assert req.footprint_polygon_smooth_iterations == 2
+
+
+def test_process_footprint_polygon_gdf_simplifies_and_smooths():
+    from beratools.core.algo_canopy_footprint_absolute import process_footprint_polygon_gdf
+
+    polygon = Polygon([(0, 0), (4, 0), (4, 2), (0, 2), (0, 0)])
+    gdf = gpd.GeoDataFrame(geometry=[polygon], crs="EPSG:3857")
+
+    processed = process_footprint_polygon_gdf(
+        gdf,
+        simplify_footprint_polygon=True,
+        footprint_simplify_length=0.1,
+        smooth_footprint_polygon=True,
+        footprint_polygon_smooth_iterations=1,
+    )
+
+    assert processed.crs == gdf.crs
+    assert processed.geometry.iloc[0].is_valid
+    assert len(processed.geometry.iloc[0].exterior.coords) > len(polygon.exterior.coords)
 
 
 def test_canopy_footprint_adaptive_stops_when_no_line_raster_overlap(monkeypatch):
