@@ -162,6 +162,56 @@ def test_centerline_tool_rejects_unknown_guided_strategy():
         )
 
 
+def test_centerline_tool_rejects_unknown_centerline_method():
+    from beratools.tools.centerline import centerline
+
+    with pytest.raises(ValueError, match="not a valid CenterlineMethod"):
+        centerline(
+            in_line="dummy.gpkg|line",
+            in_raster="dummy.tif",
+            line_radius=15,
+            proc_segments=True,
+            out_line="out.gpkg|centerline",
+            centerline_method="unknown",
+        )
+
+
+def test_generate_line_class_list_forwards_astar_options(monkeypatch):
+    from beratools.tools import centerline as centerline_tool
+
+    line_gdf = gpd.GeoDataFrame(geometry=[LineString([(0, 0), (1, 0)])], crs="EPSG:3857")
+    captured = {}
+
+    class FakeSeedLine:
+        def __init__(self, *args, **kwargs):
+            captured["args"] = args
+            captured["kwargs"] = kwargs
+
+    monkeypatch.setattr(centerline_tool.algo_common, "prepare_lines_gdf", lambda *_args, **_kwargs: [line_gdf])
+    monkeypatch.setattr(centerline_tool.algo_centerline, "SeedLine", FakeSeedLine)
+
+    line_classes = centerline_tool.generate_line_class_list(
+        "input.gpkg",
+        "input.tif",
+        line_radius=15,
+        centerline_method="astar",
+        astar_lcp_simplify_enabled=True,
+        astar_lcp_simplify_diameter=12,
+        astar_lcp_smooth_enabled=True,
+        astar_lcp_smooth_iterations=2,
+        astar_corridor_line_bias_weight=0.2,
+        astar_corridor_distance_penalty_weight=0.4,
+    )
+
+    assert len(line_classes) == 1
+    assert captured["kwargs"]["centerline_method"] == "astar"
+    assert captured["kwargs"]["astar_lcp_simplify_enabled"] is True
+    assert captured["kwargs"]["astar_lcp_simplify_diameter"] == 12
+    assert captured["kwargs"]["astar_lcp_smooth_iterations"] == 2
+    assert captured["kwargs"]["astar_corridor_line_bias_weight"] == 0.2
+    assert captured["kwargs"]["astar_corridor_distance_penalty_weight"] == 0.4
+
+
 def test_find_centerline_virtual_forwards_guidance(monkeypatch):
     poly = Polygon([(-10, -10), (50, -10), (50, 10), (-10, 10), (-10, -10)])
     seed = LineString([(0, 0), (40, 0)])
@@ -184,6 +234,35 @@ def test_find_centerline_virtual_forwards_guidance(monkeypatch):
     assert captured["guided_strategy"] == "virtual_nodes"
     assert isinstance(captured["src_geom"], Point)
     assert isinstance(captured["dst_geom"], Point)
+
+
+def test_seedline_postprocess_astar_lcp_simplifies_then_smooths(monkeypatch):
+    seed_gdf = gpd.GeoDataFrame(geometry=[LineString([(0, 0), (1, 1), (2, 0)])], crs="EPSG:3857")
+    seed_line = algo_centerline.SeedLine(
+        seed_gdf,
+        "dummy.tif",
+        proc_segments=True,
+        line_radius=15,
+        centerline_method="astar",
+        astar_lcp_simplify_enabled=True,
+        astar_lcp_simplify_diameter=10,
+        astar_lcp_smooth_enabled=True,
+        astar_lcp_smooth_iterations=1,
+    )
+    calls = []
+
+    def fake_simplify(line, *, crs, diameter, smooth_line):
+        calls.append(("simplify", crs, diameter, smooth_line))
+        return line
+
+    monkeypatch.setattr(algo_centerline.tool_geo_simplify, "simplify_line_reduce_bend", fake_simplify)
+
+    processed = seed_line._postprocess_astar_lcp(seed_gdf.geometry.iloc[0], seed_gdf.crs)
+
+    assert calls == [("simplify", seed_gdf.crs, 10.0, True)]
+    assert processed.coords[0] == seed_gdf.geometry.iloc[0].coords[0]
+    assert processed.coords[-1] == seed_gdf.geometry.iloc[0].coords[-1]
+    assert len(processed.coords) > len(seed_gdf.geometry.iloc[0].coords)
 
 
 def test_validate_simplify_diameter_accepts_zero():
@@ -313,7 +392,7 @@ def test_centerline_tool_converts_line_radius_meters_to_projected_native_units(m
     )
 
     def _fake_generate(
-        _in_file, _in_raster, line_radius, layer=None, proc_segments=True, guided_strategy=None
+        _in_file, _in_raster, line_radius, layer=None, proc_segments=True, guided_strategy=None, **_kwargs
     ):
         captured["line_radius"] = line_radius
         return []

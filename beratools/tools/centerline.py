@@ -55,6 +55,17 @@ def generate_line_class_list(
     layer=None,
     proc_segments=True,
     guided_strategy=bt_const.CENTERLINE_GUIDED_STRATEGY.value,
+    centerline_method=bt_const.CENTERLINE_METHOD.value,
+    astar_lcp_simplify_enabled=False,
+    astar_lcp_simplify_diameter=10.0,
+    astar_lcp_smooth_enabled=True,
+    astar_lcp_smooth_iterations=1,
+    astar_corridor_line_bias_weight=0.1,
+    astar_corridor_distance_penalty_weight=0.2,
+    corridor_simplify_polygon=True,
+    corridor_simplify_length=0.5,
+    corridor_smooth_polygon=True,
+    corridor_polygon_smooth_iterations=1,
 ) -> list:
     line_classes = []
     line_list = algo_common.prepare_lines_gdf(in_vector, layer, proc_segments)
@@ -67,6 +78,17 @@ def generate_line_class_list(
                 proc_segments,
                 line_radius,
                 guided_strategy=guided_strategy,
+                centerline_method=centerline_method,
+                astar_lcp_simplify_enabled=astar_lcp_simplify_enabled,
+                astar_lcp_simplify_diameter=astar_lcp_simplify_diameter,
+                astar_lcp_smooth_enabled=astar_lcp_smooth_enabled,
+                astar_lcp_smooth_iterations=astar_lcp_smooth_iterations,
+                astar_corridor_line_bias_weight=astar_corridor_line_bias_weight,
+                astar_corridor_distance_penalty_weight=astar_corridor_distance_penalty_weight,
+                corridor_simplify_polygon=corridor_simplify_polygon,
+                corridor_simplify_length=corridor_simplify_length,
+                corridor_smooth_polygon=corridor_smooth_polygon,
+                corridor_polygon_smooth_iterations=corridor_polygon_smooth_iterations,
             )
         )
 
@@ -84,9 +106,20 @@ def centerline(
     line_radius,
     proc_segments,
     out_line,
+    centerline_method=bt_const.CENTERLINE_METHOD.value,
     guided_strategy=bt_const.CENTERLINE_GUIDED_STRATEGY.value,
     simplify_centerline=False,
     simplify_diameter=10.0,
+    astar_lcp_simplify_enabled=False,
+    astar_lcp_simplify_diameter=10.0,
+    astar_lcp_smooth_enabled=True,
+    astar_lcp_smooth_iterations=1,
+    astar_corridor_line_bias_weight=0.1,
+    astar_corridor_distance_penalty_weight=0.2,
+    corridor_simplify_polygon=True,
+    corridor_simplify_length=0.5,
+    corridor_smooth_polygon=True,
+    corridor_polygon_smooth_iterations=1,
     use_angle_grouping=True,
     processes=0,
     call_mode=CallMode.CLI,
@@ -102,8 +135,11 @@ def centerline(
     """
     if isinstance(guided_strategy, str):
         guided_strategy = bt_const.CenterlineStrategy(guided_strategy)
+    if isinstance(centerline_method, str):
+        centerline_method = bt_const.CenterlineMethod(centerline_method)
 
     guided_strategy_value = guided_strategy.value
+    centerline_method_value = centerline_method.value
 
     in_file, in_layer = sp_common.decode_file_layer(in_line)
     out_file, out_layer = sp_common.decode_file_layer(out_line)
@@ -138,6 +174,17 @@ def centerline(
         layer=in_layer,
         proc_segments=proc_segments,
         guided_strategy=guided_strategy_value,
+        centerline_method=centerline_method_value,
+        astar_lcp_simplify_enabled=_to_bool(astar_lcp_simplify_enabled),
+        astar_lcp_simplify_diameter=tool_geo_simplify.validate_diameter(astar_lcp_simplify_diameter),
+        astar_lcp_smooth_enabled=_to_bool(astar_lcp_smooth_enabled),
+        astar_lcp_smooth_iterations=int(astar_lcp_smooth_iterations),
+        astar_corridor_line_bias_weight=float(astar_corridor_line_bias_weight),
+        astar_corridor_distance_penalty_weight=float(astar_corridor_distance_penalty_weight),
+        corridor_simplify_polygon=_to_bool(corridor_simplify_polygon),
+        corridor_simplify_length=float(corridor_simplify_length),
+        corridor_smooth_polygon=_to_bool(corridor_smooth_polygon),
+        corridor_polygon_smooth_iterations=int(corridor_polygon_smooth_iterations),
     )
 
     print("{} lines to be processed.".format(len(line_class_list)))
