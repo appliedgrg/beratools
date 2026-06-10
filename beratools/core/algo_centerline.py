@@ -325,9 +325,10 @@ def find_centerline(poly, input_line, guided_strategy="main_route"):
     return centerline, CenterlineStatus.SUCCESS
 
 
-def find_corridor_polygon(corridor_thresh, in_transform, line_gpd):
+def find_corridor_polygon(corridor_thresh, in_transform, line_gpd, exp_shk_cell=0):
     # Threshold corridor raster used for generating centerline
-    corridor_thresh_cl = np.ma.where(corridor_thresh == 0.0, 1, 0).data
+    corridor_thresh_cl = algo_common.corridor_threshold_to_mask(corridor_thresh)
+    corridor_thresh_cl = algo_common.generalize_binary_mask(corridor_thresh_cl, exp_shk_cell)
     if corridor_thresh_cl.dtype == np.int64:
         corridor_thresh_cl = corridor_thresh_cl.astype(np.int32)
 

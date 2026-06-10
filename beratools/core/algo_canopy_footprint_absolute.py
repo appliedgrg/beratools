@@ -752,7 +752,13 @@ class FootprintCanopyAbsolute:
             raster["cell_size_x"],
         )
         self.footprint = self.build_candidate_polygon(clean_raster, raster["out_transform"])
-        self.postprocess_output(corridor_thresh, raster["out_transform"], prep["line_gpd"], prep["feat"])
+        self.postprocess_output(
+            corridor_thresh,
+            raster["out_transform"],
+            prep["line_gpd"],
+            prep["feat"],
+            self.exp_shk_cell,
+        )
 
     def prepare_inputs(self):
         corridor_thresh = self.corridor_thresh
@@ -832,10 +838,12 @@ class FootprintCanopyAbsolute:
         footprint.set_crs(crs_str, inplace=True)
         return footprint
 
-    def postprocess_output(self, corridor_thresh, out_transform, line_gpd, feat):
+    def postprocess_output(self, corridor_thresh, out_transform, line_gpd, feat, exp_shk_cell=0):
         import beratools.core.algo_centerline as algo_cl
 
-        corridor_poly_gpd = algo_cl.find_corridor_polygon(corridor_thresh, out_transform, line_gpd)
+        corridor_poly_gpd = algo_cl.find_corridor_polygon(
+            corridor_thresh, out_transform, line_gpd, exp_shk_cell=exp_shk_cell
+        )
         centerline, _status = algo_cl.find_centerline(corridor_poly_gpd.geometry.iloc[0], feat)
 
         self.corridor_poly_gpd = corridor_poly_gpd
