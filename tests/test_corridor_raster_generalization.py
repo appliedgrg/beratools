@@ -1,5 +1,9 @@
 import numpy as np
+import geopandas as gpd
+from rasterio.transform import Affine
+from shapely.geometry import LineString
 
+from beratools.core import algo_centerline
 from beratools.core import algo_common
 
 
@@ -69,3 +73,23 @@ def test_morph_raster_wraps_corridor_canopy_and_generalization():
     clean = algo_common.morph_raster(corridor_thresh, canopy_raster, exp_shk_cell=0, cell_size_x=2.0)
 
     assert clean[1, 1] == 0
+
+
+def test_find_corridor_polygon_uses_shared_generalization():
+    corridor_thresh = np.ones((5, 5), dtype=np.float32)
+    corridor_thresh[1:4, 1:4] = 0.0
+    corridor_thresh[2, 2] = 1.0
+    line_gdf = gpd.GeoDataFrame(
+        geometry=[LineString([(0.0, 0.0), (4.0, 4.0)])],
+        crs="EPSG:3857",
+    )
+
+    polygon_gdf = algo_centerline.find_corridor_polygon(
+        corridor_thresh,
+        Affine.identity(),
+        line_gdf,
+        exp_shk_cell=1,
+    )
+
+    assert polygon_gdf.geometry.iloc[0] is not None
+    assert polygon_gdf.geometry.iloc[0].area == 25.0
