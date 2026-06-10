@@ -422,24 +422,20 @@
               "optional": true
             },
             {
-              "variable": "astar_lcp_simplify_enabled",
-              "label": "Simplify A* LCP",
-              "description": "Run geo-simplify reduce-bend on the A* least-cost path before corridor generation.",
+              "variable": "lcp_simplify_enabled",
+              "label": "Simplify LCP",
+              "description": "Run geo-simplify reduce-bend on the least-cost path before corridor generation.",
               "type": "list",
               "subtype": "bool",
               "data": [true, false],
               "default": false,
               "output": false,
-              "optional": true,
-              "depends_on": {
-                "variable": "centerline_method",
-                "condition": "astar"
-              }
+              "optional": true
             },
             {
-              "variable": "astar_lcp_simplify_diameter",
-              "label": "A* LCP Simplify Diameter (m)",
-              "description": "Diameter used by reduce-bend for the A* least-cost path before corridor generation.",
+              "variable": "lcp_simplify_diameter",
+              "label": "LCP Simplify Diameter (m)",
+              "description": "Diameter used by reduce-bend for the least-cost path before corridor generation.",
               "type": "number",
               "subtype": "float",
               "default": 10.0,
@@ -447,55 +443,33 @@
               "optional": true,
               "unit": "m",
               "depends_on": {
-                "conditions": [
-                  {
-                    "variable": "centerline_method",
-                    "condition": "astar"
-                  },
-                  {
-                    "variable": "astar_lcp_simplify_enabled",
-                    "condition": true
-                  }
-                ],
-                "logic": "and"
+                "variable": "lcp_simplify_enabled",
+                "condition": true
               }
             },
             {
-              "variable": "astar_lcp_smooth_enabled",
-              "label": "Smooth A* LCP",
-              "description": "Apply Chaikin smoothing to the A* least-cost path before corridor generation.",
+              "variable": "lcp_smooth_enabled",
+              "label": "Smooth LCP",
+              "description": "Apply Chaikin smoothing to the least-cost path before corridor generation.",
               "type": "list",
               "subtype": "bool",
               "data": [true, false],
-              "default": true,
+              "default": false,
               "output": false,
-              "optional": true,
-              "depends_on": {
-                "variable": "centerline_method",
-                "condition": "astar"
-              }
+              "optional": true
             },
             {
-              "variable": "astar_lcp_smooth_iterations",
-              "label": "A* LCP Smooth Iterations",
-              "description": "Number of Chaikin smoothing iterations for the A* least-cost path.",
+              "variable": "lcp_smooth_iterations",
+              "label": "LCP Smooth Iterations",
+              "description": "Number of Chaikin smoothing iterations for the least-cost path.",
               "type": "number",
               "subtype": "int",
               "default": 1,
               "output": false,
               "optional": true,
               "depends_on": {
-                "conditions": [
-                  {
-                    "variable": "centerline_method",
-                    "condition": "astar"
-                  },
-                  {
-                    "variable": "astar_lcp_smooth_enabled",
-                    "condition": true
-                  }
-                ],
-                "logic": "and"
+                "variable": "lcp_smooth_enabled",
+                "condition": true
               }
             },
             {
@@ -528,23 +502,19 @@
             },
             {
               "variable": "corridor_simplify_polygon",
-              "label": "Simplify A* Corridor Polygon",
-              "description": "Simplify the A* corridor polygon before extracting the final centerline.",
+              "label": "Simplify Corridor Polygon",
+              "description": "Simplify the corridor polygon before extracting the final centerline.",
               "type": "list",
               "subtype": "bool",
               "data": [true, false],
-              "default": true,
+              "default": false,
               "output": false,
-              "optional": true,
-              "depends_on": {
-                "variable": "centerline_method",
-                "condition": "astar"
-              }
+              "optional": true
             },
             {
               "variable": "corridor_simplify_length",
-              "label": "A* Corridor Simplify Length (m)",
-              "description": "Topology-preserving simplification tolerance for the A* corridor polygon.",
+              "label": "Corridor Simplify Length (m)",
+              "description": "Topology-preserving simplification tolerance for the corridor polygon.",
               "type": "number",
               "subtype": "float",
               "default": 0.5,
@@ -552,55 +522,33 @@
               "optional": true,
               "unit": "m",
               "depends_on": {
-                "conditions": [
-                  {
-                    "variable": "centerline_method",
-                    "condition": "astar"
-                  },
-                  {
-                    "variable": "corridor_simplify_polygon",
-                    "condition": true
-                  }
-                ],
-                "logic": "and"
+                "variable": "corridor_simplify_polygon",
+                "condition": true
               }
             },
             {
               "variable": "corridor_smooth_polygon",
-              "label": "Smooth A* Corridor Polygon",
-              "description": "Apply Chaikin smoothing to the A* corridor polygon before centerline extraction.",
+              "label": "Smooth Corridor Polygon",
+              "description": "Apply Chaikin smoothing to the corridor polygon before centerline extraction.",
               "type": "list",
               "subtype": "bool",
               "data": [true, false],
-              "default": true,
+              "default": false,
               "output": false,
-              "optional": true,
-              "depends_on": {
-                "variable": "centerline_method",
-                "condition": "astar"
-              }
+              "optional": true
             },
             {
               "variable": "corridor_polygon_smooth_iterations",
-              "label": "A* Corridor Smooth Iterations",
-              "description": "Number of Chaikin smoothing iterations for the A* corridor polygon.",
+              "label": "Corridor Smooth Iterations",
+              "description": "Number of Chaikin smoothing iterations for the corridor polygon.",
               "type": "number",
               "subtype": "int",
               "default": 1,
               "output": false,
               "optional": true,
               "depends_on": {
-                "conditions": [
-                  {
-                    "variable": "centerline_method",
-                    "condition": "astar"
-                  },
-                  {
-                    "variable": "corridor_smooth_polygon",
-                    "condition": true
-                  }
-                ],
-                "logic": "and"
+                "variable": "corridor_smooth_polygon",
+                "condition": true
               }
             },
             {

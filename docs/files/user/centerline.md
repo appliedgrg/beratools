@@ -24,11 +24,11 @@
 - **Process Segments**: Process each segment between vertices (True/False, default: True)
 - **Centerline Method**: Choose `bera` for the existing BERA Tools least-cost/corridor workflow or `astar` for the A* least-cost path and A* accumulation corridor workflow
 - **Guided Strategy**: Centerline extraction strategy (`pairwise` or `main_route`, default: `pairwise`)
-- **Simplify A* LCP**: Optionally run `geo-simplify reduce-bend` on the A* least-cost path before corridor generation
-- **Smooth A* LCP**: Optionally smooth the A* least-cost path before corridor generation
+- **Simplify LCP**: Optionally run `geo-simplify reduce-bend` on the least-cost path before corridor generation
+- **Smooth LCP**: Optionally smooth the least-cost path before corridor generation
 - **A* Corridor Line Bias**: Biases A* accumulation toward the endpoint direction when resolving ties
 - **A* Corridor Distance Penalty**: Narrows the A* corridor by penalizing cells farther from the A* path
-- **Simplify/Smooth A* Corridor Polygon**: Optionally simplify and smooth the A* corridor polygon before final centerline extraction
+- **Simplify/Smooth Corridor Polygon**: Optionally simplify and smooth the corridor polygon before final centerline extraction
 - **Simplify Centerline**: Optionally run `geo-simplify reduce-bend` after centerline extraction
 - **Simplify Diameter (m)**: Reduce-bend diameter (default: `10.0`, `0` skips simplify)
 - **Output Centerline**: Path for the output file
