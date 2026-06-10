@@ -15,10 +15,22 @@ Extract a centerline path guided by a raster cost surface and seed-line endpoint
 
 1. Build/prepare local cost representation from input raster.
 2. Derive graph/candidate route structures for each line context.
-3. Solve least-cost path(s) according to mode.
-4. Apply endpoint/trim post-processing.
-5. Optionally run `geo-simplify reduce-bend` on extracted centerlines.
-6. Write centerline and supporting outputs.
+3. Solve the least-cost path with the selected method.
+4. Build the corridor raster and corridor polygon with the selected method.
+5. Extract the centerline from the corridor polygon using the least-cost path as guidance.
+6. Apply endpoint/trim post-processing.
+7. Optionally run `geo-simplify reduce-bend` on extracted centerlines.
+8. Write centerline and supporting outputs.
+
+## Least-cost and corridor methods
+
+- `bera` is the default and preserves the existing BERA Tools workflow: BERA Dijkstra/skimage least-cost path, BERA corridor raster, corridor polygon, then polygon-centerline extraction.
+- `astar` uses an 8-neighbor grid A* least-cost path with stable tie-breaking toward the seed-line direction.
+- The A* least-cost path can be simplified with `geo-simplify reduce-bend --smooth-line` and smoothed before corridor generation.
+- The A* corridor raster is built from forward/reverse A* accumulation. It uses BERA's corridor convention: `0` inside the corridor and `1` outside.
+- The A* corridor supports a line-bias weight and a distance-from-path penalty weight.
+- The A* corridor polygon can be simplified and smoothed before final centerline extraction.
+- The A* final centerline is derived from the A* corridor polygon using the processed A* least-cost path as the guide line.
 
 ## Centerline modes
 

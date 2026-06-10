@@ -22,7 +22,13 @@
 - **Seed Line**: Path to your input line file
 - **CHM Raster**: Path to your input raster file
 - **Process Segments**: Process each segment between vertices (True/False, default: True)
+- **Centerline Method**: Choose `bera` for the existing BERA Tools least-cost/corridor workflow or `astar` for the A* least-cost path and A* accumulation corridor workflow
 - **Guided Strategy**: Centerline extraction strategy (`pairwise` or `main_route`, default: `pairwise`)
+- **Simplify A* LCP**: Optionally run `geo-simplify reduce-bend` on the A* least-cost path before corridor generation
+- **Smooth A* LCP**: Optionally smooth the A* least-cost path before corridor generation
+- **A* Corridor Line Bias**: Biases A* accumulation toward the endpoint direction when resolving ties
+- **A* Corridor Distance Penalty**: Narrows the A* corridor by penalizing cells farther from the A* path
+- **Simplify/Smooth A* Corridor Polygon**: Optionally simplify and smooth the A* corridor polygon before final centerline extraction
 - **Simplify Centerline**: Optionally run `geo-simplify reduce-bend` after centerline extraction
 - **Simplify Diameter (m)**: Reduce-bend diameter (default: `10.0`, `0` skips simplify)
 - **Output Centerline**: Path for the output file
@@ -31,6 +37,7 @@
 
 - Input lines and raster must have the same spatial reference (CRS).
 - Output includes centerlines and auxiliary layers (least cost path, corridor polygons).
+- In A* mode, the final centerline is extracted from the A* corridor polygon using the simplified/smoothed A* least-cost path as guidance.
 - Works with GeoPackage or Shapefile formats.
 
 ## Guided mode details
