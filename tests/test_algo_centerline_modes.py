@@ -195,19 +195,19 @@ def test_generate_line_class_list_forwards_astar_options(monkeypatch):
         "input.tif",
         line_radius=15,
         centerline_method="astar",
-        astar_lcp_simplify_enabled=True,
-        astar_lcp_simplify_diameter=12,
-        astar_lcp_smooth_enabled=True,
-        astar_lcp_smooth_iterations=2,
+        lcp_simplify_enabled=True,
+        lcp_simplify_diameter=12,
+        lcp_smooth_enabled=True,
+        lcp_smooth_iterations=2,
         astar_corridor_line_bias_weight=0.2,
         astar_corridor_distance_penalty_weight=0.4,
     )
 
     assert len(line_classes) == 1
     assert captured["kwargs"]["centerline_method"] == "astar"
-    assert captured["kwargs"]["astar_lcp_simplify_enabled"] is True
-    assert captured["kwargs"]["astar_lcp_simplify_diameter"] == 12
-    assert captured["kwargs"]["astar_lcp_smooth_iterations"] == 2
+    assert captured["kwargs"]["lcp_simplify_enabled"] is True
+    assert captured["kwargs"]["lcp_simplify_diameter"] == 12
+    assert captured["kwargs"]["lcp_smooth_iterations"] == 2
     assert captured["kwargs"]["astar_corridor_line_bias_weight"] == 0.2
     assert captured["kwargs"]["astar_corridor_distance_penalty_weight"] == 0.4
 
@@ -236,7 +236,7 @@ def test_find_centerline_virtual_forwards_guidance(monkeypatch):
     assert isinstance(captured["dst_geom"], Point)
 
 
-def test_seedline_postprocess_astar_lcp_simplifies_then_smooths(monkeypatch):
+def test_seedline_postprocess_lcp_simplifies_then_smooths(monkeypatch):
     seed_gdf = gpd.GeoDataFrame(geometry=[LineString([(0, 0), (1, 1), (2, 0)])], crs="EPSG:3857")
     seed_line = algo_centerline.SeedLine(
         seed_gdf,
@@ -244,10 +244,10 @@ def test_seedline_postprocess_astar_lcp_simplifies_then_smooths(monkeypatch):
         proc_segments=True,
         line_radius=15,
         centerline_method="astar",
-        astar_lcp_simplify_enabled=True,
-        astar_lcp_simplify_diameter=10,
-        astar_lcp_smooth_enabled=True,
-        astar_lcp_smooth_iterations=1,
+        lcp_simplify_enabled=True,
+        lcp_simplify_diameter=10,
+        lcp_smooth_enabled=True,
+        lcp_smooth_iterations=1,
     )
     calls = []
 
@@ -257,7 +257,7 @@ def test_seedline_postprocess_astar_lcp_simplifies_then_smooths(monkeypatch):
 
     monkeypatch.setattr(algo_centerline.tool_geo_simplify, "simplify_line_reduce_bend", fake_simplify)
 
-    processed = seed_line._postprocess_astar_lcp(seed_gdf.geometry.iloc[0], seed_gdf.crs)
+    processed = seed_line._postprocess_lcp(seed_gdf.geometry.iloc[0], seed_gdf.crs)
 
     assert calls == [("simplify", seed_gdf.crs, 10.0, True)]
     assert processed.coords[0] == seed_gdf.geometry.iloc[0].coords[0]

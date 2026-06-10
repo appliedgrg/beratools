@@ -523,15 +523,15 @@ class SeedLine:
         line_radius,
         guided_strategy="main_route",
         centerline_method=bt_const.CENTERLINE_METHOD.value,
-        astar_lcp_simplify_enabled=False,
-        astar_lcp_simplify_diameter=10.0,
-        astar_lcp_smooth_enabled=True,
-        astar_lcp_smooth_iterations=1,
+        lcp_simplify_enabled=False,
+        lcp_simplify_diameter=10.0,
+        lcp_smooth_enabled=False,
+        lcp_smooth_iterations=1,
         astar_corridor_line_bias_weight=0.1,
         astar_corridor_distance_penalty_weight=0.2,
-        corridor_simplify_polygon=True,
+        corridor_simplify_polygon=False,
         corridor_simplify_length=0.5,
-        corridor_smooth_polygon=True,
+        corridor_smooth_polygon=False,
         corridor_polygon_smooth_iterations=1,
     ):
         self.line = line_gdf
@@ -539,10 +539,10 @@ class SeedLine:
         self.line_radius = line_radius
         self.guided_strategy = guided_strategy
         self.centerline_method = centerline_method
-        self.astar_lcp_simplify_enabled = _to_bool(astar_lcp_simplify_enabled)
-        self.astar_lcp_simplify_diameter = float(astar_lcp_simplify_diameter)
-        self.astar_lcp_smooth_enabled = _to_bool(astar_lcp_smooth_enabled)
-        self.astar_lcp_smooth_iterations = max(int(astar_lcp_smooth_iterations), 0)
+        self.lcp_simplify_enabled = _to_bool(lcp_simplify_enabled)
+        self.lcp_simplify_diameter = float(lcp_simplify_diameter)
+        self.lcp_smooth_enabled = _to_bool(lcp_smooth_enabled)
+        self.lcp_smooth_iterations = max(int(lcp_smooth_iterations), 0)
         self.astar_corridor_line_bias_weight = max(float(astar_corridor_line_bias_weight), 0.0)
         self.astar_corridor_distance_penalty_weight = max(float(astar_corridor_distance_penalty_weight), 0.0)
         self.corridor_simplify_polygon = _to_bool(corridor_simplify_polygon)
@@ -587,9 +587,8 @@ class SeedLine:
 
         # get corridor raster
         lc_path = sh_geom.LineString(lc_path_coords)
-        if self.centerline_method == bt_const.CenterlineMethod.ASTAR.value:
-            lc_path = self._postprocess_astar_lcp(lc_path, out_meta.get("crs"))
-            lc_path_coords = list(lc_path.coords)
+        lc_path = self._postprocess_lcp(lc_path, out_meta.get("crs"))
+        lc_path_coords = list(lc_path.coords)
         ras_clip, out_meta = sp_common.clip_raster(in_raster, lc_path, line_radius * 0.9)
         cost_clip, _ = algo_cost.cost_raster(ras_clip, out_meta)
 
@@ -623,8 +622,7 @@ class SeedLine:
         # find contiguous corridor polygon and extract centerline
         df = gpd.GeoDataFrame(geometry=[seed_line], crs=out_meta["crs"])
         corridor_poly_gpd = find_corridor_polygon(corridor_thresh_cl, out_transform, df)
-        if self.centerline_method == bt_const.CenterlineMethod.ASTAR.value:
-            corridor_poly_gpd = self._postprocess_corridor_polygon(corridor_poly_gpd)
+        corridor_poly_gpd = self._postprocess_corridor_polygon(corridor_poly_gpd)
         center_line, status = find_centerline(
             corridor_poly_gpd.geometry.iloc[0],
             lc_path,
@@ -635,16 +633,8 @@ class SeedLine:
         self.lc_path = self.line.copy()
         self.lc_path.geometry = [lc_path]
         self.lc_path["centerline_method"] = self.centerline_method
-        self.lc_path["astar_lcp_simplified"] = bool(
-            self.centerline_method == bt_const.CenterlineMethod.ASTAR.value
-            and self.astar_lcp_simplify_enabled
-            and self.astar_lcp_simplify_diameter > 0
-        )
-        self.lc_path["astar_lcp_smoothed"] = bool(
-            self.centerline_method == bt_const.CenterlineMethod.ASTAR.value
-            and self.astar_lcp_smooth_enabled
-            and self.astar_lcp_smooth_iterations > 0
-        )
+        self.lc_path["lcp_simplified"] = bool(self.lcp_simplify_enabled and self.lcp_simplify_diameter > 0)
+        self.lc_path["lcp_smoothed"] = bool(self.lcp_smooth_enabled and self.lcp_smooth_iterations > 0)
 
         self.centerline = self.line.copy()
         self.centerline.geometry = [center_line]
@@ -653,19 +643,19 @@ class SeedLine:
         self.corridor_poly_gpd = corridor_poly_gpd
         self.corridor_poly_gpd["centerline_method"] = self.centerline_method
 
-    def _postprocess_astar_lcp(self, lc_path, crs):
+    def _postprocess_lcp(self, lc_path, crs):
         processed = lc_path
-        if self.astar_lcp_simplify_enabled and self.astar_lcp_simplify_diameter > 0:
+        if self.lcp_simplify_enabled and self.lcp_simplify_diameter > 0:
             processed = tool_geo_simplify.simplify_line_reduce_bend(
                 processed,
                 crs=crs,
-                diameter=self.astar_lcp_simplify_diameter,
+                diameter=self.lcp_simplify_diameter,
                 smooth_line=True,
             )
-        if self.astar_lcp_smooth_enabled and self.astar_lcp_smooth_iterations > 0:
+        if self.lcp_smooth_enabled and self.lcp_smooth_iterations > 0:
             processed = algo_geometry.chaikin_smooth_line(
                 processed,
-                iterations=self.astar_lcp_smooth_iterations,
+                iterations=self.lcp_smooth_iterations,
             )
         return processed
 
