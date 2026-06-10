@@ -204,6 +204,7 @@ def _run_adaptive_request(req: CanopyFootprintRequest) -> CanopyFootprintResult:
             canopy_thresh_percentage=req.canopy_thresh_percentage
             if req.canopy_thresh_percentage is not None
             else 50.0,
+            exp_shk_cell=req.exp_shk_cell if req.exp_shk_cell is not None else 0,
         )
     except Exception as err:
         result.messages.append(f"Failed to initialize FootprintCanopyAdaptive: {err}")
