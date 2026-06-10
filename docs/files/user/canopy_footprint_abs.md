@@ -19,9 +19,14 @@
 
 - **Centerline**: Path to your centerline line file
 - **CHM Raster**: Path to your CHM raster file
+- **Simplify Footprint Polygon**: Optionally simplify output footprint polygons after raster-to-polygon conversion
+- **Footprint Simplify Length (m)**: Simplification tolerance for footprint polygons
+- **Smooth Footprint Polygon**: Optionally smooth output footprint polygon boundaries
+- **Footprint Smooth Iterations**: Number of polygon smoothing iterations
 - **Output Footprint**: Path for the output footprint file
 
 ## Tips
 
 - Works best with line data and a canopy or cost raster.
 - Adjust `corridor_thresh` and `max_ln_width` for your data and mapping needs.
+- Raster generalization removes small mask artifacts; footprint polygon simplify/smooth controls improve vector boundary shape after polygon extraction.
