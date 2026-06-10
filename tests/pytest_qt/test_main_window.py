@@ -40,6 +40,17 @@ class TestMainWindowBasics:
     def test_window_visible(self, main_window):
         assert main_window.isVisible()
 
+    def test_stale_recent_tool_falls_back_to_centerline(self, qtbot, monkeypatch):
+        from beratools.gui import bt_gui_main
+
+        monkeypatch.setattr(bt_gui_main.bt, "recent_tool", "Missing Tool")
+
+        window = bt_gui_main.MainWindow()
+        qtbot.addWidget(window)
+
+        assert window.recent_tool is None
+        assert window.tool_name == "Centerline"
+
     def test_run_button_exists(self, main_window):
         assert main_window.btn_run is not None
         assert main_window.btn_run.text() == "Run"
@@ -330,6 +341,21 @@ class TestTreeView:
         assert proxy.rowCount() == 0
 
         search.setText("")
+
+    def test_stale_recent_tool_falls_back_to_centerline(self, qtbot, monkeypatch):
+        from beratools.gui import bt_gui_main
+
+        monkeypatch.setattr(bt_gui_main.bt, "recent_tool", "Missing Tool")
+
+        tree_view = bt_gui_main.BTTreeView()
+        qtbot.addWidget(tree_view)
+
+        index = tree_view.tree_sel_model.currentIndex()
+        source_index = tree_view.tags_model.mapToSource(index)
+        item = tree_view.tree_model.itemFromIndex(source_index)
+
+        assert item is not None
+        assert item.text() == "Centerline"
 
 
 class TestKeyboardInput:
