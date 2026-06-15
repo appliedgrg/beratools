@@ -199,6 +199,7 @@ def test_generate_line_class_list_forwards_astar_options(monkeypatch):
         lcp_simplify_diameter=12,
         lcp_smooth_enabled=True,
         lcp_smooth_iterations=2,
+        chm_mode="alt",
         astar_corridor_line_bias_weight=0.2,
         astar_corridor_distance_penalty_weight=0.4,
     )
@@ -208,8 +209,68 @@ def test_generate_line_class_list_forwards_astar_options(monkeypatch):
     assert captured["kwargs"]["lcp_simplify_enabled"] is True
     assert captured["kwargs"]["lcp_simplify_diameter"] == 12
     assert captured["kwargs"]["lcp_smooth_iterations"] == 2
+    assert captured["kwargs"]["chm_mode"] == "alt"
     assert captured["kwargs"]["astar_corridor_line_bias_weight"] == 0.2
     assert captured["kwargs"]["astar_corridor_distance_penalty_weight"] == 0.4
+
+
+def test_centerline_tool_rejects_unknown_chm_mode():
+    from beratools.tools.centerline import centerline
+
+    with pytest.raises(ValueError, match="not a valid CenterlineChmMode"):
+        centerline(
+            in_line="dummy.gpkg|line",
+            in_raster="dummy.tif",
+            line_radius=15,
+            proc_segments=True,
+            out_line="out.gpkg|centerline",
+            chm_mode="unknown",
+        )
+
+
+def test_seedline_clip_chm_dispatches_current_and_alt(monkeypatch):
+    seed_gdf = gpd.GeoDataFrame(geometry=[LineString([(0, 0), (1, 0)])], crs="EPSG:3857")
+    seed_line = seed_gdf.geometry.iloc[0]
+    calls = []
+
+    def fake_current(in_raster, clip_geometry, buffer):
+        calls.append(("current", in_raster, clip_geometry, buffer))
+        return "current-raster", {"mode": "current"}
+
+    def fake_alt(params, in_raster, clip_geometry, buffer):
+        calls.append(("alt", params, in_raster, clip_geometry, buffer))
+        return "alt-raster", {"mode": "alt"}, "markers", "tree-area"
+
+    monkeypatch.setattr(algo_centerline.sp_common, "clip_raster", fake_current)
+    monkeypatch.setattr(
+        algo_centerline.alt_sp_common,
+        "alt_clip_and_filter_reginal_maxima_wGap",
+        fake_alt,
+    )
+
+    current = algo_centerline.SeedLine(
+        seed_gdf,
+        "dummy.tif",
+        proc_segments=True,
+        line_radius=15,
+        chm_mode="current",
+    )
+    assert current._clip_chm("dummy.tif", seed_line, 15) == (
+        "current-raster",
+        {"mode": "current"},
+    )
+
+    alt = algo_centerline.SeedLine(
+        seed_gdf,
+        "dummy.tif",
+        proc_segments=True,
+        line_radius=15,
+        chm_mode="alt",
+    )
+    assert alt._clip_chm("dummy.tif", seed_line, 15) == ("alt-raster", {"mode": "alt"})
+
+    assert calls[0] == ("current", "dummy.tif", seed_line, 15)
+    assert calls[1] == ("alt", {"tree_radius": 2.5}, "dummy.tif", seed_line, 15)
 
 
 def test_find_centerline_virtual_forwards_guidance(monkeypatch):

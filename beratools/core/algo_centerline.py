@@ -31,6 +31,7 @@ import beratools.core.algo_common as algo_common
 import beratools.core.algo_cost as algo_cost
 import beratools.core.algo_astar as algo_astar
 import beratools.core.algo_geometry as algo_geometry
+import beratools.core.alt_spatial_common as alt_sp_common
 import beratools.core.algo_dijkstra as bt_dijkstra
 import beratools.core.constants as bt_const
 import beratools.core.tool_base as bt_base
@@ -527,6 +528,7 @@ class SeedLine:
         lcp_simplify_diameter=10.0,
         lcp_smooth_enabled=False,
         lcp_smooth_iterations=1,
+        chm_mode=bt_const.CENTERLINE_CHM_MODE.value,
         astar_corridor_line_bias_weight=0.1,
         astar_corridor_distance_penalty_weight=0.2,
         corridor_simplify_polygon=False,
@@ -543,6 +545,12 @@ class SeedLine:
         self.lcp_simplify_diameter = float(lcp_simplify_diameter)
         self.lcp_smooth_enabled = _to_bool(lcp_smooth_enabled)
         self.lcp_smooth_iterations = max(int(lcp_smooth_iterations), 0)
+        if isinstance(chm_mode, bt_const.CenterlineChmMode):
+            chm_mode = chm_mode.value
+        if chm_mode not in {mode.value for mode in bt_const.CenterlineChmMode}:
+            valid_modes = [mode.value for mode in bt_const.CenterlineChmMode]
+            raise ValueError("chm_mode must be one of {}".format(valid_modes))
+        self.chm_mode = chm_mode
         self.astar_corridor_line_bias_weight = max(float(astar_corridor_line_bias_weight), 0.0)
         self.astar_corridor_distance_penalty_weight = max(float(astar_corridor_distance_penalty_weight), 0.0)
         self.corridor_simplify_polygon = _to_bool(corridor_simplify_polygon)
@@ -559,7 +567,7 @@ class SeedLine:
         in_raster = self.raster
         seed_line = line  # LineString
 
-        ras_clip, out_meta = sp_common.clip_raster(in_raster, seed_line, line_radius)
+        ras_clip, out_meta = self._clip_chm(in_raster, seed_line, line_radius)
         cost_clip, _ = algo_cost.cost_raster(ras_clip, out_meta)
 
         lc_path = line
@@ -589,7 +597,7 @@ class SeedLine:
         lc_path = sh_geom.LineString(lc_path_coords)
         lc_path = self._postprocess_lcp(lc_path, out_meta.get("crs"))
         lc_path_coords = list(lc_path.coords)
-        ras_clip, out_meta = sp_common.clip_raster(in_raster, lc_path, line_radius * 0.9)
+        ras_clip, out_meta = self._clip_chm(in_raster, lc_path, line_radius * 0.9)
         cost_clip, _ = algo_cost.cost_raster(ras_clip, out_meta)
 
         out_transform = out_meta["transform"]
@@ -642,6 +650,17 @@ class SeedLine:
 
         self.corridor_poly_gpd = corridor_poly_gpd
         self.corridor_poly_gpd["centerline_method"] = self.centerline_method
+
+    def _clip_chm(self, in_raster, clip_geometry, buffer):
+        if self.chm_mode == bt_const.CenterlineChmMode.ALT.value:
+            ras_clip, out_meta, *_ = alt_sp_common.alt_clip_and_filter_reginal_maxima_wGap(
+                {"tree_radius": 2.5},
+                in_raster,
+                clip_geometry,
+                buffer,
+            )
+            return ras_clip, out_meta
+        return sp_common.clip_raster(in_raster, clip_geometry, buffer)
 
     def _postprocess_lcp(self, lc_path, crs):
         processed = lc_path

@@ -389,6 +389,17 @@
               "optional": true
             },
             {
+              "variable": "chm_mode",
+              "label": "CHM Mode",
+              "description": "CHM preprocessing mode. 'current' uses existing raster clipping; 'alt' applies local-maxima CHM filtering before cost raster generation.",
+              "type": "list",
+              "subtype": "string",
+              "data": ["current", "alt"],
+              "default": "current",
+              "output": false,
+              "optional": true
+            },
+            {
               "variable": "proc_segments",
               "label": "Process Segments",
               "description": "Process each segment between vertices separately",
