@@ -60,6 +60,7 @@ def generate_line_class_list(
     lcp_simplify_diameter=10.0,
     lcp_smooth_enabled=False,
     lcp_smooth_iterations=1,
+    chm_mode=bt_const.CENTERLINE_CHM_MODE.value,
     astar_corridor_line_bias_weight=0.1,
     astar_corridor_distance_penalty_weight=0.2,
     corridor_simplify_polygon=False,
@@ -83,6 +84,7 @@ def generate_line_class_list(
                 lcp_simplify_diameter=lcp_simplify_diameter,
                 lcp_smooth_enabled=lcp_smooth_enabled,
                 lcp_smooth_iterations=lcp_smooth_iterations,
+                chm_mode=chm_mode,
                 astar_corridor_line_bias_weight=astar_corridor_line_bias_weight,
                 astar_corridor_distance_penalty_weight=astar_corridor_distance_penalty_weight,
                 corridor_simplify_polygon=corridor_simplify_polygon,
@@ -114,6 +116,7 @@ def centerline(
     lcp_simplify_diameter=10.0,
     lcp_smooth_enabled=False,
     lcp_smooth_iterations=1,
+    chm_mode=bt_const.CENTERLINE_CHM_MODE.value,
     astar_corridor_line_bias_weight=0.1,
     astar_corridor_distance_penalty_weight=0.2,
     corridor_simplify_polygon=False,
@@ -137,9 +140,12 @@ def centerline(
         guided_strategy = bt_const.CenterlineStrategy(guided_strategy)
     if isinstance(centerline_method, str):
         centerline_method = bt_const.CenterlineMethod(centerline_method)
+    if isinstance(chm_mode, str):
+        chm_mode = bt_const.CenterlineChmMode(chm_mode)
 
     guided_strategy_value = guided_strategy.value
     centerline_method_value = centerline_method.value
+    chm_mode_value = chm_mode.value
 
     in_file, in_layer = sp_common.decode_file_layer(in_line)
     out_file, out_layer = sp_common.decode_file_layer(out_line)
@@ -179,6 +185,7 @@ def centerline(
         lcp_simplify_diameter=tool_geo_simplify.validate_diameter(lcp_simplify_diameter),
         lcp_smooth_enabled=_to_bool(lcp_smooth_enabled),
         lcp_smooth_iterations=int(lcp_smooth_iterations),
+        chm_mode=chm_mode_value,
         astar_corridor_line_bias_weight=float(astar_corridor_line_bias_weight),
         astar_corridor_distance_penalty_weight=float(astar_corridor_distance_penalty_weight),
         corridor_simplify_polygon=_to_bool(corridor_simplify_polygon),
