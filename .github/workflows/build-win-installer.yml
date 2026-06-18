@@ -11,6 +11,7 @@ jobs:
     runs-on: windows-latest
     permissions:
       contents: write
+      actions: read
 
     steps:
       - name: Checkout repository
@@ -25,6 +26,12 @@ jobs:
         shell: pwsh
         run: |
           $ErrorActionPreference = "Stop"
+          if ($env:GITHUB_EVENT_NAME -eq "workflow_dispatch") {
+            "on_main=true" | Out-File -FilePath $env:GITHUB_OUTPUT -Encoding utf8 -Append
+            Write-Host "Manual workflow_dispatch run. Proceeding with build/sign test."
+            exit 0
+          }
+
           $commitSha = if ($env:GITHUB_SHA) { $env:GITHUB_SHA } else { (git rev-parse HEAD).Trim() }
           git fetch origin main
           $containsMain = git branch -r --contains "$commitSha" | Select-String 'origin/main'
@@ -65,19 +72,42 @@ jobs:
         shell: pwsh
         working-directory: ${{ github.workspace }}
 
-      - name: Upload installer artifact
+      - name: Upload unsigned installer for signing
+        id: upload-unsigned-installer
         if: steps.tag_guard.outputs.on_main == 'true'
         uses: actions/upload-artifact@v4
         with:
-          name: beratools-installer
+          name: beratools-installer-unsigned
           path: packaging/dist/beratools-installer-*.exe
           if-no-files-found: error
 
-      - name: Upload to release
+      - name: Submit installer to SignPath
         if: steps.tag_guard.outputs.on_main == 'true'
-        uses: softprops/action-gh-release@v2
+        uses: signpath/github-action-submit-signing-request@v2
         with:
-          tag_name: ${{ github.ref_name }}
-          files: packaging/dist/beratools-installer-*.exe
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          api-token: ${{ secrets.SIGNPATH_API_TOKEN }}
+          organization-id: ${{ secrets.SIGNPATH_ORGANIZATION_ID }}
+          project-slug: beratools
+          signing-policy-slug: test-signing
+          github-artifact-id: ${{ steps.upload-unsigned-installer.outputs.artifact-id }}
+          wait-for-completion: true
+          output-artifact-directory: packaging/dist-signed
+
+      - name: Verify signed installer
+        if: steps.tag_guard.outputs.on_main == 'true'
+        shell: pwsh
+        run: |
+          $installer = Get-ChildItem packaging/dist-signed/beratools-installer-*.exe | Select-Object -First 1
+          $sig = Get-AuthenticodeSignature $installer.FullName
+          $sig | Format-List
+          if ($sig.SignerCertificate -eq $null -or $sig.Status -eq "NotSigned") {
+            throw "Installer was not signed."
+          }
+
+      - name: Upload signed installer artifact
+        if: steps.tag_guard.outputs.on_main == 'true'
+        uses: actions/upload-artifact@v4
+        with:
+          name: beratools-installer-signed
+          path: packaging/dist-signed/beratools-installer-*.exe
+          if-no-files-found: error
