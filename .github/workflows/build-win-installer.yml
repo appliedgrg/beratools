@@ -46,13 +46,13 @@ jobs:
 
       - name: Setup Go
         if: steps.tag_guard.outputs.on_main == 'true'
-        uses: actions/setup-go@v5
+        uses: actions/setup-go@v6
         with:
           go-version: "1.21"
 
       - name: Cache Go modules
         if: steps.tag_guard.outputs.on_main == 'true'
-        uses: actions/cache@v4
+        uses: actions/cache@v5
         with:
           path: ~\go\pkg\mod
           key: ${{ runner.os }}-go-${{ hashFiles('packaging/go.sum') }}
@@ -75,7 +75,7 @@ jobs:
       - name: Upload unsigned installer for signing
         id: upload-unsigned-installer
         if: steps.tag_guard.outputs.on_main == 'true'
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v6
         with:
           name: beratools-installer-unsigned
           path: packaging/dist/beratools-installer-*.exe
@@ -106,7 +106,7 @@ jobs:
 
       - name: Upload signed installer artifact
         if: steps.tag_guard.outputs.on_main == 'true'
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v6
         with:
           name: beratools-installer-signed
           path: packaging/dist-signed/beratools-installer-*.exe
