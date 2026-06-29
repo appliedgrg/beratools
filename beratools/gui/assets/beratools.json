@@ -411,6 +411,17 @@
               "optional": true
             },
             {
+              "variable": "chm_mode",
+              "label": "Alternative CHM Strategy",
+              "description": "Centerline extraction strategy using alternative CHM raster.",
+              "type": "list",
+              "subtype": "string",
+              "data": ["original","original+MCP_along","original+A*","alt+oMCP","alt+MCP_along","alt+A*"],
+              "default": "original",
+              "output": false,
+              "optional": true
+            },
+            {
               "variable": "simplify_centerline",
               "label": "Simplify Centerline",
               "description": "Run geo-simplify reduce-bend on extracted centerlines.",
