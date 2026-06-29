@@ -24,6 +24,7 @@ import rasterio
 import shapely
 import shapely.geometry as sh_geom
 import shapely.ops as sh_ops
+from shapely.geometry import Polygon
 # Lazy-imported in find_centerline() to avoid ~5s startup cost
 # from beratools.external.polygon_centerline import get_centerline
 
@@ -33,8 +34,9 @@ import beratools.core.algo_dijkstra as bt_dijkstra
 import beratools.core.constants as bt_const
 import beratools.core.tool_base as bt_base
 import beratools.utility.spatial_common as sp_common
-
-
+from beratools.core.grid_lcp import apply_line_buffer_cost_reduction,find_least_cost_path_astar_closest_line
+from beratools.core.algo_astar_corridor import alt_astar_accumulation_corridor_raster
+from beratools.core.geo_smooth import chaikin_smooth_line, chaikin_smooth_polygon
 class CenterlineParams(float, enum.Enum):
     """
     Parameters for centerline generation.
@@ -66,6 +68,18 @@ class CenterlineStatus(enum.IntEnum):
     FAILED = 2
     REGENERATE_SUCCESS = 3
     REGENERATE_FAILED = 4
+
+def _polygon_vertex_count(geometry) -> int:
+    if geometry is None or geometry.is_empty:
+        return 0
+    if geometry.geom_type == "Polygon":
+        return len(geometry.exterior.coords) + sum(
+            len(interior.coords) for interior in geometry.interiors
+        )
+    if geometry.geom_type == "MultiPolygon":
+        return sum(_polygon_vertex_count(part) for part in geometry.geoms)
+    return 0
+
 
 
 def centerline_is_valid(centerline, input_line):
@@ -506,7 +520,9 @@ class SeedLine:
         proc_segments,
         line_radius,
         guided_strategy="main_route",
-    ):
+        chm_mode='original',
+        cl_mode='original',
+        ):
         self.line = line_gdf
         self.raster = ras_file
         self.line_radius = line_radius
@@ -514,6 +530,9 @@ class SeedLine:
         self.lc_path = None
         self.centerline = None
         self.corridor_poly_gpd = None
+        self.chm_mode = chm_mode
+        self.cl_mode = cl_mode
+        self.tree_radius=2.5
 
     def compute(self):
         line = self.line.geometry[0]
@@ -568,6 +587,135 @@ class SeedLine:
             cell_size,
             bt_const.FP_CORRIDOR_THRESHOLD,
         )
+
+        # find contiguous corridor polygon and extract centerline
+        df = gpd.GeoDataFrame(geometry=[seed_line], crs=out_meta["crs"])
+        corridor_poly_gpd = find_corridor_polygon(corridor_thresh_cl, out_transform, df)
+        polygon = corridor_poly_gpd.geometry.iloc[0]
+        if polygon is None or polygon.is_empty:
+            raise RuntimeError("Corridor polygon is empty")
+
+        processed = polygon
+        if processed.geom_type == "Polygon":
+            processed = Polygon(processed.exterior)
+        elif processed.geom_type == "MultiPolygon":
+            processed = type(processed)(
+                [Polygon(poly.exterior) for poly in processed.geoms]
+            )
+        processed = processed.simplify(
+            0.5, preserve_topology=True
+        )
+        processed = chaikin_smooth_polygon(
+            processed, iterations=int(1))
+
+        corridor_poly_gdf = corridor_poly_gpd.copy()
+        corridor_poly_gdf.geometry = [processed]
+
+        center_line, status = find_centerline(
+            corridor_poly_gpd.geometry.iloc[0],
+            lc_path,
+            guided_strategy=self.guided_strategy,
+        )
+        self.line["cl_status"] = status.value
+
+        self.lc_path = self.line.copy()
+        self.lc_path.geometry = [lc_path]
+
+        self.centerline = self.line.copy()
+        self.centerline.geometry = [center_line]
+
+        self.corridor_poly_gpd = corridor_poly_gpd
+
+ 
+    def alt_compute(self):
+        line = self.line.geometry[0]
+        line_radius = self.line_radius
+        in_raster = self.raster
+        seed_line = line  # LineString
+
+
+        lc_path = line
+        try:
+            if self.chm_mode in ["original","original+MCP_along","original+A*"]:
+
+                ras_clip, out_meta = sp_common.clip_raster(in_raster, seed_line, line_radius)
+                cost_clip, _ = algo_cost.cost_raster(ras_clip, out_meta)
+                if bt_const.CenterlineFlags.USE_SKIMAGE_GRAPH:
+                    lc_path = bt_dijkstra.find_least_cost_path_skimage(cost_clip, out_meta, seed_line)
+                else:
+                    lc_path = bt_dijkstra.find_least_cost_path(cost_clip, out_meta, seed_line)
+
+
+            else: # self.cl_mode in ["alt+oMCP","alt+MCP_along","alt+A*"]
+                ras_clip, out_meta,_,_,_,tree_gaps = sp_common.alt_clip_and_filter_regional_maxima_wGap(self,in_raster, seed_line, line_radius)
+                cost_clip, _ = algo_cost.alt_cost_raster(ras_clip, out_meta,tree_gaps)
+
+                if bt_const.CenterlineFlags.USE_SKIMAGE_GRAPH:
+                    lc_path = bt_dijkstra.alt_find_least_cost_path_skimage(self,cost_clip, out_meta, seed_line, offset_test=True)
+                else:
+                    lc_path = find_least_cost_path_astar_closest_line(self, cost_clip, out_meta, seed_line)
+
+        except Exception as e:
+            print(e)
+            return
+
+        if lc_path:
+            lc_path_coords = lc_path.coords
+        else:
+            lc_path_coords = []
+
+        self.lc_path = lc_path
+
+        # search for centerline
+        if len(lc_path_coords) < 2:
+            algo_common.log_file_only("No least cost path detected, use input line.", logger_name=__name__)
+            self.line["cl_status"] = CenterlineStatus.FAILED.value
+            return
+
+        # get corridor raster
+        lc_path = sh_geom.LineString(lc_path_coords)
+        if self.chm_mode in ["original","original+MCP_along","original+A*"]:
+            ras_clip, out_meta = sp_common.clip_raster(in_raster, lc_path, line_radius +5.0)
+            cost_clip, _ = algo_cost.cost_raster(ras_clip, out_meta)
+        else:
+            ras_clip, out_meta,_,_,_,tree_gaps = sp_common.alt_clip_and_filter_regional_maxima_wGap(self,in_raster, lc_path, line_radius+5.0)
+            cost_clip, _ = algo_cost.alt_cost_raster(ras_clip, out_meta,tree_gaps)
+
+        out_transform = out_meta["transform"]
+        transformer = rasterio.transform.AffineTransformer(out_transform)
+        cell_size = (out_transform[0], -out_transform[4])
+
+        if self.chm_mode in ["original",'alt+oMCP']:
+            x1, y1 = lc_path_coords[0]
+            x2, y2 = lc_path_coords[-1]
+            source = [transformer.rowcol(x1, y1)]
+            destination = [transformer.rowcol(x2, y2)]
+            corridor_thresh_cl = algo_common.corridor_raster(
+                cost_clip,
+                out_meta,
+                source,
+                destination,
+                cell_size,
+                bt_const.FP_CORRIDOR_THRESHOLD,
+            )
+        else:
+            if self.chm_mode in ["original+MCP_along","alt+MCP_along"]:
+                corridor_thresh_cl = algo_common.alt_MCP_along_corridor_raster(
+                cost_clip,
+                out_meta,
+                lc_path,
+                cell_size,
+                bt_const.FP_CORRIDOR_THRESHOLD,
+                )
+            else:# self.chm_mode in ["original+A*","alt+A*" ]:
+                corridor_thresh_cl,_ = alt_astar_accumulation_corridor_raster(
+                cost_clip,
+                out_meta,
+                lc_path,
+                corridor_threshold=2.5,
+                line_bias_weight=0.1,
+                distance_penalty_weight=0.5,
+                )
 
         # find contiguous corridor polygon and extract centerline
         df = gpd.GeoDataFrame(geometry=[seed_line], crs=out_meta["crs"])
