@@ -54,6 +54,7 @@ def generate_line_class_list(
     line_radius,
     layer=None,
     proc_segments=True,
+    chm_mode='original',
     guided_strategy=bt_const.CENTERLINE_GUIDED_STRATEGY.value,
 ) -> list:
     line_classes = []
@@ -67,6 +68,7 @@ def generate_line_class_list(
                 proc_segments,
                 line_radius,
                 guided_strategy=guided_strategy,
+                chm_mode=chm_mode
             )
         )
 
@@ -74,7 +76,7 @@ def generate_line_class_list(
 
 
 def process_single_line_class(seed_line):
-    seed_line.compute()
+    seed_line.alt_compute()
     return seed_line
 
 
@@ -85,6 +87,7 @@ def centerline(
     proc_segments,
     out_line,
     guided_strategy=bt_const.CENTERLINE_GUIDED_STRATEGY.value,
+    chm_mode='original',
     simplify_centerline=False,
     simplify_diameter=10.0,
     use_angle_grouping=True,
@@ -138,6 +141,7 @@ def centerline(
         layer=in_layer,
         proc_segments=proc_segments,
         guided_strategy=guided_strategy_value,
+        chm_mode=chm_mode,
     )
 
     print("{} lines to be processed.".format(len(line_class_list)))
