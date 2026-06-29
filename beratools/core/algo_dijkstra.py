@@ -26,6 +26,7 @@ from collections import defaultdict
 import numpy as np
 import rasterio
 import shapely.geometry as sh_geom
+import shapely as shp
 import skimage.graph as sk_graph
 
 import beratools.core.constants as bt_const
@@ -498,3 +499,152 @@ def find_least_cost_path_skimage(cost_clip, in_meta, seed_line):
         lc_path_new = sh_geom.LineString(lc_path_new)
 
     return lc_path_new
+
+
+
+def alt_find_least_cost_path(seedline_self, out_image, in_meta, line, find_nearest=True, output_linear_reference=False,offset_test=False):
+    default_return = None
+    ras_nodata = in_meta["nodata"]
+
+    pt_start = line.coords[0]
+    pt_end = line.coords[-1]
+
+    out_image = np.where(out_image < 0, np.nan, out_image)  # set negative value to nan
+    if len(out_image.shape) > 2:
+        out_image = np.squeeze(out_image, axis=0)
+
+    if USE_NUMPY_FOR_DIJKSTRA:
+        matrix, contains_negative = MinCostPathHelper.block2matrix_numpy(out_image, ras_nodata)
+    else:
+        matrix, contains_negative = MinCostPathHelper.block2matrix(out_image, ras_nodata)
+
+    if contains_negative:
+        print("ERROR: Raster has negative values.")
+        return default_return
+
+    transformer = rasterio.transform.AffineTransformer(in_meta["transform"])
+
+    if (
+        type(pt_start[0]) is tuple
+        or type(pt_start[1]) is tuple
+        or type(pt_end[0]) is tuple
+        or type(pt_end[1]) is tuple
+    ):
+        print("Point initialization error. Input is tuple.")
+        return default_return
+
+    start_tuples = []
+    end_tuples = []
+    start_tuple = []
+    try:
+        start_tuples = [
+            (
+                transformer.rowcol(pt_start[0], pt_start[1]),
+                sh_geom.Point(pt_start[0], pt_start[1]),
+                0,
+            )
+        ]
+        end_tuples = [
+            (
+                transformer.rowcol(pt_end[0], pt_end[1]),
+                sh_geom.Point(pt_end[0], pt_end[1]),
+                1,
+            )
+        ]
+        start_tuple = start_tuples[0]
+        end_tuple = end_tuples[0]
+
+        # clamp row/col to valid matrix bounds
+        rows, cols = matrix.shape
+
+        def _clamp_row_col(row_col):
+            row = max(0, min(int(row_col[0]), rows - 1))
+            col = max(0, min(int(row_col[1]), cols - 1))
+            return row, col
+
+        start_tuple = (_clamp_row_col(start_tuple[0]), start_tuple[1], start_tuple[2])
+        end_tuple = (_clamp_row_col(end_tuple[0]), end_tuple[1], end_tuple[2])
+
+    except Exception as e:
+        print(f"find_least_cost_path: {e}")
+
+    if USE_NUMPY_FOR_DIJKSTRA:
+        result = dijkstra_np(start_tuple, end_tuple, matrix)
+    else:
+        # TODO: change end_tuples to end_tuple
+        result = dijkstra(start_tuple, end_tuples, matrix, find_nearest)
+
+    if result is None:
+        return default_return
+
+    if len(result) == 0:
+        print("No result returned.")
+        return default_return
+
+    path_points = None
+    for path, costs, end_tuple in result:
+        path_points = MinCostPathHelper.create_points_from_path(
+            transformer, path, start_tuple[1], end_tuple[1]
+        )
+        if output_linear_reference:
+            # TODO: code not reached
+            # add linear reference
+            for point, cost in zip(path_points, costs):
+                point.addMValue(cost)
+
+    # feat_attr = (start_tuple[2], end_tuple[2], total_cost)
+    lc_path = None
+    if len(path_points) >= 2:
+        lc_path = sh_geom.LineString(path_points)
+
+        if np.logical_and(offset_test, _hausdorff_dist(lc_path,seedline_self.line.geometry.iloc[0]) > float(seedline_self.line_radius)/2):
+            lcp_path = seedline_self.line
+
+    return lc_path
+
+
+
+def alt_find_least_cost_path_skimage(self,
+                                     cost_clip,
+                                     in_meta,
+                                     seed_line,
+                                     offset_test=False):
+    lc_path = []
+    if len(cost_clip.shape) > 2:
+        cost_clip = np.squeeze(cost_clip, axis=0)
+
+    out_transform = in_meta["transform"]
+    transformer = rasterio.transform.AffineTransformer(out_transform)
+
+    x1, y1 = list(seed_line.coords)[0][:2]
+    x2, y2 = list(seed_line.coords)[-1][:2]
+    row1, col1 = transformer.rowcol(x1, y1)
+    row2, col2 = transformer.rowcol(x2, y2)
+
+    try:
+        path_new = sk_graph.route_through_array(cost_clip[0], [row1, col1], [row2, col2])
+    except Exception as e:
+        print(f"find_least_cost_path_skimage: {e}")
+        return None
+
+    if path_new[0]:
+        for row, col in path_new[0]:
+            x, y = transformer.xy(row, col)
+            lc_path.append((x, y))
+
+    if len(lc_path) < 2:
+        print("No least cost path detected, pass.")
+        return None
+    else:
+        lc_path = sh_geom.LineString(lc_path)
+
+    if np.logical_and(offset_test, _hausdorff_dist(lc_path, self.line.geometry.iloc[0]) > float(
+            self.line_radius) / 2):
+        lc_path = self.line
+
+    return lc_path
+
+
+def _hausdorff_dist(lcp,seed_line)->float:
+    _hausdorff_dist = shp.hausdorff_distance(lcp, seed_line, densify=0.5)
+    return _hausdorff_dist
