@@ -19,9 +19,12 @@ import geopandas as gpd
 import numpy as np
 import pyproj
 import rasterio
+import scipy.ndimage as ndimage
+import shapely as shp
 from osgeo import gdal, ogr, osr, version_info
 from pyogrio import set_gdal_config_options
-from rasterio import mask
+from rasterio import mask, features
+
 
 import beratools.core.constants as bt_const
 
@@ -384,3 +387,128 @@ def seedlines_within_chm_footprint(gdf, in_raster) -> bool:
         return True
 
     return check_vector_raster_overlap(gdf, in_raster)
+
+
+def alt_clip_and_filter_regional_maxima_wGap(
+        self,
+        in_raster_file,
+        clip_geom,
+        buffer=1.0,
+        default_nodata=bt_const.BT_NODATA,
+    ):
+    import skimage as ski
+    import math
+    def erose_all_labels(labels_array):
+        erose_array = np.zeros_like(labels_array)
+        unique_labels = np.unique(labels_array)
+        for label in unique_labels:
+            if label == 0:
+                continue  # Skip background
+
+            # Create a binary mask for the current label
+            mask = (labels_array == label)
+
+            # Dilate the mask for this specific label
+            erose_mask = ski.morphology.erosion(mask)
+
+            # Assign the dilated mask back into the new array with the correct label value
+            erose_array[erose_mask] = label
+
+        return erose_array
+
+    with rasterio.open(in_raster_file) as src:
+
+        clip_geo_buffer = [shp.simplify(clip_geom,2).buffer(buffer)]
+        out_image, out_transform = rasterio.mask.mask(src, clip_geo_buffer, crop=True)
+        shapes = [(shp.simplify(clip_geom,2).buffer(buffer), 1)]  # Burn value '1' into the raster
+        raster_array = features.rasterize(shapes,
+            out_shape=out_image.shape[1:],
+            transform=out_transform,
+            fill=0,
+            dtype=np.uint8
+        )
+
+        if src.nodata is not None:
+            out_image[out_image == src.nodata] = 0.
+            out_image[raster_array[np.newaxis,:] == 0] = default_nodata
+        ras_nodata = src.meta["nodata"]
+        cell_size = max(out_transform[0], -out_transform[4])
+        if ras_nodata is None:
+            ras_nodata = default_nodata
+
+        #generate mask for valid raster data
+        data_mask = ~(np.ma.masked_equal(out_image, ras_nodata).mask)
+        #fill unmasked data with 0, otherwise keep the original value
+        data_filled = np.where(data_mask, out_image, 0)
+
+        #calulate the gaussian_filter's sigma to remove sharp noise without removing small crowns.
+        sigma = math.ceil(self.tree_radius) * 0.5
+        smoothed_data = ndimage.gaussian_filter(data_filled, sigma=sigma)
+        #generate search tree crown footprint
+        footprint = ski.morphology.disk(math.ceil(self.tree_radius))
+        footprint = footprint.reshape(-1, footprint.shape[0], footprint.shape[1])
+
+        smooth_mask = ndimage.gaussian_filter(data_mask.astype(float), sigma=sigma)
+        mask_normalization = smoothed_data / smooth_mask
+        mask_normalization[~data_mask] = np.nan
+        mask_normalization = np.ma.masked_invalid(mask_normalization)
+        # thresholded = smoothed_data > params['canopy_ht_threshold']
+        # distance = ndimage.distance_transform_edt(thresholded, sampling=cell_size)
+        tree_tops_indices = ski.feature.peak_local_max(
+            mask_normalization,
+            min_distance=1,  #find maximum number of tree tops
+            exclude_border=False,
+            num_peaks_per_label=1,
+            footprint=footprint,
+            # labels=thresholded,
+        )
+        if len(tree_tops_indices) > 0:
+            mask_ = np.ma.zeros_like(mask_normalization)
+            for i, (_, row, col) in enumerate(tree_tops_indices):
+                mask_[_, row, col] = 1
+            markers = ski.measure.label(mask_)
+
+            markers_tree = ski.segmentation.expand_labels(markers, distance=max(math.ceil(self.tree_radius), 1))
+            markers_tree_=erose_all_labels(ski.segmentation.expand_labels(markers_tree,10))
+            tree_area = markers_tree_.astype(bool)
+            new_chm = np.ma.zeros_like(mask_normalization)
+            new_chm[tree_area] = mask_normalization[tree_area]
+
+            new_chm_gaps = np.ma.zeros_like(mask_normalization)
+            new_chm_gaps=np.ma.where(markers_tree_==0,mask_normalization.data,0)
+            new_chm_gaps = np.ma.where(mask_normalization.mask , 0, new_chm_gaps)
+
+            filtered_image = new_chm
+
+        else:
+            filtered_image = mask_normalization  #
+            markers = np.ma.zeros_like(mask_normalization)
+            tree_area = np.ma.zeros_like(mask_normalization, dtype=bool)
+        filtered_image[filtered_image < 0.0] = 0.0
+        if np.ma.is_masked(filtered_image):
+            filtered_image.fill_value = default_nodata
+        else:
+            filtered_image = np.ma.masked_invalid(filtered_image)
+            filtered_image.fill_value = default_nodata
+
+        ras_nodata = default_nodata
+
+        # Update Metadata
+        out_meta = src.meta.copy()
+        out_meta.update({
+            "driver": "GTiff",
+            "height": filtered_image.shape[1],
+            "width": filtered_image.shape[2],
+            "nodata": ras_nodata,
+            "transform": out_transform
+        })
+
+        tree_crown = ski.segmentation.watershed(-mask_normalization, markers, mask=~mask_normalization.mask,
+                                                watershed_line=True)
+        tree_crown_ = ski.morphology.erosion(tree_crown, footprint=ski.morphology.square(3)[np.newaxis,:] )
+        tree_crown_area = tree_crown_.astype(bool)
+        new_crown = np.ma.zeros_like(mask_normalization)
+        new_crown[tree_crown_area] = mask_normalization[tree_crown_area]
+        new_crown[~tree_crown_area] = 0.
+
+    return filtered_image, out_meta,markers.squeeze(),tree_area.squeeze(), new_crown.squeeze(),new_chm_gaps.squeeze()
