@@ -60,7 +60,9 @@ def tool_arguments_integration(testdata_dir, available_cpu_cores):
             "in_raster": testdata_dir.joinpath("chm_aoi.tif").as_posix(),
             "line_radius": 15,
             "proc_segments": True,
-            "out_line": f"{testdata_dir.joinpath('integration_inter.gpkg').as_posix()}|centerline",
+            "out_line": f"{testdata_dir.joinpath('integration_inter.gpkg').as_posix()}|CL_alt_astar_along",
+            "centerline_method":"astar_along", # ["mcp","mcp_along", "astar","astar_along"],
+            "chm_mode":"alt",#["current", "alt"]
         },
         "args_centerline_pairwise": {
             "in_line": f"{testdata_dir.joinpath('integration_aoi.gpkg').as_posix()}|seed_lines_vo",
