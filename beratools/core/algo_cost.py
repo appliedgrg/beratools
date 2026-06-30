@@ -188,3 +188,143 @@ def circle_kernel_refactor(size, radius):
     # Create a circular kernel
     kernel = distance <= radius
     return kernel.astype(float)
+
+
+def alt_cost_raster(
+    in_raster,
+    meta,
+    tree_gaps,
+    tree_radius=2.5,
+    canopy_ht_threshold=2.5,
+    max_line_dist=2.5,
+    canopy_avoid=0.4,
+    cost_raster_exponent=1.5,
+):
+    """
+    General version of cost_raster.
+
+    To be merged later: variables and consistent nodata solution
+
+    """
+    if len(in_raster.shape) > 2:
+        in_raster = np.squeeze(in_raster, axis=0)
+
+    # regulate canopy_avoid between 0 and 1
+    avoidance = max(0, min(1, int(canopy_avoid)))
+    cell_x, cell_y = meta["transform"][0], -meta["transform"][4]
+    tree_gaps_=tree_gaps.copy()
+    tree_gaps_[tree_gaps<=canopy_ht_threshold]=0
+    kernel_radius = int(tree_radius / cell_x)
+    kernel = circle_kernel_refactor(2 * kernel_radius + 1, kernel_radius)
+    dyn_canopy_ndarray = alt_dyn_np_cc_map(in_raster, canopy_ht_threshold, tree_gaps_)
+
+    cc_std, cc_mean = alt_cost_focal_stats(dyn_canopy_ndarray, kernel, tree_gaps_)
+    cc_smooth = alt_cost_norm_dist_transform(dyn_canopy_ndarray, max_line_dist, [cell_x, cell_y],tree_gaps_)
+
+    cost_clip = alt_dyn_np_cost_raster_refactor(
+        dyn_canopy_ndarray, cc_mean, cc_std, cc_smooth, avoidance, cost_raster_exponent,tree_gaps_
+    )
+
+    # TODO use nan or BT_DATA?
+    cost_clip[in_raster == bt_const.BT_NODATA] = np.nan
+    dyn_canopy_ndarray[in_raster == bt_const.BT_NODATA] = np.nan
+
+    return cost_clip, dyn_canopy_ndarray
+
+def alt_dyn_np_cc_map(in_chm, canopy_ht_threshold, tree_gaps=None):
+    """
+    Create a new canopy raster.
+
+    MaskedArray based on the threshold comparison of in_chm (canopy height model)
+    with canopy_ht_threshold. It assigns 1.0 where the condition is True (canopy)
+    and 0.0 where the condition is False (non-canopy).
+
+    """
+
+    canopy_ndarray = np.ma.where(in_chm >= canopy_ht_threshold, 1.0, 0.0).astype(float)
+    canopy_ndarray=np.ma.where(tree_gaps.astype(bool),0.0,canopy_ndarray)
+
+    return canopy_ndarray
+
+
+def alt_cost_focal_stats(canopy_ndarray, kernel, tree_gaps=None):
+    mask = canopy_ndarray.mask if np.ma.is_masked(canopy_ndarray) else np.zeros(canopy_ndarray.shape, dtype=bool)
+    # Replace masked/nan values with 0 for convolution; track valid pixel counts
+    data = np.where(mask, 0.0, np.asarray(canopy_ndarray, dtype=float))
+    data[tree_gaps.astype(bool)]= 0.0
+    valid = (~mask).astype(float)
+
+    # Use fast C-level convolution instead of generic_filter with Python callbacks
+    kernel_f = kernel.astype(float)
+    sum_vals = scipy.ndimage.convolve(data, kernel_f, mode="nearest")
+    count = scipy.ndimage.convolve(valid, kernel_f, mode="nearest")
+    count = np.maximum(count, 1.0)  # avoid division by zero
+
+    mean_array = sum_vals / count
+
+    # Var = E[X^2] - E[X]^2
+    sum_sq = scipy.ndimage.convolve(data * data, kernel_f, mode="nearest")
+    variance = sum_sq / count - mean_array * mean_array
+    variance = np.maximum(variance, 0.0)  # clamp numerical noise
+    std_array = np.sqrt(variance)
+
+    return std_array, mean_array
+
+
+def alt_cost_norm_dist_transform(canopy_ndarray, max_line_dist, sampling, tree_gaps =None):
+    """Compute a distance-based cost map based on the proximity of valid data points."""
+    # Convert masked array to a regular array and fill the masked areas with np.nan
+    in_ndarray = canopy_ndarray.filled(np.nan)
+    in_ndarray[tree_gaps.astype(bool)]=0.0
+    # Compute the Euclidean distance transform (edt) where the valid values are
+    dist_transform_array = scipy.ndimage.distance_transform_edt(np.logical_not(np.isnan(in_ndarray)), sampling=sampling
+    )
+
+    # Apply the mask back to set the distances to np.nan
+    dist_transform_array[canopy_ndarray.mask] = np.nan
+    # dist_transform_crown_array[canopy_ndarray.mask] = np.nan
+
+    # Calculate the smoothness (cost) array
+    normalized_cost = float(max_line_dist) - dist_transform_array#*dist_transform_crown_array)
+    normalized_cost[normalized_cost <= 0.0] = 0.0
+    smooth_cost_array = normalized_cost / float(max_line_dist)
+
+    return smooth_cost_array
+
+
+def alt_dyn_np_cost_raster_refactor(canopy_ndarray, cc_mean, cc_std, cc_smooth, avoidance, cost_raster_exponent, tree_gaps=None):
+    # Calculate the lower and upper bounds for canopy cover (mean ± std deviation)
+    lower_bound = cc_mean - cc_std
+    upper_bound = cc_mean + cc_std
+
+    # Calculate the ratio between the lower and upper bounds
+    ratio_lower_upper = np.divide(
+        lower_bound,
+        upper_bound,
+        where=upper_bound != 0,
+        out=np.zeros(lower_bound.shape, dtype=float),
+    )
+
+    # Normalize the ratio to a scale between 0 and 1
+    normalized_ratio = (1 + ratio_lower_upper) / 2
+
+    # Adjust where the sum of mean and std deviation is less than or equal to zero
+    adjusted_cover = cc_mean + cc_std
+    adjusted_ratio = np.where(adjusted_cover <= 0, 0, normalized_ratio)
+
+    # Combine canopy cover ratio with smoothing, weighted by avoidance factor
+    weighted_cover = adjusted_ratio * (1 - avoidance) + (cc_smooth * avoidance)
+
+    # Final cost modification based on canopy presence (masked by canopy_ndarray)
+    final_cost = np.where(canopy_ndarray.data == 1, 1, weighted_cover)
+
+    # Apply the exponential transformation to the cost values
+    exponent_cost = np.exp(final_cost)
+
+    # Raise the cost to the specified exponent
+    result_cost_raster = np.power(exponent_cost, float(cost_raster_exponent))
+    result_cost_raster[tree_gaps == 1] = 1.0
+
+
+    return result_cost_raster
+
