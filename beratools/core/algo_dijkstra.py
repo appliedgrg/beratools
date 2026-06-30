@@ -29,7 +29,7 @@ import shapely.geometry as sh_geom
 import skimage.graph as sk_graph
 
 import beratools.core.constants as bt_const
-
+import beratools.core.algo_common as algo_common
 sqrt2 = math.sqrt(2)
 USE_NUMPY_FOR_DIJKSTRA = True
 
@@ -498,3 +498,47 @@ def find_least_cost_path_skimage(cost_clip, in_meta, seed_line):
         lc_path_new = sh_geom.LineString(lc_path_new)
 
     return lc_path_new
+
+
+
+def alt_find_least_cost_path_skimage(seedline_class,
+                                     cost_clip,
+                                     in_meta,
+                                     seed_line,
+                                     offset_test=False):
+    lc_path = []
+    if len(cost_clip.shape) > 2:
+        cost_clip = np.squeeze(cost_clip, axis=0)
+
+    out_transform = in_meta["transform"]
+    transformer = rasterio.transform.AffineTransformer(out_transform)
+
+    x1, y1 = list(seed_line.coords)[0][:2]
+    x2, y2 = list(seed_line.coords)[-1][:2]
+    row1, col1 = transformer.rowcol(x1, y1)
+    row2, col2 = transformer.rowcol(x2, y2)
+
+    try:
+        path_new = sk_graph.route_through_array(cost_clip[0], [row1, col1], [row2, col2])
+    except Exception as e:
+        print(f"find_least_cost_path_skimage: {e}")
+        return None
+
+    if path_new[0]:
+        for row, col in path_new[0]:
+            x, y = transformer.xy(row, col)
+            lc_path.append((x, y))
+
+    if len(lc_path) < 2:
+        print("No least cost path detected, pass.")
+        return None
+    else:
+        lc_path = sh_geom.LineString(lc_path)
+
+    if np.logical_and(offset_test, algo_common._hausdorff_dist(lc_path, seedline_class.line.geometry.iloc[0]) > float(
+            seedline_class.line_radius) / 2):
+        lc_path = seedline_class.line
+
+    return lc_path
+
+
