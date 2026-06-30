@@ -30,6 +30,7 @@ import shapely.ops as sh_ops
 import skimage.graph as sk_graph
 from osgeo import gdal, ogr
 from scipy import ndimage
+from rasterio import features
 
 import beratools.core.algo_cost as algo_cost
 import beratools.core.constants as bt_const
@@ -717,3 +718,78 @@ def remove_holes(geom):
                 new_polygons.append(polygon)
         return sh_geom.MultiPolygon(new_polygons)
     return geom  # Return other geometry types as is
+
+
+def alt_MCP_along_corridor_raster(raster_clip, out_meta, lc_path, cell_size, corridor_threshold):
+    """
+    Calculate corridor raster.
+
+    Args:
+        raster_clip (raster):
+        out_meta : raster file meta
+        lc_path: line geometry
+        cell_size (tuple): (cell_size_x, cell_size_y)
+        corridor_threshold (double)
+
+    Returns:
+    corridor raster
+
+    """
+    try:
+        # change all nan to BT_NODATA_COST for workaround
+        if len(raster_clip.shape) > 2:
+            raster_clip = np.squeeze(raster_clip, axis=0)
+
+        algo_cost.remove_nan_from_array_refactor(raster_clip)
+        raster_clip_mask=np.ma.masked_invalid(raster_clip)
+        segment_list = []
+        for coord in lc_path.coords:
+            segment_list.append(coord)
+
+        distance_delta = 1
+        distances = np.arange(0, lc_path.length, distance_delta)
+        multipoint_along_line = [lc_path.interpolate(distance) for distance in distances]
+        multipoint_along_line.append(sh_geom.Point(segment_list[-1]))
+
+
+        rasterized_points_Alongln = features.rasterize(
+            multipoint_along_line,
+            out_shape=raster_clip.shape,
+            transform=out_meta["transform"],
+            fill=0,
+            all_touched=True,
+            default_value=1,
+        )
+        points_Alongln = np.transpose(np.nonzero(rasterized_points_Alongln))
+
+
+        mcp_geo_obj = sk_graph.MCP_Geometric(raster_clip, sampling=cell_size, fully_connected=True)
+        cost_forward_alongLn,_ = mcp_geo_obj.find_costs(starts=points_Alongln)
+
+
+        # Generate corridor
+        corridor = np.ma.masked_invalid(cost_forward_alongLn)
+
+        # Calculate minimum value of corridor raster
+        if np.ma.min(corridor) is not None:
+            corr_min = float(np.ma.min(corridor))
+        else:
+            corr_min = 0.5
+
+        # normalize corridor raster by deducting corr_min
+        corridor_norm = corridor - corr_min
+        mcorridor_norm=np.ma.filled(corridor_norm, np.nan)
+        p_corridor_threshold=np.nanpercentile(mcorridor_norm, min(corridor_threshold*10,70))
+        corridor_thresh_cl = np.ma.where(mcorridor_norm >= p_corridor_threshold, 1.0, 0.0)
+        corridor_thresh_cl[raster_clip_mask.mask]=np.nan
+    except Exception as e:
+        print(e)
+        print("corridor_raster: Exception occurred.")
+        return None
+
+    return corridor_thresh_cl
+
+
+def _hausdorff_dist(lcp,seed_line)->float:
+    _hausdorff_dist = shapely.hausdorff_distance(lcp, seed_line, densify=0.5)
+    return _hausdorff_dist
