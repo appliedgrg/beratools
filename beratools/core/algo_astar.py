@@ -10,9 +10,10 @@ from typing import Iterable
 
 import numpy as np
 import rasterio
+import skimage
 from rasterio.features import geometry_mask
 from scipy import ndimage
-from shapely.geometry import LineString
+from shapely.geometry import LineString,Point
 
 
 SQRT2 = math.sqrt(2.0)
@@ -38,6 +39,129 @@ class AStarAccumulation:
     best_cost: float
     g_scores: np.ndarray
     closed: np.ndarray
+
+def alt_astar_accumulation_corridor_raster(
+    cost_arr,
+    meta: dict,
+    lc_path: LineString,
+    corridor_threshold: float,
+    line_bias_weight: float = DEFAULT_CORRIDOR_LINE_BIAS_WEIGHT,
+    distance_penalty_weight: float = DEFAULT_CORRIDOR_DISTANCE_PENALTY_WEIGHT,
+) -> tuple[np.ma.MaskedArray, dict[str, object]]:
+    if lc_path is None or lc_path.is_empty or len(lc_path.coords) < 2:
+        raise RuntimeError("A* corridor requires a valid least-cost path")
+
+    cost = _prepare_cost_surface(cost_arr, meta)
+    rows, cols = cost.shape
+    transform = meta["transform"]
+    transformer = rasterio.transform.AffineTransformer(transform)
+    segment_list = []
+    try:
+        for coord in lc_path.coords:
+            segment_list.append(coord)
+        if lc_path.length >= 10:
+            distance_delta = 5
+        else:
+            distance_delta=2
+        distances = np.arange(0, lc_path.length, distance_delta)
+        multipoint_along_line = [lc_path.interpolate(distance) for distance in distances]
+        multipoint_along_line.append(Point(segment_list[-1]))
+    except Exception as e:
+        raise RuntimeError("1 A* corridor requires a valid least-cost path")
+
+    forward_list=[]
+    reverse_list=[]
+    total_forward_path=[]
+    dist_to_path_list=[]
+    total_score_=np.zeros(cost.shape, dtype=float)
+    valid_total=np.zeros(cost.shape, dtype=bool)
+    total_score_.fill(np.inf)
+    list_forward_best_cost=[]
+    forward_closed_list=[]
+    reverse_closed_list=[]
+    for i in range(0, len(multipoint_along_line) - 1):
+        try:
+            start_xy=multipoint_along_line[i].coords[0]
+            end_xy=multipoint_along_line[i+1].coords[0]
+            if start_xy == end_xy:
+                continue
+            source = _clamp_row_col(transformer.rowcol(*start_xy), rows, cols)
+            destination = _clamp_row_col(transformer.rowcol(*end_xy), rows, cols)
+            if source == destination:
+                continue
+            sampling = _raster_sampling(transform)
+            forward = _astar_mcp_geometric_accumulation(
+                cost,
+                source,
+                destination,
+                sampling=sampling,
+                line_bias_weight=line_bias_weight,
+            )
+            forward_list.append(forward)
+            reverse =_astar_mcp_geometric_accumulation(
+                cost,
+                destination,
+                source,
+                sampling=sampling,
+                line_bias_weight=line_bias_weight,
+            )
+            reverse_list.append(reverse)
+
+            valid = forward.closed | reverse.closed
+            local_data = forward.g_scores + reverse.g_scores - forward.best_cost
+            total_forward_path = total_forward_path + forward.path
+            valid_total[(valid)]=valid[(valid)]
+            astar_path = _path_to_linestring(
+                    forward.path,
+                    transformer,
+                    start_xy=source,
+                    end_xy=destination,
+                )
+            dist_to_path_list.append(_distance_raster_to_line(astar_path, meta, cost.shape))
+            total_score_[~np.isinf(local_data)] = local_data[~np.isinf(local_data)]
+        except Exception as e:
+            print("3 A* corridor requires a valid least-cost path")
+            continue
+
+    total_score_[np.isinf(total_score_)] = 0.
+    cleaned_arrays = [np.where(np.isinf(arr), np.nan, arr) for arr in dist_to_path_list]
+    total_distance_to_path=np.fmin.reduce(cleaned_arrays)
+
+    if distance_penalty_weight > 0.0:
+        total_score = total_score_ + total_distance_to_path * distance_penalty_weight
+    else:
+        total_score = total_score_ + total_distance_to_path
+
+    score = np.ma.masked_invalid(total_score)
+
+    score = np.ma.array(score, mask=np.ma.getmaskarray(score) | ~skimage.morphology.dilation(valid_total, skimage.morphology.disk(int(1/distance_penalty_weight))))
+    # score = np.ma.array(score, mask=np.ma.getmaskarray(score) | ~valid_total)
+
+    inside = (~np.ma.getmaskarray(score)) & np.asarray(
+        score.filled(np.inf) < corridor_threshold, dtype=bool
+    )
+    corridor = np.ma.where(inside, 0.0, 1.0)
+    corridor = np.ma.array(corridor, mask=np.ma.getmaskarray(score))
+    for forward,reverse in zip(forward_list,reverse_list):
+        list_forward_best_cost.append(forward.best_cost)
+        forward_closed_list.append(forward.closed)
+        reverse_closed_list.append(reverse.closed)
+    total_forward_closed=np.any(np.array(forward_closed_list), axis=0)
+    total_reverse_closed = np.any(np.array(reverse_closed_list), axis=0)
+
+    details = {
+        "corridor_threshold": float(corridor_threshold),
+        "astar_line_bias_weight": float(line_bias_weight),
+        "astar_distance_penalty_weight": float(distance_penalty_weight),
+        "astar_best_cost": float( min(list_forward_best_cost)),
+        "inside_cells": int(np.count_nonzero(inside)),
+        "inside_area": float(np.count_nonzero(inside) * _cell_area(transform)),
+        "forward_closed_cells": int(np.count_nonzero(total_forward_closed)),
+        "reverse_closed_cells": int(np.count_nonzero(total_reverse_closed)),
+        "both_closed_cells": int(np.count_nonzero(valid_total)),
+        "astar_path_vertices": int(len(total_forward_path)),
+    }
+    return corridor, details
 
 
 def find_least_cost_path_astar_closest_line(cost_arr, meta: dict, input_line: LineString) -> LineString | None:
@@ -391,3 +515,17 @@ def _cell_area(transform) -> float:
 
 def _clamp_row_col(row_col: tuple[int, int], rows: int, cols: int) -> tuple[int, int]:
     return max(0, min(int(row_col[0]), rows - 1)), max(0, min(int(row_col[1]), cols - 1))
+
+
+def _prepare_cost_surface(cost_arr, meta: dict) -> np.ndarray:
+    arr = np.ma.asarray(cost_arr)
+    if arr.ndim > 2:
+        arr = np.ma.squeeze(arr, axis=0)
+    cost = np.asarray(arr.filled(np.inf), dtype="float64")
+    nodata = meta.get("nodata")
+    if nodata is not None:
+        cost[cost == float(nodata)] = np.inf
+    cost[~np.isfinite(cost)] = np.inf
+    cost[cost <= 0.0] = np.inf
+    return cost
+
