@@ -406,7 +406,7 @@
               "type": "list",
               "subtype": "bool",
               "data": [true, false],
-              "default": true,
+              "default": false,
               "output": false,
               "optional": false
             },
@@ -416,7 +416,7 @@
               "description": "Least-cost path and corridor raster method. 'bera' uses the existing BERA Tools workflow; 'astar' uses the A* LCP and A* accumulation corridor workflow.",
               "type": "list",
               "subtype": "string",
-              "data": ["bera", "astar"],
+              "data": ["mcp","mcp_along", "astar","astar_along"],
               "default": "bera",
               "output": false,
               "optional": true
