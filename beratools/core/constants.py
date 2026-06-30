@@ -48,11 +48,12 @@ CENTERLINE_GUIDED_STRATEGY = CenterlineStrategy.PAIRWISE
 class CenterlineMethod(enum.Enum):
     """Least-cost path and corridor raster method for centerline extraction."""
 
-    BERA = "bera"
+    MCP = "mcp"
     ASTAR = "astar"
+    MCP_ALONG = "mcp_along"
+    ASTAR_ALONG = "astar_along"
 
-
-CENTERLINE_METHOD = CenterlineMethod.BERA
+CENTERLINE_METHOD = CenterlineMethod.MCP
 
 
 @enum.unique
