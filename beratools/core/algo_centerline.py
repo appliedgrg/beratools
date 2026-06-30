@@ -539,6 +539,7 @@ class SeedLine:
         self.line = line_gdf
         self.raster = ras_file
         self.line_radius = line_radius
+        self.tree_radius = 2.5
         self.guided_strategy = guided_strategy
         self.centerline_method = centerline_method
         self.lcp_simplify_enabled = _to_bool(lcp_simplify_enabled)
@@ -566,18 +567,31 @@ class SeedLine:
         line_radius = self.line_radius
         in_raster = self.raster
         seed_line = line  # LineString
-
-        ras_clip, out_meta = self._clip_chm(in_raster, seed_line, line_radius)
-        cost_clip, _ = algo_cost.cost_raster(ras_clip, out_meta)
+        chm_mode = self.chm_mode
+        try:
+            if chm_mode in ["current"]:
+                ras_clip, out_meta = self._clip_chm(in_raster, seed_line, line_radius)
+                cost_clip, _ = algo_cost.cost_raster(ras_clip, out_meta)
+            else:
+                ras_clip, out_meta, tree_gaps = self._clip_chm(in_raster,seed_line,line_radius)
+                cost_clip, _ = algo_cost.alt_cost_raster(ras_clip, out_meta, tree_gaps)
+        except Exception as e:
+            print(e)
+            return
 
         lc_path = line
         try:
             if self.centerline_method == bt_const.CenterlineMethod.ASTAR.value:
                 lc_path = algo_astar.find_least_cost_path_astar_closest_line(cost_clip, out_meta, seed_line)
             elif bt_const.CenterlineFlags.USE_SKIMAGE_GRAPH:
-                lc_path = bt_dijkstra.find_least_cost_path_skimage(cost_clip, out_meta, seed_line)
+                lc_path = bt_dijkstra.alt_find_least_cost_path_skimage(self,cost_clip, out_meta, seed_line,offset_test=True)
             else:
                 lc_path = bt_dijkstra.find_least_cost_path(cost_clip, out_meta, seed_line)
+
+            if self.chm_mode in ["alt"]:
+                if algo_common._hausdorff_dist(lc_path, seed_line) > line_radius / 2:
+                    lcp_path = seed_line
+
         except Exception as e:
             print(e)
             return
@@ -597,27 +611,22 @@ class SeedLine:
         lc_path = sh_geom.LineString(lc_path_coords)
         lc_path = self._postprocess_lcp(lc_path, out_meta.get("crs"))
         lc_path_coords = list(lc_path.coords)
-        ras_clip, out_meta = self._clip_chm(in_raster, lc_path, line_radius * 0.9)
-        cost_clip, _ = algo_cost.cost_raster(ras_clip, out_meta)
+        if chm_mode in ["current"]:
+            ras_clip, out_meta, *_ = self._clip_chm(in_raster, lc_path, line_radius * 0.9)
+            cost_clip, _ = algo_cost.cost_raster(ras_clip, out_meta)
+
+        else:
+            ras_clip, out_meta, tree_gaps = self._clip_chm(in_raster, lc_path, line_radius * 0.9)
+            cost_clip, _ = algo_cost.alt_cost_raster(ras_clip, out_meta, tree_gaps)
 
         out_transform = out_meta["transform"]
         transformer = rasterio.transform.AffineTransformer(out_transform)
         cell_size = (out_transform[0], -out_transform[4])
-
-        x1, y1 = lc_path_coords[0]
-        x2, y2 = lc_path_coords[-1]
-        source = [transformer.rowcol(x1, y1)]
-        destination = [transformer.rowcol(x2, y2)]
-        if self.centerline_method == bt_const.CenterlineMethod.ASTAR.value:
-            corridor_thresh_cl, _details = algo_astar.astar_accumulation_corridor_raster(
-                cost_clip,
-                out_meta,
-                lc_path,
-                corridor_threshold=bt_const.FP_CORRIDOR_THRESHOLD,
-                line_bias_weight=self.astar_corridor_line_bias_weight,
-                distance_penalty_weight=self.astar_corridor_distance_penalty_weight,
-            )
-        else:
+        if self.centerline_method == bt_const.CenterlineMethod.MCP.value:
+            x1, y1 = lc_path_coords[0]
+            x2, y2 = lc_path_coords[-1]
+            source = [transformer.rowcol(x1, y1)]
+            destination = [transformer.rowcol(x2, y2)]
             corridor_thresh_cl = algo_common.corridor_raster(
                 cost_clip,
                 out_meta,
@@ -625,6 +634,35 @@ class SeedLine:
                 destination,
                 cell_size,
                 bt_const.FP_CORRIDOR_THRESHOLD,
+            )
+        elif self.centerline_method == bt_const.CenterlineMethod.MCP_ALONG.value:
+            corridor_thresh_cl = algo_common.alt_MCP_along_corridor_raster(
+                cost_clip,
+                out_meta,
+                lc_path,
+                cell_size,
+                corridor_threshold=bt_const.FP_CORRIDOR_THRESHOLD,
+            )
+
+        elif self.centerline_method == bt_const.CenterlineMethod.ASTAR_ALONG.value:
+            corridor_thresh_cl,_ = algo_astar. alt_astar_accumulation_corridor_raster(
+                cost_clip,
+                out_meta,
+                lc_path,
+                corridor_threshold=bt_const.FP_CORRIDOR_THRESHOLD,
+                line_bias_weight=self.astar_corridor_line_bias_weight,
+                distance_penalty_weight=self.astar_corridor_distance_penalty_weight,
+            )
+
+
+        elif self.centerline_method == bt_const.CenterlineMethod.ASTAR.value:
+            corridor_thresh_cl, _details = algo_astar.astar_accumulation_corridor_raster(
+                cost_clip,
+                out_meta,
+                lc_path,
+                corridor_threshold=bt_const.FP_CORRIDOR_THRESHOLD,
+                line_bias_weight=self.astar_corridor_line_bias_weight,
+                distance_penalty_weight=self.astar_corridor_distance_penalty_weight,
             )
 
         # find contiguous corridor polygon and extract centerline
@@ -653,13 +691,13 @@ class SeedLine:
 
     def _clip_chm(self, in_raster, clip_geometry, buffer):
         if self.chm_mode == bt_const.CenterlineChmMode.ALT.value:
-            ras_clip, out_meta, *_ = alt_sp_common.alt_clip_and_filter_reginal_maxima_wGap(
-                {"tree_radius": 2.5},
+            ras_clip, out_meta,_,_,_,tree_gaps = alt_sp_common.alt_clip_and_filter_regional_maxima_wgap(
+                self, #{"tree_radius": 2.5},
                 in_raster,
                 clip_geometry,
                 buffer,
             )
-            return ras_clip, out_meta
+            return ras_clip, out_meta,tree_gaps
         return sp_common.clip_raster(in_raster, clip_geometry, buffer)
 
     def _postprocess_lcp(self, lc_path, crs):
