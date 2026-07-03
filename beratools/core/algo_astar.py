@@ -90,6 +90,11 @@ def alt_astar_accumulation_corridor_raster(
             if source == destination:
                 continue
             sampling = _raster_sampling(transform)
+        except Exception as e:
+            print(e)
+            print("3 A* corridor requires a valid least-cost path")
+            continue
+        try:
             forward = _astar_mcp_geometric_accumulation(
                 cost,
                 source,
@@ -106,7 +111,12 @@ def alt_astar_accumulation_corridor_raster(
                 line_bias_weight=line_bias_weight,
             )
             reverse_list.append(reverse)
+        except Exception as e:
+            print(e)
+            print("4 A* corridor requires a valid least-cost path")
+            continue
 
+        try:
             valid = forward.closed | reverse.closed
             local_data = forward.g_scores + reverse.g_scores - forward.best_cost
             total_forward_path = total_forward_path + forward.path
@@ -120,7 +130,8 @@ def alt_astar_accumulation_corridor_raster(
             dist_to_path_list.append(_distance_raster_to_line(astar_path, meta, cost.shape))
             total_score_[~np.isinf(local_data)] = local_data[~np.isinf(local_data)]
         except Exception as e:
-            print("3 A* corridor requires a valid least-cost path")
+            print(e)
+            print("5 A* corridor requires a valid least-cost path")
             continue
 
     total_score_[np.isinf(total_score_)] = 0.
@@ -518,14 +529,18 @@ def _clamp_row_col(row_col: tuple[int, int], rows: int, cols: int) -> tuple[int,
 
 
 def _prepare_cost_surface(cost_arr, meta: dict) -> np.ndarray:
-    arr = np.ma.asarray(cost_arr)
-    if arr.ndim > 2:
-        arr = np.ma.squeeze(arr, axis=0)
-    cost = np.asarray(arr.filled(np.inf), dtype="float64")
-    nodata = meta.get("nodata")
-    if nodata is not None:
-        cost[cost == float(nodata)] = np.inf
-    cost[~np.isfinite(cost)] = np.inf
-    cost[cost <= 0.0] = np.inf
-    return cost
+    try:
+        arr = np.ma.asarray(cost_arr)
+        if arr.ndim > 2:
+            arr = np.ma.squeeze(arr, axis=0)
+        cost = np.asarray(arr.filled(np.inf), dtype="float32")
+        nodata = meta.get("nodata")
+        if nodata is not None:
+            cost[cost == float(nodata)] = np.inf
+        cost[~np.isfinite(cost)] = np.inf
+        cost[cost <= 0.0] = np.inf
+        return cost
+    except Exception as e:
+        print(f"Failed to prepare cost surface: {e}")
+        return cost_arr
 
