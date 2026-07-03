@@ -622,7 +622,7 @@ class SeedLine:
         out_transform = out_meta["transform"]
         transformer = rasterio.transform.AffineTransformer(out_transform)
         cell_size = (out_transform[0], -out_transform[4])
-        if self.centerline_method == bt_const.CenterlineMethod.MCP.value:
+        if self.centerline_method == bt_const.CenterlineMethod.BERA.value:
             x1, y1 = lc_path_coords[0]
             x2, y2 = lc_path_coords[-1]
             source = [transformer.rowcol(x1, y1)]
@@ -635,7 +635,7 @@ class SeedLine:
                 cell_size,
                 bt_const.FP_CORRIDOR_THRESHOLD,
             )
-        elif self.centerline_method == bt_const.CenterlineMethod.MCP_ALONG.value:
+        elif self.centerline_method == bt_const.CenterlineMethod.BERA_ALONG.value:
             corridor_thresh_cl = algo_common.alt_MCP_along_corridor_raster(
                 cost_clip,
                 out_meta,
