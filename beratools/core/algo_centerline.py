@@ -54,6 +54,9 @@ class CenterlineParams(float, enum.Enum):
     CLEANUP_POLYGON_BY_AREA = 1.0
     ENDPOINT_ANCHOR_TOL = 1e-9
     GUIDED_FALLBACK_MAX_SNAP = 2.0
+    GUIDE_SAMPLE_INTERVAL = 10.0
+    MIN_GUIDE_LENGTH_RATIO = 0.94
+    MAX_SHORTCUT_MEDIAN_DISTANCE = 2.0
 
 
 @enum.unique
@@ -96,7 +99,38 @@ def centerline_is_valid(centerline, input_line):
     ):
         return False
 
+    if _looks_like_shortcut(centerline, input_line):
+        return False
+
     return True
+
+
+def _looks_like_shortcut(centerline, input_line):
+    """Reject centerlines that connect the endpoints but shortcut the guide path."""
+    if not centerline or not input_line or input_line.length <= 0:
+        return False
+
+    length_ratio = centerline.length / input_line.length
+    if length_ratio >= CenterlineParams.MIN_GUIDE_LENGTH_RATIO:
+        return False
+
+    distances = _sampled_line_distances(input_line, centerline, CenterlineParams.GUIDE_SAMPLE_INTERVAL)
+    if not distances:
+        return False
+
+    median_distance = float(np.median(distances))
+    return median_distance > CenterlineParams.MAX_SHORTCUT_MEDIAN_DISTANCE
+
+
+def _sampled_line_distances(source_line, target_line, interval):
+    if interval <= 0:
+        interval = 10.0
+    sample_count = max(int(np.ceil(source_line.length / interval)), 1)
+    distances = []
+    for i in range(sample_count + 1):
+        distance_along = min(i * interval, source_line.length)
+        distances.append(source_line.interpolate(distance_along).distance(target_line))
+    return distances
 
 
 def snap_end_to_end(in_line, line_reference, max_snap_dist=None):
