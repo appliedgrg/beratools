@@ -19,9 +19,10 @@ import geopandas as gpd
 import numpy as np
 import pyproj
 import rasterio
+import shapely
 from osgeo import gdal, ogr, osr, version_info
 from pyogrio import set_gdal_config_options
-from rasterio import mask
+from rasterio import mask,features
 
 import beratools.core.constants as bt_const
 
@@ -59,6 +60,19 @@ def clip_raster(
         out_image, out_transform = mask.mask(
             raster_file, clip_geo_buffer, crop=True, nodata=ras_nodata, filled=True
         )
+        shapes = [(clip_geom.buffer(buffer), 1)]  # Burn value '1' into the raster
+        raster_array = features.rasterize(shapes,
+            out_shape=out_image.shape[1:],
+            transform=out_transform,
+            fill=0,
+            dtype=np.uint8,
+
+        )
+        # valid_area=raster_array==1
+        # valid_area=valid_area[np.newaxis,...]
+        if raster_file.nodata is not None:
+            out_image[out_image == raster_file.nodata] = 0.
+            out_image[raster_array[np.newaxis,:] == 0] = default_nodata
         if np.isnan(ras_nodata):
             out_image[np.isnan(out_image)] = default_nodata
 
