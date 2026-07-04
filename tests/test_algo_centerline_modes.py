@@ -2,6 +2,7 @@ import pytest
 from pathlib import Path
 import geopandas as gpd
 import pyproj
+from rasterio.transform import from_origin
 from shapely.geometry import LineString, Point, Polygon
 
 import beratools.core.algo_centerline as algo_centerline
@@ -154,6 +155,140 @@ def test_find_centerline_returns_failed_when_regeneration_returns_none(monkeypat
 
     assert centerline.equals(seed)
     assert status == algo_centerline.CenterlineStatus.REGENERATE_FAILED
+
+
+def test_seedline_compute_uses_seedline_fallback_when_lcp_returns_none(monkeypatch):
+    seed = LineString([(0, 0), (40, 0)])
+    seed_gdf = gpd.GeoDataFrame(geometry=[seed], crs="EPSG:3857")
+    seed_line = algo_centerline.SeedLine(
+        seed_gdf,
+        "dummy.tif",
+        proc_segments=True,
+        line_radius=15,
+        centerline_method="astar",
+    )
+
+    meta = {"transform": from_origin(-10, 10, 1, 1), "crs": seed_gdf.crs, "nodata": None}
+    monkeypatch.setattr(seed_line, "_clip_chm", lambda *_args, **_kwargs: ("raster", meta))
+    monkeypatch.setattr(algo_centerline.algo_cost, "cost_raster", lambda *_args, **_kwargs: ("cost", meta))
+    monkeypatch.setattr(
+        algo_centerline.algo_astar,
+        "find_least_cost_path_astar_closest_line",
+        lambda *_args, **_kwargs: None,
+    )
+
+    seed_line.compute()
+
+    assert seed_line.centerline.geometry.iloc[0].equals(seed)
+    assert seed_line.lc_path.geometry.iloc[0].equals(seed)
+    assert seed_line.centerline["cl_status"].iloc[0] == algo_centerline.CenterlineStatus.LCP_FAILED_SEED_FALLBACK.value
+    assert seed_line.centerline["cl_status_name"].iloc[0] == "LCP_FAILED_SEED_FALLBACK"
+
+
+def test_seedline_compute_uses_seedline_fallback_when_lcp_raises(monkeypatch):
+    seed = LineString([(0, 0), (40, 0)])
+    seed_gdf = gpd.GeoDataFrame(geometry=[seed], crs="EPSG:3857")
+    seed_line = algo_centerline.SeedLine(
+        seed_gdf,
+        "dummy.tif",
+        proc_segments=True,
+        line_radius=15,
+        centerline_method="astar",
+    )
+
+    meta = {"transform": from_origin(-10, 10, 1, 1), "crs": seed_gdf.crs, "nodata": None}
+    monkeypatch.setattr(seed_line, "_clip_chm", lambda *_args, **_kwargs: ("raster", meta))
+    monkeypatch.setattr(algo_centerline.algo_cost, "cost_raster", lambda *_args, **_kwargs: ("cost", meta))
+
+    def raise_lcp(*_args, **_kwargs):
+        raise RuntimeError("lcp failed")
+
+    monkeypatch.setattr(algo_centerline.algo_astar, "find_least_cost_path_astar_closest_line", raise_lcp)
+
+    seed_line.compute()
+
+    assert seed_line.centerline.geometry.iloc[0].equals(seed)
+    assert seed_line.centerline["cl_status"].iloc[0] == algo_centerline.CenterlineStatus.LCP_FAILED_SEED_FALLBACK.value
+    assert seed_line.centerline["cl_status_name"].iloc[0] == "LCP_FAILED_SEED_FALLBACK"
+
+
+def test_seedline_compute_uses_lcp_fallback_when_corridor_fails(monkeypatch):
+    seed = LineString([(0, 0), (40, 0)])
+    lcp = LineString([(0, 0), (10, 2), (40, 0)])
+    seed_gdf = gpd.GeoDataFrame(geometry=[seed], crs="EPSG:3857")
+    seed_line = algo_centerline.SeedLine(
+        seed_gdf,
+        "dummy.tif",
+        proc_segments=True,
+        line_radius=15,
+        centerline_method="astar",
+    )
+
+    meta = {"transform": from_origin(-10, 10, 1, 1), "crs": seed_gdf.crs, "nodata": None}
+    monkeypatch.setattr(seed_line, "_clip_chm", lambda *_args, **_kwargs: ("raster", meta))
+    monkeypatch.setattr(algo_centerline.algo_cost, "cost_raster", lambda *_args, **_kwargs: ("cost", meta))
+    monkeypatch.setattr(
+        algo_centerline.algo_astar,
+        "find_least_cost_path_astar_closest_line",
+        lambda *_args, **_kwargs: lcp,
+    )
+
+    def raise_corridor(*_args, **_kwargs):
+        raise RuntimeError("corridor failed")
+
+    monkeypatch.setattr(algo_centerline.algo_astar, "astar_accumulation_corridor_raster", raise_corridor)
+
+    seed_line.compute()
+
+    assert seed_line.centerline.geometry.iloc[0].equals(lcp)
+    assert seed_line.lc_path.geometry.iloc[0].equals(lcp)
+    assert seed_line.centerline["cl_status"].iloc[0] == algo_centerline.CenterlineStatus.CENTERLINE_FAILED_LCP_FALLBACK.value
+    assert seed_line.centerline["cl_status_name"].iloc[0] == "CENTERLINE_FAILED_LCP_FALLBACK"
+
+
+def test_seedline_compute_uses_lcp_fallback_when_find_centerline_fails(monkeypatch):
+    seed = LineString([(0, 0), (40, 0)])
+    lcp = LineString([(0, 0), (10, 2), (40, 0)])
+    corridor = Polygon([(-5, -5), (45, -5), (45, 5), (-5, 5), (-5, -5)])
+    seed_gdf = gpd.GeoDataFrame(geometry=[seed], crs="EPSG:3857")
+    seed_line = algo_centerline.SeedLine(
+        seed_gdf,
+        "dummy.tif",
+        proc_segments=True,
+        line_radius=15,
+        centerline_method="astar",
+    )
+
+    meta = {"transform": from_origin(-10, 10, 1, 1), "crs": seed_gdf.crs, "nodata": None}
+    monkeypatch.setattr(seed_line, "_clip_chm", lambda *_args, **_kwargs: ("raster", meta))
+    monkeypatch.setattr(algo_centerline.algo_cost, "cost_raster", lambda *_args, **_kwargs: ("cost", meta))
+    monkeypatch.setattr(
+        algo_centerline.algo_astar,
+        "find_least_cost_path_astar_closest_line",
+        lambda *_args, **_kwargs: lcp,
+    )
+    monkeypatch.setattr(
+        algo_centerline.algo_astar,
+        "astar_accumulation_corridor_raster",
+        lambda *_args, **_kwargs: ("corridor", {}),
+    )
+    monkeypatch.setattr(
+        algo_centerline,
+        "find_corridor_polygon",
+        lambda *_args, **_kwargs: gpd.GeoDataFrame(geometry=[corridor], crs=seed_gdf.crs),
+    )
+    monkeypatch.setattr(seed_line, "_postprocess_corridor_polygon", lambda corridor_gdf: corridor_gdf)
+    monkeypatch.setattr(
+        algo_centerline,
+        "find_centerline",
+        lambda *_args, **_kwargs: (lcp, algo_centerline.CenterlineStatus.REGENERATE_FAILED),
+    )
+
+    seed_line.compute()
+
+    assert seed_line.centerline.geometry.iloc[0].equals(lcp)
+    assert seed_line.centerline["cl_status"].iloc[0] == algo_centerline.CenterlineStatus.CENTERLINE_FAILED_LCP_FALLBACK.value
+    assert seed_line.centerline["cl_status_name"].iloc[0] == "CENTERLINE_FAILED_LCP_FALLBACK"
 
 
 def test_snap_end_to_end_respects_max_snap_distance():

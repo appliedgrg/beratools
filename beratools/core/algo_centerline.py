@@ -73,6 +73,8 @@ class CenterlineStatus(enum.IntEnum):
     FAILED = 2
     REGENERATE_SUCCESS = 3
     REGENERATE_FAILED = 4
+    CENTERLINE_FAILED_LCP_FALLBACK = 5
+    LCP_FAILED_SEED_FALLBACK = 6
 
 
 def centerline_is_valid(centerline, input_line):
@@ -609,8 +611,18 @@ class SeedLine:
         in_raster = self.raster
         seed_line = line  # LineString
 
-        ras_clip, out_meta = self._clip_chm(in_raster, seed_line, line_radius)
-        cost_clip, _ = algo_cost.cost_raster(ras_clip, out_meta)
+        try:
+            ras_clip, out_meta = self._clip_chm(in_raster, seed_line, line_radius)
+            cost_clip, _ = algo_cost.cost_raster(ras_clip, out_meta)
+        except Exception as e:
+            print(e)
+            self._set_fallback_outputs(
+                seed_line,
+                seed_line,
+                CenterlineStatus.LCP_FAILED_SEED_FALLBACK,
+                corridor_geometry=seed_line.buffer(line_radius),
+            )
+            return
 
         lc_path = line
         try:
@@ -622,6 +634,12 @@ class SeedLine:
                 lc_path = bt_dijkstra.find_least_cost_path(cost_clip, out_meta, seed_line)
         except Exception as e:
             print(e)
+            self._set_fallback_outputs(
+                seed_line,
+                seed_line,
+                CenterlineStatus.LCP_FAILED_SEED_FALLBACK,
+                corridor_geometry=seed_line.buffer(line_radius),
+            )
             return
 
         if lc_path:
@@ -632,53 +650,82 @@ class SeedLine:
         # search for centerline
         if len(lc_path_coords) < 2:
             algo_common.log_file_only("No least cost path detected, use input line.", logger_name=__name__)
-            self.line["cl_status"] = CenterlineStatus.FAILED.value
+            self._set_fallback_outputs(
+                seed_line,
+                seed_line,
+                CenterlineStatus.LCP_FAILED_SEED_FALLBACK,
+                corridor_geometry=seed_line.buffer(line_radius),
+            )
             return
 
         # get corridor raster
         lc_path = sh_geom.LineString(lc_path_coords)
         lc_path = self._postprocess_lcp(lc_path, out_meta.get("crs"))
         lc_path_coords = list(lc_path.coords)
-        ras_clip, out_meta = self._clip_chm(in_raster, lc_path, line_radius * 0.9)
-        cost_clip, _ = algo_cost.cost_raster(ras_clip, out_meta)
+        try:
+            ras_clip, out_meta = self._clip_chm(in_raster, lc_path, line_radius * 0.9)
+            cost_clip, _ = algo_cost.cost_raster(ras_clip, out_meta)
 
-        out_transform = out_meta["transform"]
-        transformer = rasterio.transform.AffineTransformer(out_transform)
-        cell_size = (out_transform[0], -out_transform[4])
+            out_transform = out_meta["transform"]
+            transformer = rasterio.transform.AffineTransformer(out_transform)
+            cell_size = (out_transform[0], -out_transform[4])
 
-        x1, y1 = lc_path_coords[0]
-        x2, y2 = lc_path_coords[-1]
-        source = [transformer.rowcol(x1, y1)]
-        destination = [transformer.rowcol(x2, y2)]
-        if self.centerline_method == bt_const.CenterlineMethod.ASTAR.value:
-            corridor_thresh_cl, _details = algo_astar.astar_accumulation_corridor_raster(
-                cost_clip,
-                out_meta,
+            x1, y1 = lc_path_coords[0]
+            x2, y2 = lc_path_coords[-1]
+            source = [transformer.rowcol(x1, y1)]
+            destination = [transformer.rowcol(x2, y2)]
+            if self.centerline_method == bt_const.CenterlineMethod.ASTAR.value:
+                corridor_thresh_cl, _details = algo_astar.astar_accumulation_corridor_raster(
+                    cost_clip,
+                    out_meta,
+                    lc_path,
+                    corridor_threshold=bt_const.FP_CORRIDOR_THRESHOLD,
+                    line_bias_weight=self.astar_corridor_line_bias_weight,
+                    distance_penalty_weight=self.astar_corridor_distance_penalty_weight,
+                )
+            else:
+                corridor_thresh_cl = algo_common.corridor_raster(
+                    cost_clip,
+                    out_meta,
+                    source,
+                    destination,
+                    cell_size,
+                    bt_const.FP_CORRIDOR_THRESHOLD,
+                )
+        except Exception as e:
+            print(e)
+            self._set_fallback_outputs(
                 lc_path,
-                corridor_threshold=bt_const.FP_CORRIDOR_THRESHOLD,
-                line_bias_weight=self.astar_corridor_line_bias_weight,
-                distance_penalty_weight=self.astar_corridor_distance_penalty_weight,
+                lc_path,
+                CenterlineStatus.CENTERLINE_FAILED_LCP_FALLBACK,
+                corridor_geometry=lc_path.buffer(line_radius),
             )
-        else:
-            corridor_thresh_cl = algo_common.corridor_raster(
-                cost_clip,
-                out_meta,
-                source,
-                destination,
-                cell_size,
-                bt_const.FP_CORRIDOR_THRESHOLD,
-            )
+            return
 
         # find contiguous corridor polygon and extract centerline
-        df = gpd.GeoDataFrame(geometry=[seed_line], crs=out_meta["crs"])
-        corridor_poly_gpd = find_corridor_polygon(corridor_thresh_cl, out_transform, df)
-        corridor_poly_gpd = self._postprocess_corridor_polygon(corridor_poly_gpd)
-        center_line, status = find_centerline(
-            corridor_poly_gpd.geometry.iloc[0],
-            lc_path,
-            guided_strategy=self.guided_strategy,
-        )
+        try:
+            df = gpd.GeoDataFrame(geometry=[seed_line], crs=out_meta["crs"])
+            corridor_poly_gpd = find_corridor_polygon(corridor_thresh_cl, out_transform, df)
+            corridor_poly_gpd = self._postprocess_corridor_polygon(corridor_poly_gpd)
+            center_line, status = find_centerline(
+                corridor_poly_gpd.geometry.iloc[0],
+                lc_path,
+                guided_strategy=self.guided_strategy,
+            )
+        except Exception as e:
+            print(e)
+            corridor_poly_gpd = self.line.copy()
+            corridor_poly_gpd.geometry = [lc_path.buffer(line_radius)]
+            center_line = lc_path
+            status = CenterlineStatus.CENTERLINE_FAILED_LCP_FALLBACK
+
+        status = CenterlineStatus(status)
+        if status in {CenterlineStatus.FAILED, CenterlineStatus.REGENERATE_FAILED}:
+            status = CenterlineStatus.CENTERLINE_FAILED_LCP_FALLBACK
+            center_line = lc_path
+
         self.line["cl_status"] = status.value
+        self.line["cl_status_name"] = status.name
 
         self.lc_path = self.line.copy()
         self.lc_path.geometry = [lc_path]
@@ -691,6 +738,27 @@ class SeedLine:
         self.centerline["centerline_method"] = self.centerline_method
 
         self.corridor_poly_gpd = corridor_poly_gpd
+        self.corridor_poly_gpd["centerline_method"] = self.centerline_method
+        self.corridor_poly_gpd["cl_status"] = status.value
+        self.corridor_poly_gpd["cl_status_name"] = status.name
+
+    def _set_fallback_outputs(self, lc_path, centerline, status, corridor_geometry=None):
+        status = CenterlineStatus(status)
+        self.line["cl_status"] = status.value
+        self.line["cl_status_name"] = status.name
+
+        self.lc_path = self.line.copy()
+        self.lc_path.geometry = [lc_path]
+        self.lc_path["centerline_method"] = self.centerline_method
+        self.lc_path["lcp_simplified"] = False
+        self.lc_path["lcp_smoothed"] = False
+
+        self.centerline = self.line.copy()
+        self.centerline.geometry = [centerline]
+        self.centerline["centerline_method"] = self.centerline_method
+
+        self.corridor_poly_gpd = self.line.copy()
+        self.corridor_poly_gpd.geometry = [corridor_geometry]
         self.corridor_poly_gpd["centerline_method"] = self.centerline_method
 
     def _clip_chm(self, in_raster, clip_geometry, buffer):
