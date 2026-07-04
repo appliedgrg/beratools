@@ -138,6 +138,24 @@ def test_pairwise_retries_main_route_when_guided_extract_fails(monkeypatch):
     assert trim_snap_args["max_snap_dist"] is None
 
 
+def test_find_centerline_returns_failed_when_regeneration_returns_none(monkeypatch):
+    poly = Polygon([(-10, -10), (50, -10), (50, 10), (-10, 10), (-10, -10)])
+    seed = LineString([(0, 0), (40, 0)])
+
+    monkeypatch.setattr(
+        algo_centerline,
+        "_extract_centerline_from_polygon",
+        lambda *_args, **_kwargs: LineString([(0, 0), (10, 10), (40, 0)]),
+    )
+    monkeypatch.setattr(algo_centerline, "centerline_is_valid", lambda *_args, **_kwargs: False)
+    monkeypatch.setattr(algo_centerline, "regenerate_centerline", lambda *_args, **_kwargs: None)
+
+    centerline, status = algo_centerline.find_centerline(poly, seed, guided_strategy="pairwise")
+
+    assert centerline.equals(seed)
+    assert status == algo_centerline.CenterlineStatus.REGENERATE_FAILED
+
+
 def test_snap_end_to_end_respects_max_snap_distance():
     ref = LineString([(0, 0), (100, 0)])
     line = LineString([(20, 0), (80, 0)])

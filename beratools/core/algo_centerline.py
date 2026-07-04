@@ -355,6 +355,14 @@ def find_centerline(poly, input_line, guided_strategy="main_route"):
         try:
             algo_common.log_file_only("Regenerating line ...", logger_name=__name__)
             centerline = regenerate_centerline(poly, input_line)
+            if not centerline:
+                return input_line, CenterlineStatus.REGENERATE_FAILED
+            try:
+                if centerline.is_empty:
+                    return input_line, CenterlineStatus.REGENERATE_FAILED
+            except Exception as e:
+                print(f"find_centerline: {e}")
+                return input_line, CenterlineStatus.REGENERATE_FAILED
             return centerline, CenterlineStatus.REGENERATE_SUCCESS
         except Exception as e:
             print(f"find_centerline: {e}")
