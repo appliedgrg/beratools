@@ -41,6 +41,10 @@
                   {
                     "variable": "apply_seed_line_correction",
                     "condition": true
+                  },
+                  {
+                    "variable": "warn_nodata_vertices",
+                    "condition": true
                   }
                 ],
                 "mode": "hide"
@@ -108,6 +112,49 @@
                 "variable": "remove_short_lines",
                 "condition": true,
                 "mode": "inline"
+              }
+            },
+            {
+              "variable": "warn_nodata_vertices",
+              "label": "Warn CHM NoData vertices",
+              "description": "Report seed-line endpoints on or surrounded by CHM NoData in the QC report without changing geometry.",
+              "type": "list",
+              "subtype": "bool",
+              "data": [true, false],
+              "default": true,
+              "output": false,
+              "optional": true
+            },
+            {
+              "variable": "nodata_vertex_search_radius",
+              "label": "NoData vertex search radius (m)",
+              "description": "Search radius used to report the nearest valid CHM cell for NoData endpoint/vertex warnings.",
+              "type": "number",
+              "subtype": "float",
+              "default": 10.0,
+              "output": false,
+              "optional": true,
+              "unit": "m",
+              "depends_on": {
+                "variable": "warn_nodata_vertices",
+                "condition": true,
+                "mode": "hide"
+              }
+            },
+            {
+              "variable": "check_internal_vertices",
+              "label": "Check internal NoData vertices",
+              "description": "Also report internal seed-line vertices on or surrounded by CHM NoData. Endpoints are always checked when NoData vertex warnings are enabled.",
+              "type": "list",
+              "subtype": "bool",
+              "data": [true, false],
+              "default": false,
+              "output": false,
+              "optional": true,
+              "depends_on": {
+                "variable": "warn_nodata_vertices",
+                "condition": true,
+                "mode": "hide"
               }
             },
             {

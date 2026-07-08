@@ -1,4 +1,5 @@
 import geopandas as gpd
+import numpy as np
 import pytest
 from shapely.geometry import GeometryCollection, LineString, MultiLineString, Point, Polygon, box
 import json
@@ -18,6 +19,30 @@ def _write_seed_input(tmp_path, geoms, data=None, layer="seed_lines", crs="EPSG:
     src = gpd.GeoDataFrame(attrs, geometry=geoms, crs=crs)
     src.to_file(in_gpkg, layer=layer)
     return in_gpkg
+
+
+def _write_chm_raster(tmp_path, data, nodata=-9999.0, transform=None, crs="EPSG:3857"):
+    rasterio = pytest.importorskip("rasterio")
+    from rasterio.transform import from_origin
+
+    path = tmp_path / "chm.tif"
+    array = np.asarray(data, dtype="float32")
+    if transform is None:
+        transform = from_origin(0.0, float(array.shape[0]), 1.0, 1.0)
+    with rasterio.open(
+        path,
+        "w",
+        driver="GTiff",
+        height=array.shape[0],
+        width=array.shape[1],
+        count=1,
+        dtype=array.dtype,
+        crs=crs,
+        transform=transform,
+        nodata=nodata,
+    ) as dst:
+        dst.write(array, 1)
+    return path
 
 
 def test_clean_line_geometries_respects_min_length():
@@ -317,6 +342,111 @@ def test_check_seed_line_qc_report_updates_manifest_and_prints_summary(tmp_path,
     assert row is not None
     assert row[0] == 1
     assert row[1] == 1
+
+
+def test_generate_qc_report_flags_endpoint_on_chm_nodata(tmp_path):
+    raster_path = _write_chm_raster(
+        tmp_path,
+        [
+            [-9999.0, 1.0, 1.0],
+            [1.0, 1.0, 1.0],
+            [1.0, 1.0, 1.0],
+        ],
+    )
+    gdf = gpd.GeoDataFrame(
+        {bt_const.BT_UID: [194]},
+        geometry=[LineString([(0.5, 2.5), (2.5, 0.5)])],
+        crs="EPSG:3857",
+    )
+
+    issues, summary = acsl_report.generate_qc_report(
+        gdf,
+        min_length_m=0.1,
+        close_distance_m=0.1,
+        snap_tolerance_m=0.1,
+        in_raster=raster_path.as_posix(),
+        warn_nodata_vertices=True,
+        nodata_vertex_search_radius_m=10.0,
+    )
+
+    nodata_issues = issues[issues["issue_type"] == "chm_nodata_vertex"]
+    assert summary["chm_nodata_vertex"] == 1
+    assert len(nodata_issues) == 1
+    issue = nodata_issues.iloc[0]
+    assert issue["line_id"] == 0
+    assert issue["value"] == pytest.approx(1.0)
+    assert "start_endpoint falls on CHM NoData" in issue["description"]
+    assert "BT_UID=194" in issue["description"]
+
+
+def test_generate_qc_report_flags_endpoint_surrounded_by_chm_nodata(tmp_path):
+    data = np.ones((5, 5), dtype="float32")
+    data[1:4, 1:4] = -9999.0
+    data[2, 2] = 1.0
+    raster_path = _write_chm_raster(tmp_path, data)
+    gdf = gpd.GeoDataFrame(
+        geometry=[LineString([(2.5, 2.5), (0.5, 4.5)])],
+        crs="EPSG:3857",
+    )
+
+    issues, summary = acsl_report.generate_qc_report(
+        gdf,
+        min_length_m=0.1,
+        close_distance_m=0.1,
+        snap_tolerance_m=0.1,
+        in_raster=raster_path.as_posix(),
+        warn_nodata_vertices=True,
+        nodata_vertex_search_radius_m=10.0,
+    )
+
+    nodata_issues = issues[issues["issue_type"] == "chm_nodata_vertex"]
+    assert summary["chm_nodata_vertex"] == 1
+    assert len(nodata_issues) == 1
+    assert "start_endpoint is surrounded by CHM NoData" in nodata_issues.iloc[0]["description"]
+    assert nodata_issues.iloc[0]["value"] > 0.0
+
+
+def test_generate_qc_report_checks_internal_nodata_vertices_only_when_enabled(tmp_path):
+    raster_path = _write_chm_raster(
+        tmp_path,
+        [
+            [1.0, 1.0, 1.0],
+            [1.0, -9999.0, 1.0],
+            [1.0, 1.0, 1.0],
+        ],
+    )
+    gdf = gpd.GeoDataFrame(
+        geometry=[LineString([(0.5, 2.5), (1.5, 1.5), (2.5, 0.5)])],
+        crs="EPSG:3857",
+    )
+
+    issues_default, summary_default = acsl_report.generate_qc_report(
+        gdf,
+        min_length_m=0.1,
+        close_distance_m=0.1,
+        snap_tolerance_m=0.1,
+        in_raster=raster_path.as_posix(),
+        warn_nodata_vertices=True,
+        nodata_vertex_search_radius_m=10.0,
+    )
+    assert summary_default["chm_nodata_vertex"] == 0
+    assert issues_default[issues_default["issue_type"] == "chm_nodata_vertex"].empty
+
+    issues_internal, summary_internal = acsl_report.generate_qc_report(
+        gdf,
+        min_length_m=0.1,
+        close_distance_m=0.1,
+        snap_tolerance_m=0.1,
+        in_raster=raster_path.as_posix(),
+        warn_nodata_vertices=True,
+        nodata_vertex_search_radius_m=10.0,
+        check_internal_vertices=True,
+    )
+    nodata_issues = issues_internal[issues_internal["issue_type"] == "chm_nodata_vertex"]
+    assert summary_internal["chm_nodata_vertex"] == 1
+    assert len(nodata_issues) == 1
+    assert "internal_vertex falls on CHM NoData" in nodata_issues.iloc[0]["description"]
+    assert "vertex_index=1" in nodata_issues.iloc[0]["description"]
 
 
 class _DummyBounds:
