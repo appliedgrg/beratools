@@ -23,17 +23,18 @@ build:
 
 requirements:
   host:
-    - python >=3.10,<3.15
+    - python >=3.12,<3.15
     - hatchling
     - pip
     - hatch-vcs
     - git
   run:
-    - python >=3.10,<3.15
+    - python >=3.12,<3.15
     - dask
-    - gdal
+    - gdal >=3.12,<4
     - geopandas
     - networkit
+    - numpy >=1.26,<2.4
     - pyarrow
     - pyogrio
     - pyqt

@@ -1,12 +1,7 @@
-name: Python Test by tox grid
+name: Manual Python Compatibility Grid
 
 on:
-  pull_request:
-    branches: [main]
-    paths:
-      - 'beratools/**'
-      - 'tox.ini'
-      - 'pyproject.toml'
+  workflow_dispatch:
 
 jobs:
   test:
@@ -15,12 +10,9 @@ jobs:
     permissions:
       contents: read
     strategy:
+      fail-fast: false
       matrix:
         include:
-          - python-version: "3.10"
-            toxenv: py310
-          - python-version: "3.11"
-            toxenv: py311
           - python-version: "3.12"
             toxenv: py312
           - python-version: "3.13"
@@ -35,19 +27,41 @@ jobs:
           persist-credentials: true
           fetch-depth: 1
 
-      - name: Install GDAL system libs
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y gdal-bin libgdal-dev
-          gdal-config --version
-
-      - name: Set up Python
-        uses: actions/setup-python@v6
+      - name: Set up micromamba
+        uses: mamba-org/setup-micromamba@v2
         with:
-          python-version: ${{ matrix.python-version }}
+          environment-name: bera-tox
+          create-args: >-
+            python=${{ matrix.python-version }}
+            dask
+            gdal>=3.12,<4
+            geopandas
+            networkit
+            numpy>=1.26,<2.4
+            pandas
+            pyogrio>=0.12
+            pyqt
+            rasterio>=1.5
+            scikit-image>=0.24
+            tqdm
+            xarray-spatial
+            pandarallel
+            pytest
+            pytest-qt
+            tox
+          condarc: |
+            channel_priority: strict
+            channels:
+              - appliedgrg
+              - conda-forge
+          cache-environment: true
 
-      - name: Install tox and tox-uv
-        run: pip install tox tox-uv
+      - name: Install project
+        shell: bash -el {0}
+        run: |
+          python -m pip install -e . --no-deps
 
-      - name: Run tox
-        run: tox -e ${{ matrix.toxenv }}
+      - name: Run Tests
+        shell: bash -el {0}
+        run: |
+          tox -e ${{ matrix.toxenv }}

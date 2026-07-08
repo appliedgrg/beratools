@@ -1,13 +1,26 @@
 name: Python Test & Coverage (Pixi)
 
 on:
+  pull_request:
+    branches:
+      - main
+    paths:
+      - 'beratools/**'
+      - 'tests/**'
+      - 'pixi.toml'
+      - 'pixi.lock'
+      - 'pyproject.toml'
+      - 'environment.yml'
   push:
     branches:
       - main
     paths:
       - 'beratools/**'
+      - 'tests/**'
       - 'pixi.toml'
+      - 'pixi.lock'
       - 'pyproject.toml'
+      - 'environment.yml'
 
 jobs:
   test:
@@ -24,13 +37,6 @@ jobs:
           token: ${{ github.token }}
           persist-credentials: true
 
-      - name: Install GDAL system libs
-        run: |
-          echo "Installing GDAL system libraries"
-          sudo apt-get update
-          sudo apt-get install -y gdal-bin libgdal-dev
-          gdal-config --version
-
       - name: Install Pixi
         run: echo "Installing Pixi" && curl -fsSL https://pixi.sh/install.sh | bash
 
@@ -40,14 +46,13 @@ jobs:
           export PATH="$HOME/.pixi/bin:$PATH"
           cd $GITHUB_WORKSPACE
           pixi install
-          pixi add pytest-cov coverage
 
       - name: Editable Install of beratools
         run: |
           echo "Installing beratools in editable mode"
           export PATH="$HOME/.pixi/bin:$PATH"
           cd $GITHUB_WORKSPACE
-          pip install -e .
+          pixi run python -m pip install -e .
 
       - name: Run Tests with Coverage
         run: |

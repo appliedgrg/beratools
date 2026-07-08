@@ -8,9 +8,10 @@ channels:
 dependencies:
   - python=3.12
   - dask
-  - gdal>=3.12,<3.13
+  - gdal>=3.12,<4
   - geopandas
   - networkit
+  - numpy>=1.26,<2.4
   - pandas
   - pyogrio>=0.12
   - pyqt

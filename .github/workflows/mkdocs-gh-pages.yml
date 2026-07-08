@@ -33,20 +33,22 @@ jobs:
       - name: Set up Python
         uses: actions/setup-python@v6
         with:
-          python-version: '3.11'
-      - name: Install GDAL system libs
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y gdal-bin libgdal-dev
-          gdal-config --version
+          python-version: '3.12'
+      - name: Install Pixi
+        run: curl -fsSL https://pixi.sh/install.sh | bash
       - name: Install documentation dependencies
         run: |
-          pip install "gdal==3.8.4"
-          pip install -r docs/files/requirements.txt
+          export PATH="$HOME/.pixi/bin:$PATH"
+          pixi install
+          pixi run python -m pip install -r docs/files/requirements.txt
       - name: Install project in editable mode
-        run: pip install -e .
+        run: |
+          export PATH="$HOME/.pixi/bin:$PATH"
+          pixi run python -m pip install -e .
       - name: Build docs site
-        run: zensical build -f docs/mkdocs.yml
+        run: |
+          export PATH="$HOME/.pixi/bin:$PATH"
+          pixi run zensical build -f docs/mkdocs.yml
 
   deploy:
     if: github.event_name == 'push'
@@ -62,20 +64,22 @@ jobs:
       - name: Set up Python
         uses: actions/setup-python@v6
         with:
-          python-version: '3.11'
-      - name: Install GDAL system libs
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y gdal-bin libgdal-dev
-          gdal-config --version
+          python-version: '3.12'
+      - name: Install Pixi
+        run: curl -fsSL https://pixi.sh/install.sh | bash
       - name: Install documentation dependencies
         run: |
-          pip install "gdal==3.8.4"
-          pip install -r docs/files/requirements.txt
+          export PATH="$HOME/.pixi/bin:$PATH"
+          pixi install
+          pixi run python -m pip install -r docs/files/requirements.txt
       - name: Install project in editable mode
-        run: pip install -e .
+        run: |
+          export PATH="$HOME/.pixi/bin:$PATH"
+          pixi run python -m pip install -e .
       - name: Build docs site
-        run: zensical build -f docs/mkdocs.yml
+        run: |
+          export PATH="$HOME/.pixi/bin:$PATH"
+          pixi run zensical build -f docs/mkdocs.yml
       - name: Upload Pages artifact
         uses: actions/upload-pages-artifact@v3
         with:
