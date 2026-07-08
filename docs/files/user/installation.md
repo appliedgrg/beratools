@@ -4,7 +4,7 @@ Welcome to **BERA Tools**! This guide will give you advanced installation option
 
 ## Prerequisites
 
-- Python 3.10 - 3.14
+- Python 3.12 - 3.14
 - conda or pip
 
 ## Installation Methods
@@ -49,7 +49,7 @@ BERA Tools is published to Pypi and can be installed by pip. On Windows, if you 
 Example: install GDAL from a Windows wheel (adjust the URL/version as needed):
 
 ```bash
-pip install "gdal @ https://github.com/cgohlke/geospatial-wheels/releases/download/v2025.10.25/gdal-3.11.4-cp311-cp311-win_amd64.whl"
+pip install "gdal @ https://github.com/cgohlke/geospatial-wheels/releases/download/v2026.2.26/gdal-3.12.2-cp312-cp312-win_amd64.whl"
 ```
 
 [OSGeo4W](https://trac.osgeo.org/osgeo4w/https://trac.osgeo.org/osgeo4w/) is recommended for Windows, alongside conda.

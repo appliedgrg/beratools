@@ -43,12 +43,12 @@ Here is a summary of the actions defined in all workflow files in `.github/workf
     - Trigger: On push or pull request to `main` affecting `beratools/**`.
     - Runs pytest with coverage and uploads results to Codecov.
 
-- __tox.yml__
-    - Summary: Matrix testing via tox for multiple Python versions (3.10–3.14).
-    - Trigger: On pull request to `main` affecting `beratools/**`.
-    - Executes tox across multiple Python versions (matrix) to run tests for each target interpreter.
-
 ### Manual (workflow_dispatch)
+
+- __tox.yml__
+    - Summary: Manual Python compatibility grid using tox inside micromamba environments with conda-forge GDAL.
+    - Trigger: Manually triggered via `workflow_dispatch`.
+    - Runs pytest across Python 3.12-3.14 without relying on Ubuntu apt GDAL.
 
 - __publish_to_pypi_test.yml__
     - Summary: Manual TestPyPI deployment to validate package publishing on demand.
