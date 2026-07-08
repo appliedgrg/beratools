@@ -17,6 +17,7 @@ Description:
 import math
 import tempfile
 import logging
+import json
 from pathlib import Path
 
 import geopandas as gpd
@@ -547,9 +548,9 @@ def generate_raster_footprint(in_raster, latlon=True):
             inter_img = Path(tmp_folder).joinpath(inter_img).as_posix()
             gdal.Translate(inter_img, src_ds, options=options)
 
-        shapes = gdal.Footprint(None, inter_img, dstSRS=src_crs, format="GeoJSON")
-        target_feat = shapes["features"][0]
-        geom = sh_geom.shape(target_feat["geometry"])
+        shapes = gdal.Footprint("", inter_img, dstSRS=src_crs, format="MEM")
+        target_feat = shapes.GetLayer(0).GetNextFeature()
+        geom = sh_geom.shape(json.loads(target_feat.GetGeometryRef().ExportToJson()))
 
     if geom is not None and latlon:
         out_crs = pyproj.CRS("EPSG:4326")
