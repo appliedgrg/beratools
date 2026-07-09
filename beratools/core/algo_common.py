@@ -23,13 +23,13 @@ from pathlib import Path
 import geopandas as gpd
 import numpy as np
 import pyproj
+from osgeo import gdal, ogr
 import rasterio
 import shapely
 import shapely.affinity as sh_aff
 import shapely.geometry as sh_geom
 import shapely.ops as sh_ops
 import skimage.graph as sk_graph
-from osgeo import gdal, ogr
 from scipy import ndimage
 
 import beratools.core.algo_cost as algo_cost

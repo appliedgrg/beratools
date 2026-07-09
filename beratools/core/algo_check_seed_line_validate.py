@@ -1,6 +1,7 @@
 """Final validation pass on check_seed_line outputs to detect remaining issues."""
 
 import math
+from pathlib import Path
 
 import geopandas as gpd
 import numpy as np
@@ -10,6 +11,7 @@ import beratools.core.constants as bt_const
 import beratools.utility.unit_conversion as unit_conversion
 
 try:
+    from osgeo import gdal  # noqa: F401  # Load GDAL DLLs before rasterio on Windows/conda.
     import rasterio
     from rasterio.windows import Window
 except Exception:
@@ -465,6 +467,8 @@ def check_chm_nodata_vertices(
 ):
     records = []
     if not in_raster or rasterio is None or Window is None:
+        return records
+    if not Path(in_raster).exists():
         return records
 
     threshold = float(search_radius_m)
