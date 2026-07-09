@@ -45,7 +45,7 @@ Here is a summary of the actions defined in all workflow files in `.github/workf
 
 ### Manual (workflow_dispatch)
 
-- __tox.yml__
+- __tox-grid-tests.yml__
     - Summary: Manual Python compatibility grid using tox inside micromamba environments with conda-forge GDAL.
     - Trigger: Manually triggered via `workflow_dispatch`.
     - Runs pytest across Python 3.12-3.14 without relying on Ubuntu apt GDAL.

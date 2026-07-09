@@ -1,4 +1,4 @@
-name: Manual Python Compatibility Grid
+name: Tox Grid Tests
 
 on:
   workflow_dispatch:
