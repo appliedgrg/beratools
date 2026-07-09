@@ -75,6 +75,8 @@ class CenterlineStatus(enum.IntEnum):
     REGENERATE_FAILED = 4
     CENTERLINE_FAILED_LCP_FALLBACK = 5
     LCP_FAILED_SEED_FALLBACK = 6
+    THIN_POLYGON_STABILIZED_SUCCESS = 7
+    ABSOLUTE_FOOTPRINT_SUCCESS = 8
 
 
 def centerline_is_valid(centerline, input_line):
@@ -227,8 +229,10 @@ def _extract_centerline_from_polygon(
     guided_strategy,
 ):
     from beratools.external.polygon_centerline import get_centerline
+    from beratools.external.polygon_centerline._src import get_last_centerline_info
 
-    return get_centerline(
+    _extract_centerline_from_polygon.last_info = {}
+    centerline = get_centerline(
         poly,
         segmentize_maxlen=1,
         max_points=3000,
@@ -239,6 +243,16 @@ def _extract_centerline_from_polygon(
         dst_geom=dst_geom,
         guided_strategy=guided_strategy,
     )
+    _extract_centerline_from_polygon.last_info = get_last_centerline_info()
+    return centerline
+
+
+_extract_centerline_from_polygon.last_info = {}
+
+
+def _last_extraction_used_stabilized_voronoi():
+    info = getattr(_extract_centerline_from_polygon, "last_info", {}) or {}
+    return info.get("qhull_retry") not in {None, "none"} or bool(info.get("polygon_stabilized"))
 
 
 def find_centerline(poly, input_line, guided_strategy="main_route"):
@@ -323,10 +337,14 @@ def find_centerline(poly, input_line, guided_strategy="main_route"):
     if not centerline:
         return default_return
 
+    status = CenterlineStatus.SUCCESS
+    if _last_extraction_used_stabilized_voronoi():
+        status = CenterlineStatus.THIN_POLYGON_STABILIZED_SUCCESS
+
     if type(centerline) is sh_geom.MultiLineString:
         if len(centerline.geoms) > 1:
             print(" Multiple centerline segments detected, no further processing.")
-            return centerline, CenterlineStatus.SUCCESS  # TODO: inspect
+            return centerline, status  # TODO: inspect
         elif len(centerline.geoms) == 1:
             centerline = centerline.geoms[0]
         else:
@@ -370,7 +388,7 @@ def find_centerline(poly, input_line, guided_strategy="main_route"):
             print(f"find_centerline: {e}")
             return input_line, CenterlineStatus.REGENERATE_FAILED
 
-    return centerline, CenterlineStatus.SUCCESS
+    return centerline, status
 
 
 def find_corridor_polygon(corridor_thresh, in_transform, line_gpd, exp_shk_cell=0):
@@ -721,8 +739,26 @@ class SeedLine:
 
         status = CenterlineStatus(status)
         if status in {CenterlineStatus.FAILED, CenterlineStatus.REGENERATE_FAILED}:
-            status = CenterlineStatus.CENTERLINE_FAILED_LCP_FALLBACK
-            center_line = lc_path
+            absolute_footprint = lc_path.buffer(line_radius)
+            try:
+                absolute_centerline, absolute_status = find_centerline(
+                    absolute_footprint,
+                    lc_path,
+                    guided_strategy=self.guided_strategy,
+                )
+                absolute_status = CenterlineStatus(absolute_status)
+                if absolute_status not in {CenterlineStatus.FAILED, CenterlineStatus.REGENERATE_FAILED}:
+                    center_line = absolute_centerline
+                    status = CenterlineStatus.ABSOLUTE_FOOTPRINT_SUCCESS
+                    corridor_poly_gpd = self.line.copy()
+                    corridor_poly_gpd.geometry = [absolute_footprint]
+                else:
+                    status = CenterlineStatus.CENTERLINE_FAILED_LCP_FALLBACK
+                    center_line = lc_path
+            except Exception as e:
+                print(e)
+                status = CenterlineStatus.CENTERLINE_FAILED_LCP_FALLBACK
+                center_line = lc_path
 
         self.line["cl_status"] = status.value
         self.line["cl_status_name"] = status.name

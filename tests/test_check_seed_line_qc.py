@@ -280,7 +280,7 @@ def test_qc_report_overlap_detects_shared_segments():
     assert overlap_records[0]["line_id"] != overlap_records[0]["line_id_2"]
 
 
-def test_check_seed_line_qc_report_updates_manifest_and_prints_summary(tmp_path, monkeypatch, capsys):
+def test_check_seed_line_qc_report_updates_manifest_and_prints_summary(tmp_path, monkeypatch, caplog):
     in_gpkg = _write_seed_input(tmp_path, [LineString([(0.0, 0.0), (10.0, 0.0)])])
     out_gpkg = tmp_path / "seed_output.gpkg"
 
@@ -289,7 +289,7 @@ def test_check_seed_line_qc_report_updates_manifest_and_prints_summary(tmp_path,
     monkeypatch.setattr(csl.sp_common, "compare_crs", lambda *_args, **_kwargs: True)
     monkeypatch.setattr(csl, "qc_split_lines_at_intersections", lambda gdf: gdf)
 
-    def _fake_generate_qc_report(gdf, min_length_m, close_distance_m, snap_tolerance_m):
+    def _fake_generate_qc_report(gdf, min_length_m, close_distance_m, snap_tolerance_m, **_kwargs):
         issue = gpd.GeoDataFrame(
             [
                 {
@@ -329,7 +329,7 @@ def test_check_seed_line_qc_report_updates_manifest_and_prints_summary(tmp_path,
         apply_seed_line_correction=False,
     )
 
-    output = capsys.readouterr().out
+    output = caplog.text
     assert "QC Report Summary:" in output
     assert "Overlapping lines:" in output
 
@@ -1141,7 +1141,7 @@ def test_check_seed_line_bails_empty_after_skipped_steps(tmp_path, monkeypatch):
     assert output_count == 0
 
 
-def test_check_seed_line_prints_step_status_for_disabled_options(tmp_path, monkeypatch, capsys):
+def test_check_seed_line_prints_step_status_for_disabled_options(tmp_path, monkeypatch, caplog):
     in_gpkg = _write_seed_input(tmp_path, [LineString([(0.0, 0.0), (10.0, 0.0)])])
     out_gpkg = tmp_path / "seed_output.gpkg"
 
@@ -1162,7 +1162,7 @@ def test_check_seed_line_prints_step_status_for_disabled_options(tmp_path, monke
         apply_seed_line_correction=False,
     )
 
-    output = capsys.readouterr().out
+    output = caplog.text
     assert "✓ Normalize multiline seed lines" in output
     assert "✓ Geometry cleanup" in output
     assert "↷ Clip to CHM footprint" in output
@@ -1339,6 +1339,7 @@ def test_schema_marks_chm_shrink_as_optional():
     assert in_raster_dep["conditions"] == [
         {"variable": "clip_to_chm_footprint", "condition": True},
         {"variable": "apply_seed_line_correction", "condition": True},
+        {"variable": "warn_nodata_vertices", "condition": True},
     ]
 
     assert params["apply_seed_line_correction"]["type"] == "list"

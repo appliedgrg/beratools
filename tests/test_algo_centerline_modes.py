@@ -157,6 +157,26 @@ def test_find_centerline_returns_failed_when_regeneration_returns_none(monkeypat
     assert status == algo_centerline.CenterlineStatus.REGENERATE_FAILED
 
 
+def test_find_centerline_records_stabilized_qhull_success(monkeypatch):
+    poly = Polygon([(-10, -10), (50, -10), (50, 10), (-10, 10), (-10, -10)])
+    seed = LineString([(0, 0), (40, 0)])
+
+    def fake_extract(_poly, _src_geom, _dst_geom, _guided_strategy):
+        fake_extract.last_info = {"qhull_retry": "q12", "polygon_stabilized": False}
+        return LineString([(0, 0), (20, 0), (40, 0)])
+
+    fake_extract.last_info = {}
+
+    monkeypatch.setattr(algo_centerline, "_extract_centerline_from_polygon", fake_extract)
+    monkeypatch.setattr(algo_centerline, "_trim_and_snap_centerline", lambda c, _s, max_snap_dist=None: c)
+    monkeypatch.setattr(algo_centerline, "centerline_is_valid", lambda *_args, **_kwargs: True)
+
+    centerline, status = algo_centerline.find_centerline(poly, seed, guided_strategy="main_route")
+
+    assert centerline.is_valid
+    assert status == algo_centerline.CenterlineStatus.THIN_POLYGON_STABILIZED_SUCCESS
+
+
 def test_seedline_compute_uses_seedline_fallback_when_lcp_returns_none(monkeypatch):
     seed = LineString([(0, 0), (40, 0)])
     seed_gdf = gpd.GeoDataFrame(geometry=[seed], crs="EPSG:3857")
@@ -289,6 +309,58 @@ def test_seedline_compute_uses_lcp_fallback_when_find_centerline_fails(monkeypat
     assert seed_line.centerline.geometry.iloc[0].equals(lcp)
     assert seed_line.centerline["cl_status"].iloc[0] == algo_centerline.CenterlineStatus.CENTERLINE_FAILED_LCP_FALLBACK.value
     assert seed_line.centerline["cl_status_name"].iloc[0] == "CENTERLINE_FAILED_LCP_FALLBACK"
+
+
+def test_seedline_compute_uses_absolute_footprint_before_lcp_fallback(monkeypatch):
+    seed = LineString([(0, 0), (40, 0)])
+    lcp = LineString([(0, 0), (10, 2), (40, 0)])
+    corridor = Polygon([(-5, -5), (45, -5), (45, 5), (-5, 5), (-5, -5)])
+    absolute_centerline = LineString([(0, 0), (20, 1), (40, 0)])
+    seed_gdf = gpd.GeoDataFrame(geometry=[seed], crs="EPSG:3857")
+    seed_line = algo_centerline.SeedLine(
+        seed_gdf,
+        "dummy.tif",
+        proc_segments=True,
+        line_radius=15,
+        centerline_method="astar",
+    )
+
+    meta = {"transform": from_origin(-10, 10, 1, 1), "crs": seed_gdf.crs, "nodata": None}
+    monkeypatch.setattr(seed_line, "_clip_chm", lambda *_args, **_kwargs: ("raster", meta))
+    monkeypatch.setattr(algo_centerline.algo_cost, "cost_raster", lambda *_args, **_kwargs: ("cost", meta))
+    monkeypatch.setattr(
+        algo_centerline.algo_astar,
+        "find_least_cost_path_astar_closest_line",
+        lambda *_args, **_kwargs: lcp,
+    )
+    monkeypatch.setattr(
+        algo_centerline.algo_astar,
+        "astar_accumulation_corridor_raster",
+        lambda *_args, **_kwargs: ("corridor", {}),
+    )
+    monkeypatch.setattr(
+        algo_centerline,
+        "find_corridor_polygon",
+        lambda *_args, **_kwargs: gpd.GeoDataFrame(geometry=[corridor], crs=seed_gdf.crs),
+    )
+    monkeypatch.setattr(seed_line, "_postprocess_corridor_polygon", lambda corridor_gdf: corridor_gdf)
+
+    calls = []
+
+    def fake_find_centerline(poly, *_args, **_kwargs):
+        calls.append(poly)
+        if len(calls) == 1:
+            return lcp, algo_centerline.CenterlineStatus.FAILED
+        return absolute_centerline, algo_centerline.CenterlineStatus.SUCCESS
+
+    monkeypatch.setattr(algo_centerline, "find_centerline", fake_find_centerline)
+
+    seed_line.compute()
+
+    assert len(calls) == 2
+    assert seed_line.centerline.geometry.iloc[0].equals(absolute_centerline)
+    assert seed_line.centerline["cl_status"].iloc[0] == algo_centerline.CenterlineStatus.ABSOLUTE_FOOTPRINT_SUCCESS.value
+    assert seed_line.centerline["cl_status_name"].iloc[0] == "ABSOLUTE_FOOTPRINT_SUCCESS"
 
 
 def test_snap_end_to_end_respects_max_snap_distance():
