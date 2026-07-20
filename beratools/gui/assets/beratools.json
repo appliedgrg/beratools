@@ -438,13 +438,42 @@
             {
               "variable": "chm_mode",
               "label": "CHM Mode",
-              "description": "CHM preprocessing mode. 'current' uses existing raster clipping; 'alt' applies local-maxima CHM filtering before cost raster generation.",
+              "description": "CHM preprocessing mode. 'current' uses existing raster clipping; 'alt' applies local-maxima filtering; 'buffer' reduces raw CHM values around the input line before initial path generation.",
               "type": "list",
               "subtype": "string",
-              "data": ["current", "alt"],
+              "data": ["current", "alt", "buffer"],
               "default": "current",
               "output": false,
               "optional": true
+            },
+            {
+              "variable": "chm_buffer_width",
+              "label": "CHM Buffer Width (m)",
+              "description": "Distance from the input line where raw CHM values are reduced before initial path generation.",
+              "type": "number",
+              "subtype": "float",
+              "default": 5.0,
+              "output": false,
+              "optional": true,
+              "unit": "m",
+              "depends_on": {
+                "variable": "chm_mode",
+                "condition": "buffer"
+              }
+            },
+            {
+              "variable": "chm_buffer_multiplier",
+              "label": "CHM Buffer Multiplier",
+              "description": "Multiplier applied to valid raw CHM values inside the input-line buffer.",
+              "type": "number",
+              "subtype": "float",
+              "default": 0.5,
+              "output": false,
+              "optional": true,
+              "depends_on": {
+                "variable": "chm_mode",
+                "condition": "buffer"
+              }
             },
             {
               "variable": "proc_segments",

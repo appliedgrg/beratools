@@ -61,6 +61,8 @@ def generate_line_class_list(
     lcp_smooth_enabled=False,
     lcp_smooth_iterations=1,
     chm_mode=bt_const.CENTERLINE_CHM_MODE.value,
+    chm_buffer_width=5.0,
+    chm_buffer_multiplier=0.5,
     astar_corridor_line_bias_weight=0.1,
     astar_corridor_distance_penalty_weight=0.2,
     corridor_simplify_polygon=False,
@@ -85,6 +87,8 @@ def generate_line_class_list(
                 lcp_smooth_enabled=lcp_smooth_enabled,
                 lcp_smooth_iterations=lcp_smooth_iterations,
                 chm_mode=chm_mode,
+                chm_buffer_width=chm_buffer_width,
+                chm_buffer_multiplier=chm_buffer_multiplier,
                 astar_corridor_line_bias_weight=astar_corridor_line_bias_weight,
                 astar_corridor_distance_penalty_weight=astar_corridor_distance_penalty_weight,
                 corridor_simplify_polygon=corridor_simplify_polygon,
@@ -117,6 +121,8 @@ def centerline(
     lcp_smooth_enabled=False,
     lcp_smooth_iterations=1,
     chm_mode=bt_const.CENTERLINE_CHM_MODE.value,
+    chm_buffer_width=5.0,
+    chm_buffer_multiplier=0.5,
     astar_corridor_line_bias_weight=0.1,
     astar_corridor_distance_penalty_weight=0.2,
     corridor_simplify_polygon=False,
@@ -159,6 +165,11 @@ def centerline(
         line_radius_m,
         "Line Processing Radius (m)",
     )
+    chm_buffer_width_native = unit_conversion.convert_meters_param_projected_from_osr(
+        vec_crs_osr,
+        float(chm_buffer_width),
+        "CHM Buffer Width (m)",
+    )
 
     if not sp_common.compare_crs(vec_crs_osr, sp_common.raster_crs(in_raster)):
         print("Line and CHM have different spatial references, please check.")
@@ -186,6 +197,8 @@ def centerline(
         lcp_smooth_enabled=_to_bool(lcp_smooth_enabled),
         lcp_smooth_iterations=int(lcp_smooth_iterations),
         chm_mode=chm_mode_value,
+        chm_buffer_width=chm_buffer_width_native,
+        chm_buffer_multiplier=float(chm_buffer_multiplier),
         astar_corridor_line_bias_weight=float(astar_corridor_line_bias_weight),
         astar_corridor_distance_penalty_weight=float(astar_corridor_distance_penalty_weight),
         corridor_simplify_polygon=_to_bool(corridor_simplify_polygon),

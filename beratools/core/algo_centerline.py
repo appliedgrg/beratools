@@ -591,6 +591,8 @@ class SeedLine:
         lcp_smooth_enabled=False,
         lcp_smooth_iterations=1,
         chm_mode=bt_const.CENTERLINE_CHM_MODE.value,
+        chm_buffer_width=5.0,
+        chm_buffer_multiplier=0.5,
         astar_corridor_line_bias_weight=0.1,
         astar_corridor_distance_penalty_weight=0.2,
         corridor_simplify_polygon=False,
@@ -613,6 +615,12 @@ class SeedLine:
             valid_modes = [mode.value for mode in bt_const.CenterlineChmMode]
             raise ValueError("chm_mode must be one of {}".format(valid_modes))
         self.chm_mode = chm_mode
+        self.chm_buffer_width = float(chm_buffer_width)
+        self.chm_buffer_multiplier = float(chm_buffer_multiplier)
+        if self.chm_buffer_width < 0.0:
+            raise ValueError("chm_buffer_width must be greater than or equal to zero")
+        if not 0.0 <= self.chm_buffer_multiplier <= 1.0:
+            raise ValueError("chm_buffer_multiplier must be between zero and one")
         self.astar_corridor_line_bias_weight = max(float(astar_corridor_line_bias_weight), 0.0)
         self.astar_corridor_distance_penalty_weight = max(float(astar_corridor_distance_penalty_weight), 0.0)
         self.corridor_simplify_polygon = _to_bool(corridor_simplify_polygon)
@@ -631,6 +639,14 @@ class SeedLine:
 
         try:
             ras_clip, out_meta = self._clip_chm(in_raster, seed_line, line_radius)
+            if self.chm_mode == bt_const.CenterlineChmMode.BUFFER.value:
+                ras_clip = algo_cost.reduce_chm_in_line_buffer(
+                    ras_clip,
+                    out_meta,
+                    seed_line,
+                    self.chm_buffer_width,
+                    self.chm_buffer_multiplier,
+                )
             cost_clip, _ = algo_cost.cost_raster(ras_clip, out_meta)
         except Exception as e:
             print(e)

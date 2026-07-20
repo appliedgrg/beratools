@@ -61,6 +61,7 @@ class CenterlineChmMode(enum.Enum):
 
     CURRENT = "current"
     ALT = "alt"
+    BUFFER = "buffer"
 
 
 CENTERLINE_CHM_MODE = CenterlineChmMode.CURRENT
