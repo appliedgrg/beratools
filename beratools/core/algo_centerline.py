@@ -568,29 +568,29 @@ class SeedLine:
         in_raster = self.raster
         seed_line = line  # LineString
         chm_mode = self.chm_mode
+
+        # search for lcp
         try:
             if chm_mode in ["current"]:
                 ras_clip, out_meta = self._clip_chm(in_raster, seed_line, line_radius)
                 cost_clip, _ = algo_cost.cost_raster(ras_clip, out_meta)
-            else:
-                ras_clip, out_meta, tree_gaps = self._clip_chm(in_raster,seed_line,line_radius)
-                cost_clip, _ = algo_cost.alt_cost_raster(ras_clip, out_meta, tree_gaps)
-        except Exception as e:
-            print(e)
-            return
 
-        lc_path = line
-        try:
+            else:# chm_mode in ["alt"]:
+                ras_clip, out_meta, tree_gaps = self._clip_chm(in_raster, seed_line, line_radius)
+                cost_clip, _ = algo_cost.alt_cost_raster(ras_clip, out_meta, tree_gaps)
+
+
             if self.centerline_method == bt_const.CenterlineMethod.ASTAR.value:
                 lc_path = algo_astar.find_least_cost_path_astar_closest_line(cost_clip, out_meta, seed_line)
             elif bt_const.CenterlineFlags.USE_SKIMAGE_GRAPH:
-                lc_path = bt_dijkstra.alt_find_least_cost_path_skimage(self,cost_clip, out_meta, seed_line,offset_test=True)
+                lc_path = bt_dijkstra.alt_find_least_cost_path_skimage(self, cost_clip, out_meta, seed_line,
+                                                                       offset_test=True)
             else:
                 lc_path = bt_dijkstra.find_least_cost_path(cost_clip, out_meta, seed_line)
 
-            if self.chm_mode in ["alt"]:
+            if chm_mode in ["alt"]:
                 if algo_common._hausdorff_dist(lc_path, seed_line) > line_radius / 2:
-                    lcp_path = seed_line
+                    lc_path = line
 
         except Exception as e:
             print(e)
@@ -611,14 +611,11 @@ class SeedLine:
         lc_path = sh_geom.LineString(lc_path_coords)
         lc_path = self._postprocess_lcp(lc_path, out_meta.get("crs"))
         lc_path_coords = list(lc_path.coords)
-        if chm_mode in ["current"]:
-            ras_clip, out_meta, *_ = self._clip_chm(in_raster, lc_path, line_radius * 0.9)
-            cost_clip, _ = algo_cost.cost_raster(ras_clip, out_meta)
 
-        else:
-            ras_clip, out_meta, tree_gaps = self._clip_chm(in_raster, lc_path, line_radius * 0.9)
-            cost_clip, _ = algo_cost.alt_cost_raster(ras_clip, out_meta, tree_gaps)
+        ras_clip, out_meta, *_ = self._clip_chm(in_raster, lc_path, line_radius * 0.9)
+        cost_clip, _ = algo_cost.cost_raster(ras_clip, out_meta)
 
+       
         out_transform = out_meta["transform"]
         transformer = rasterio.transform.AffineTransformer(out_transform)
         cell_size = (out_transform[0], -out_transform[4])
@@ -645,7 +642,7 @@ class SeedLine:
             )
 
         elif self.centerline_method == bt_const.CenterlineMethod.ASTAR_ALONG.value:
-            corridor_thresh_cl,_ = algo_astar. alt_astar_accumulation_corridor_raster(
+            corridor_thresh_cl,_ = algo_astar.alt_astar_accumulation_corridor_raster(
                 cost_clip,
                 out_meta,
                 lc_path,
