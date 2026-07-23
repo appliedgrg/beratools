@@ -790,6 +790,78 @@ def alt_MCP_along_corridor_raster(raster_clip, out_meta, lc_path, cell_size, cor
     return corridor_thresh_cl
 
 
-def _hausdorff_dist(lcp,seed_line)->float:
-    _hausdorff_dist = shapely.hausdorff_distance(lcp, seed_line, densify=0.5)
+def _hausdorff_dist(lcp:shapely.LineString,
+                    seed_line:shapely.LineString)->float |int    :
+    """
+     Function computes the discrete, undirected Hausdorff distance between two geometric objects.
+     It measures shape similarity by finding the greatest distance from any point in the first geometry to the closest point in the second geometry, and vice versa.
+
+    """
+    _hausdorff_dist = shapely.hausdorff_distance(seed_line,lcp,  densify=0.1)
     return _hausdorff_dist
+
+from shapely.geometry import LineString
+
+def alignment_score(ref_line:sh_geom.LineString, candidate:sh_geom.LineString, tolerance=5):
+    """
+     Buffer Overlap Score:Create a buffer around the reference line and see how much of each candidate falls inside it.
+
+    """
+    ref_buffer = ref_line.buffer(tolerance)
+
+    overlap_length = candidate.intersection(ref_buffer).length
+
+    return overlap_length / candidate.length
+
+
+def mean_distance(ref_line, candidate, n=50):
+    distances = []
+
+    for i in np.linspace(0, 1, n):
+        pt = candidate.interpolate(i, normalized=True)
+        distances.append(pt.distance(ref_line))
+
+    return np.mean(distances)
+
+def similarity_score(ref_line, candidate, tolerance=5):
+    overlap = alignment_score(ref_line, candidate, tolerance)
+    distance = mean_distance(ref_line, candidate)
+
+    return overlap - distance / tolerance
+
+def line_match_score(ref_line, candidate, tolerance=5):
+    """
+    Function test LineString aligns with the reference over the greatest extent
+    Reference coverage (how much of the reference is matched)
+    Candidate coverage (how much of the candidate follows the reference)
+    Mean offset distance
+
+    """
+    overlap_length = candidate.intersection(
+        ref_line.buffer(tolerance)
+    ).length
+
+    candidate_cov = overlap_length / max(candidate.length, 1)
+
+    reference_cov = overlap_length / max(ref_line.length, 1)
+
+    distances = []
+
+    for i in np.linspace(0, 1, 50):
+        pt = candidate.interpolate(i, normalized=True)
+        distances.append(pt.distance(ref_line))
+
+    mean_dist = np.mean(distances)
+
+    distance_score = max(
+        0,
+        1 - mean_dist / tolerance
+    )
+
+    score = (
+        0.5 * reference_cov +  #higher weight on the coverage of the reference
+        0.3 * candidate_cov +   #less weight on the coverage of the candidate
+        0.2 * distance_score   #fewer weight on the distance score
+    )
+
+    return score
