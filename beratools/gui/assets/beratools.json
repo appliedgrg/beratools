@@ -394,7 +394,7 @@
               "description": "CHM preprocessing mode. 'current' uses existing raster clipping; 'alt' applies local-maxima CHM filtering before cost raster generation.",
               "type": "list",
               "subtype": "string",
-              "data": ["current", "alt"],
+              "data": ["current", "alt","full_alt"],
               "default": "current",
               "output": false,
               "optional": true
