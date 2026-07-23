@@ -509,7 +509,7 @@ def alt_find_least_cost_path_skimage(seedline_class,
     lc_path = []
     if len(cost_clip.shape) > 2:
         cost_clip = np.squeeze(cost_clip, axis=0)
-
+    costs = np.nan_to_num(cost_clip, nan=1e12, copy=True)
     out_transform = in_meta["transform"]
     transformer = rasterio.transform.AffineTransformer(out_transform)
 
@@ -519,7 +519,7 @@ def alt_find_least_cost_path_skimage(seedline_class,
     row2, col2 = transformer.rowcol(x2, y2)
 
     try:
-        path_new = sk_graph.route_through_array(cost_clip[0], [row1, col1], [row2, col2])
+        path_new = sk_graph.route_through_array(costs, [row1, col1], [row2, col2])
     except Exception as e:
         print(f"find_least_cost_path_skimage: {e}")
         return None
