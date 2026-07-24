@@ -13,6 +13,7 @@ Description:
     The purpose of this script is to provide fundamental utilities for tools.
 """
 
+import psutil
 import concurrent.futures as con_futures
 import warnings
 from multiprocessing.pool import Pool
@@ -82,7 +83,13 @@ def execute_multiprocessing(
     total_steps = len(in_data)
     mode, processes = parallel_mode(processes)
     verbose = True if call_mode == CallMode.GUI else False
-
+    TOTAL_RAM_GB = psutil.virtual_memory().total / 1024 ** 3
+    MAX_Memory_used = 0.95*TOTAL_RAM_GB
+    MAX_WORKERS = determine_cpu_core_limit()
+    MAX_RAM_PER_WORKER_GB = MAX_Memory_used / MAX_WORKERS
+    TARGET_UTILIZATION = 0.85
+    workers = int(TOTAL_RAM_GB * TARGET_UTILIZATION / MAX_RAM_PER_WORKER_GB)
+    processes = min(processes, workers)
     try:
         print("Multiprocessing mode: {}".format(mode.name), flush=True)
 
@@ -90,7 +97,7 @@ def execute_multiprocessing(
             print("Multiprocessing started...", flush=True)
             print("Using {} CPU cores".format(processes), flush=True)
 
-            with Pool(processes) as pool:
+            with Pool(processes,maxtasksperchild=100) as pool:
                 with tqdm(total=total_steps, disable=verbose) as pbar:
                     for result in pool.imap_unordered(in_func, in_data):
                         if result_is_valid(result):
@@ -120,7 +127,7 @@ def execute_multiprocessing(
         elif mode == bt_const.ParallelMode.CONCURRENT:
             print("Concurrent processing started...", flush=True)
             print("Using {} CPU cores".format(processes), flush=True)
-            with con_futures.ProcessPoolExecutor(max_workers=processes) as executor:
+            with con_futures.ProcessPoolExecutor(max_workers=processes,max_tasks_per_child=100) as executor:
                 futures = [executor.submit(in_func, line) for line in in_data]
                 with tqdm(total=total_steps, disable=verbose) as pbar:
                     for future in con_futures.as_completed(futures):
