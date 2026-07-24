@@ -607,6 +607,9 @@ class SeedLine:
 
                     lc_path = max([candidate1, candidate2],
                                    key=lambda x: algo_common.line_match_score(seed_line, x, self.line_radius / 2))
+
+                    if algo_common._hausdorff_dist(lc_path, seed_line) > max(line_radius / 2,self.tree_radius):
+                        lc_path = line
                 else:
                     lc_path =  seed_line
                 # # search for lcp using centerline_method: A*
