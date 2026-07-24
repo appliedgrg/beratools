@@ -834,7 +834,7 @@ def line_match_score(ref_line, candidate, tolerance=5):
     Function test LineString aligns with the reference over the greatest extent
     Reference coverage (how much of the reference is matched)
     Candidate coverage (how much of the candidate follows the reference)
-    Mean offset distance
+    normalized Deviation (geometric mean) index: exp(-(cube root of (Median offset + 95th percentile offset+ RMSE))
 
     """
     overlap_length = candidate.intersection(
@@ -851,17 +851,23 @@ def line_match_score(ref_line, candidate, tolerance=5):
         pt = candidate.interpolate(i, normalized=True)
         distances.append(pt.distance(ref_line))
 
-    mean_dist = np.mean(distances)
+    median_dist = np.nanmedian(distances)
 
-    distance_score = max(
-        0,
-        1 - mean_dist / tolerance
-    )
+    p95_dist=np.nanpercentile(distances,95)
+
+    rmse_dist= np.sqrt(np.mean(np.array(distances)**2))
+
+    deviation_index = np.cbrt(median_dist + p95_dist + rmse_dist)
+    # distance_score = max(
+    #     0,
+    #     1 - mean_dist / tolerance
+    # )
 
     score = (
         0.5 * reference_cov +  #higher weight on the coverage of the reference
         0.3 * candidate_cov +   #less weight on the coverage of the candidate
-        0.2 * distance_score   #fewer weight on the distance score
+        # 0.2 * distance_score   #fewer weight on the distance score
+        0.2 * np.exp(-deviation_index)  # fewer weight on the normalized deviation index
     )
 
     return score
