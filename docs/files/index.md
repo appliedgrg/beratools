@@ -13,6 +13,10 @@ high-resolution CHMs allow for improved forest line spatial analysis.
 
 This tool is part of the [**Boreal Ecosystem Recovery and Assessment (BERA)**](http://www.beraproject.org/) Project, and is being actively developed by the [**Applied Geospatial Research Group**](https://www.appliedgrg.ca/).
 
+## Code signing policy
+
+Official BERA Tools Windows installers are signed according to the project [Code signing policy](https://github.com/appliedgrg/beratools/blob/main/CODE_SIGNING_POLICY.md).
+
 ### Cite Us
 
 If you use BERA Tools for a publication, please cite it as:

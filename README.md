@@ -23,7 +23,7 @@ Here are the ways to install BERA Tools:
 
 ### Windows Installer
 
-Windows installer is provided with releases. Check the [latest release](https://github.com/appliedgrg/beratools/releases/latest).
+Windows installer is provided with releases. Check the [latest release](https://github.com/appliedgrg/beratools/releases/latest). Official Windows installers are signed under the BERA Tools [Code signing policy](CODE_SIGNING_POLICY.md).
 
 ### Install with Anaconda
 
@@ -56,6 +56,21 @@ For more information about installation, check the [BERA Tools Installation](htt
 ## BERA Tools Guide
 
 Check the online [BERA Tools Guide](https://appliedgrg.github.io/beratools/) for user, developer and technical guides.
+
+## Sponsors
+
+<table>
+  <tr>
+    <td align="center">
+      <a href="https://about.signpath.io/">
+        <img src="https://avatars.githubusercontent.com/u/34448643?s=48&amp;v=4" alt="SignPath logo" width="48">
+      </a>
+    </td>
+    <td>
+      Free code signing on Windows provided by <a href="https://about.signpath.io/">SignPath.io</a>, certificate by <a href="https://signpath.org/">SignPath Foundation</a>.
+    </td>
+  </tr>
+</table>
 
 ## Credits
 

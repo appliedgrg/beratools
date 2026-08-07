@@ -9,6 +9,10 @@ Welcome to **BERA Tools**! This guide will give you advanced installation option
 
 ## Installation Methods
 
+### Windows Installer
+
+Download the standalone Windows installer from the [latest BERA Tools release](https://github.com/appliedgrg/beratools/releases/latest). Official installers are signed according to the project [Code signing policy](https://github.com/appliedgrg/beratools/blob/main/CODE_SIGNING_POLICY.md).
+
 ### Using conda
 
 Have Miniconda installed on your system, then create an environment from the provided [environment.yml](https://raw.githubusercontent.com/appliedgrg/beratools/main/environment.yml):
