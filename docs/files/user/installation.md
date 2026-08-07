@@ -13,6 +13,26 @@ Welcome to **BERA Tools**! This guide will give you advanced installation option
 
 Download the standalone Windows installer from the [latest BERA Tools release](https://github.com/appliedgrg/beratools/releases/latest). Official installers are signed according to the project [Code signing policy](https://github.com/appliedgrg/beratools/blob/main/CODE_SIGNING_POLICY.md).
 
+Only installers attached to an official GitHub Release are intended for users. Artifacts from manual signing tests use a self-signed test certificate and must not be distributed.
+
+#### Verify the Installer Signature
+
+Before running a downloaded installer on Windows:
+
+1. Right-click the installer and select **Properties**.
+2. Open the **Digital Signatures** tab.
+3. Select the SignPath Foundation signature and click **Details**.
+4. Confirm Windows reports **This digital signature is OK**.
+
+You can also verify the installer with PowerShell:
+
+```powershell
+Get-AuthenticodeSignature .\beratools-installer-x.y.z.exe |
+    Format-List Status, StatusMessage, SignerCertificate, TimeStamperCertificate
+```
+
+For an official release, `Status` must be `Valid`. Do not run the installer if the signature is missing or invalid.
+
 ### Using conda
 
 Have Miniconda installed on your system, then create an environment from the provided [environment.yml](https://raw.githubusercontent.com/appliedgrg/beratools/main/environment.yml):
@@ -48,7 +68,7 @@ beratools
 
 This will start the main GUI.
 
-## Advanced Installation
+## Install From Source
 
 [Developer Guide](../developer_guide.md) — Detailed instructions for installing from source, running tests, and contributing.
 
