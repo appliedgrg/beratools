@@ -55,6 +55,11 @@ Here is a summary of the actions defined in all workflow files in `.github/workf
     - Trigger: Manually triggered via `workflow_dispatch`.
     - Builds the package and publishes to TestPyPI.
 
+- __build-win-installer.yml__
+    - Summary: Builds the Windows installer and submits it to SignPath using `test-signing`.
+    - Trigger: Manually triggered via `workflow_dispatch` on the selected branch.
+    - Does not require signing approval and uploads unsigned and test-signed Actions artifacts without publishing a GitHub Release.
+
 ### Version tag push
 
 - __publish_to_anaconda.yml__
@@ -67,6 +72,13 @@ Here is a summary of the actions defined in all workflow files in `.github/workf
     - Trigger: On version tag push from `main`.
     - Builds the package and publishes to PyPI.
 
+- __build-win-installer.yml__
+    - Summary: Builds the Windows installer and submits it to SignPath using `release-signing`.
+    - Trigger: On a version tag push whose commit is in `main`.
+    - Waits for SignPath approval, verifies the formal signature, and attaches the signed installer to the GitHub Release.
+
+See [Publishing BERA Tools](publishing.md#windows-installer-signing) for the signing and release procedure.
+
 ### Configuration
 
 There are security measures in place to restrict actions to be used. Find these in: Repository Settings -> Actions -> General --> Actions permissions:
@@ -76,6 +88,8 @@ There are security measures in place to restrict actions to be used. Find these 
 GitHub has been configured to use repository secrets for sensitive information such as API tokens and credentials required by the workflows. Find these in: Repository Settings -> Secrets and variables -> Actions --> Repository secrets:
 
 ![Actions](../screenshots/gh_repo_secrets.png)  
+
+Windows signing requires the `SIGNPATH_API_TOKEN` and `SIGNPATH_ORGANIZATION_ID` repository secrets. The SignPath action must also remain allowed under Repository Settings -> Actions -> General -> Actions permissions. Secret values must never be added to source control or documentation.
 
 ### Actions Flow
 
@@ -92,19 +106,26 @@ flowchart LR
 
     CheckType -->|Manual trigger| Manual[Workflow Dispatch]
     Manual --> PyPITest[Test PyPI]
+    Manual --> InstallerTest[Windows Installer Test]
+    InstallerTest --> TestSign[SignPath test-signing]
+    TestSign --> SignedTest[Signed Actions Artifact]
     
     CheckType -->|Version tag| Release[Release]
     Release --> Anaconda[Conda]
     Release --> PyPI[PyPI]
+    Release --> WindowsInstaller[Windows Installer]
+    WindowsInstaller --> SignPathApproval[SignPath Approval]
+    SignPathApproval --> SignedRelease[Signed GitHub Release]
     
     classDef push fill:#e1f5ff,stroke:#01579b
     classDef pr fill:#fff3e0,stroke:#e65100
+    classDef manual fill:#f3e5f5,stroke:#6a1b9a
     classDef rel fill:#e8f5e9,stroke:#2e7d32
     
     class Mkdocs,Pytest push
-    class PyPITest manual
+    class PyPITest,InstallerTest,TestSign,SignedTest manual
     class Tox pr
-    class Anaconda,PyPI rel
+    class Anaconda,PyPI,WindowsInstaller,SignPathApproval,SignedRelease rel
 ```
 
 ## Secure our repository

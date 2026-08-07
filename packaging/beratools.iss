@@ -7,6 +7,10 @@
 AppName=BERA Tools
 WizardImageFile=..\beratools\gui\assets\BERA_WizardImage.png
 AppVersion={#MyAppVersion}
+VersionInfoVersion={#MyAppVersion}
+VersionInfoProductName=BERA Tools
+VersionInfoProductVersion={#MyAppVersion}
+VersionInfoProductTextVersion={#MyAppVersion}
 DefaultDirName={commonpf}\BERA Tools
 DefaultGroupName=BERA Tools
 OutputDir=dist

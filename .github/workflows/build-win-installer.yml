@@ -8,44 +8,59 @@ on:
 
 jobs:
   build:
-    runs-on: windows-latest
+    runs-on: windows-2022
     permissions:
       contents: write
+      actions: read
 
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v6
+        uses: actions/checkout@v7
         with:
           token: ${{ github.token }}
           persist-credentials: true
           fetch-depth: 0
 
-      - name: Check if tagged commit is on main
-        id: tag_guard
+      - name: Select signing policy
+        id: signing
         shell: pwsh
         run: |
           $ErrorActionPreference = "Stop"
-          $commitSha = if ($env:GITHUB_SHA) { $env:GITHUB_SHA } else { (git rev-parse HEAD).Trim() }
-          git fetch origin main
-          $containsMain = git branch -r --contains "$commitSha" | Select-String 'origin/main'
+          if ($env:GITHUB_EVENT_NAME -eq "workflow_dispatch") {
+            "enabled=true" | Out-File -FilePath $env:GITHUB_OUTPUT -Encoding utf8 -Append
+            "signing_policy=test-signing" | Out-File -FilePath $env:GITHUB_OUTPUT -Encoding utf8 -Append
+            "publish_release=false" | Out-File -FilePath $env:GITHUB_OUTPUT -Encoding utf8 -Append
+            Write-Host "Manual run: building with the test-signing policy."
+            exit 0
+          }
 
-          if ($containsMain) {
-            "on_main=true" | Out-File -FilePath $env:GITHUB_OUTPUT -Encoding utf8 -Append
-            Write-Host "✅ Tag commit is on main. Proceeding with build/release steps."
+          $commitSha = (git rev-parse "$env:GITHUB_SHA^{commit}").Trim()
+          git fetch --no-tags origin main:refs/remotes/origin/main
+          git merge-base --is-ancestor $commitSha origin/main
+          $mergeBaseResult = $LASTEXITCODE
+
+          if ($mergeBaseResult -eq 0) {
+            "enabled=true" | Out-File -FilePath $env:GITHUB_OUTPUT -Encoding utf8 -Append
+            "signing_policy=release-signing" | Out-File -FilePath $env:GITHUB_OUTPUT -Encoding utf8 -Append
+            "publish_release=true" | Out-File -FilePath $env:GITHUB_OUTPUT -Encoding utf8 -Append
+            Write-Host "Tag commit is on main. Building with the release-signing policy."
+          } elseif ($mergeBaseResult -eq 1) {
+            "enabled=false" | Out-File -FilePath $env:GITHUB_OUTPUT -Encoding utf8 -Append
+            "publish_release=false" | Out-File -FilePath $env:GITHUB_OUTPUT -Encoding utf8 -Append
+            Write-Host "Tag commit is not on main. Build and signing steps will be skipped."
           } else {
-            "on_main=false" | Out-File -FilePath $env:GITHUB_OUTPUT -Encoding utf8 -Append
-            Write-Host "⏭️ Tag commit is not on main. All build/release steps will be skipped."
+            throw "Unable to determine whether $commitSha is on main."
           }
 
       - name: Setup Go
-        if: steps.tag_guard.outputs.on_main == 'true'
-        uses: actions/setup-go@v5
+        if: steps.signing.outputs.enabled == 'true'
+        uses: actions/setup-go@v7
         with:
           go-version: "1.21"
 
       - name: Cache Go modules
-        if: steps.tag_guard.outputs.on_main == 'true'
-        uses: actions/cache@v4
+        if: steps.signing.outputs.enabled == 'true'
+        uses: actions/cache@v6
         with:
           path: ~\go\pkg\mod
           key: ${{ runner.os }}-go-${{ hashFiles('packaging/go.sum') }}
@@ -53,31 +68,92 @@ jobs:
             ${{ runner.os }}-go-
 
       - name: Install Inno Setup
-        if: steps.tag_guard.outputs.on_main == 'true'
+        if: steps.signing.outputs.enabled == 'true'
         run: |
           choco install innosetup -y
         shell: pwsh
 
       - name: Build installer
-        if: steps.tag_guard.outputs.on_main == 'true'
+        id: build-installer
+        if: steps.signing.outputs.enabled == 'true'
         run: |
           powershell -ExecutionPolicy Bypass -File packaging/build.ps1
+
+          $installers = @(Get-ChildItem packaging/dist/beratools-installer-*.exe -File)
+          if ($installers.Count -ne 1) {
+            throw "Expected one unsigned installer, found $($installers.Count)."
+          }
+
+          if ($installers[0].BaseName -notmatch '^beratools-installer-(\d+\.\d+\.\d+(?:\.\d+)?)$') {
+            throw "Installer filename does not contain a supported version: $($installers[0].Name)"
+          }
+
+          "version=$($Matches[1])" | Out-File -FilePath $env:GITHUB_OUTPUT -Encoding utf8 -Append
         shell: pwsh
         working-directory: ${{ github.workspace }}
 
-      - name: Upload installer artifact
-        if: steps.tag_guard.outputs.on_main == 'true'
-        uses: actions/upload-artifact@v4
+      - name: Upload unsigned installer for signing
+        id: upload-unsigned-installer
+        if: steps.signing.outputs.enabled == 'true'
+        uses: actions/upload-artifact@v7
         with:
-          name: beratools-installer
+          name: beratools-installer-unsigned
           path: packaging/dist/beratools-installer-*.exe
           if-no-files-found: error
 
-      - name: Upload to release
-        if: steps.tag_guard.outputs.on_main == 'true'
+      - name: Submit installer to SignPath
+        if: steps.signing.outputs.enabled == 'true'
+        uses: signpath/github-action-submit-signing-request@v2
+        with:
+          api-token: ${{ secrets.SIGNPATH_API_TOKEN }}
+          organization-id: ${{ secrets.SIGNPATH_ORGANIZATION_ID }}
+          project-slug: beratools
+          signing-policy-slug: ${{ steps.signing.outputs.signing_policy }}
+          github-artifact-id: ${{ steps.upload-unsigned-installer.outputs.artifact-id }}
+          parameters: |
+            version: ${{ toJSON(steps.build-installer.outputs.version) }}
+          wait-for-completion: true
+          wait-for-completion-timeout-in-seconds: 3600
+          output-artifact-directory: packaging/dist-signed
+
+      - name: Verify signed installer
+        if: steps.signing.outputs.enabled == 'true'
+        shell: pwsh
+        env:
+          SIGNING_POLICY: ${{ steps.signing.outputs.signing_policy }}
+        run: |
+          $installers = @(Get-ChildItem packaging/dist-signed/beratools-installer-*.exe -File)
+          if ($installers.Count -ne 1) {
+            throw "Expected one signed installer, found $($installers.Count)."
+          }
+
+          $installer = $installers[0]
+          $sig = Get-AuthenticodeSignature $installer.FullName
+          $sig | Format-List
+          if ($null -eq $sig.SignerCertificate -or $sig.Status -eq "NotSigned") {
+            throw "Installer was not signed."
+          }
+
+          if ($env:SIGNING_POLICY -eq "release-signing" -and $sig.Status -ne "Valid") {
+            throw "Release signature is not valid: $($sig.Status) - $($sig.StatusMessage)"
+          }
+
+      - name: Upload signed installer artifact
+        if: steps.signing.outputs.enabled == 'true'
+        uses: actions/upload-artifact@v7
+        with:
+          name: beratools-installer-signed
+          path: packaging/dist-signed/beratools-installer-*.exe
+          if-no-files-found: error
+
+      - name: Upload signed installer to release
+        if: steps.signing.outputs.publish_release == 'true'
         uses: softprops/action-gh-release@v2
         with:
           tag_name: ${{ github.ref_name }}
-          files: packaging/dist/beratools-installer-*.exe
+          files: packaging/dist-signed/beratools-installer-*.exe
+          body: |
+            Windows installer signed under the [BERA Tools Code signing policy](https://github.com/appliedgrg/beratools/blob/main/CODE_SIGNING_POLICY.md).
+          append_body: true
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
