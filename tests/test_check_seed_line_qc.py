@@ -379,6 +379,30 @@ def test_generate_qc_report_flags_endpoint_on_chm_nodata(tmp_path):
     assert "BT_UID=194" in issue["description"]
 
 
+def test_generate_qc_report_classifies_endpoint_outside_chm_extent(tmp_path):
+    raster_path = _write_chm_raster(tmp_path, np.ones((3, 3), dtype="float32"))
+    gdf = gpd.GeoDataFrame(
+        geometry=[LineString([(-0.5, 2.5), (2.5, 0.5)])],
+        crs="EPSG:3857",
+    )
+
+    issues, summary = acsl_report.generate_qc_report(
+        gdf,
+        min_length_m=0.1,
+        close_distance_m=0.1,
+        snap_tolerance_m=0.1,
+        in_raster=raster_path.as_posix(),
+        warn_nodata_vertices=True,
+        nodata_vertex_search_radius_m=10.0,
+    )
+
+    nodata_issues = issues[issues["issue_type"] == "chm_nodata_vertex"]
+    assert summary["chm_nodata_vertex"] == 1
+    assert len(nodata_issues) == 1
+    assert "start_endpoint falls outside the CHM raster" in nodata_issues.iloc[0]["description"]
+    assert nodata_issues.iloc[0]["value"] == -1.0
+
+
 def test_generate_qc_report_flags_endpoint_surrounded_by_chm_nodata(tmp_path):
     data = np.ones((5, 5), dtype="float32")
     data[1:4, 1:4] = -9999.0

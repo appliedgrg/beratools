@@ -123,6 +123,9 @@ def _check_chm_point(src, point, search_radius_m, unit_ctx):
         return {"reason": "outside_raster", "nearest_valid_m": None}
 
     in_bounds = 0 <= row < src.height and 0 <= col < src.width
+    if not in_bounds:
+        return {"reason": "outside_raster", "nearest_valid_m": None}
+
     center_row = min(max(int(row), 0), src.height - 1)
     center_col = min(max(int(col), 0), src.width - 1)
     cell_size_m = _raster_cell_size_m(src, center_row, center_col, unit_ctx)

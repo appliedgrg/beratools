@@ -107,6 +107,11 @@ def canopy_footprint_abs(
         request.max_ln_width,
         "Maximum Line Width (m)",
     )
+    request.footprint_simplify_length = unit_conversion.convert_meters_param_projected_from_osr(
+        vec_crs_osr,
+        request.footprint_simplify_length,
+        "Footprint Simplification Length (m)",
+    )
 
     if not sp_common.compare_crs(vec_crs_osr, sp_common.raster_crs(request.in_chm)):
         print("Line and CHM have different spatial references, please check.")

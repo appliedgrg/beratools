@@ -36,7 +36,7 @@ if (-not (Test-Path (Join-Path $buildDir "python\python.exe"))) {
     # Find latest Python 3.12.x version with embeddable distribution
     Write-Host "Finding latest Python 3.12.x version..."
     $ftpListing = Invoke-WebRequest -Uri "https://www.python.org/ftp/python/" -UseBasicParsing
-    $versions = [regex]::Matches($ftpListing.Content, 'href="(3\.12\.\d+)/"') | 
+    $versions = [regex]::Matches($ftpListing.Content, 'href="(3\.12\.\d+)/"') |
         ForEach-Object { $_.Groups[1].Value } | 
         Sort-Object { [version]$_ } -Descending
     

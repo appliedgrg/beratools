@@ -213,6 +213,8 @@ def _astar_mcp_geometric_accumulation(
 
     g_scores[source] = 0.0
     tie_scores[source] = 0.0
+    destination_path = None
+    destination_cost = None
     heapq.heappush(
         heap,
         _corridor_queue_entry(
@@ -232,15 +234,9 @@ def _astar_mcp_geometric_accumulation(
         *_, current = heapq.heappop(heap)
         if current in closed_nodes:
             continue
-        if current == destination:
-            closed_nodes.add(current)
-            closed[current] = True
-            return AStarAccumulation(
-                path=_reconstruct_path(came_from, destination),
-                best_cost=float(g_scores[destination]),
-                g_scores=g_scores,
-                closed=closed,
-            )
+        if current == destination and destination_path is None:
+            destination_path = _reconstruct_path(came_from, destination)
+            destination_cost = float(g_scores[destination])
         closed_nodes.add(current)
         closed[current] = True
 
@@ -271,7 +267,15 @@ def _astar_mcp_geometric_accumulation(
                 ),
             )
 
-    raise RuntimeError("A* path did not reach destination")
+    if destination_path is None or destination_cost is None:
+        raise RuntimeError("A* path did not reach destination")
+
+    return AStarAccumulation(
+        path=destination_path,
+        best_cost=destination_cost,
+        g_scores=g_scores,
+        closed=closed,
+    )
 
 
 def _neighbors(node: tuple[int, int], rows: int, cols: int, walkable: np.ndarray) -> Iterable[tuple[int, int]]:

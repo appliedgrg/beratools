@@ -5,7 +5,7 @@ Tests window setup, button presence, tree view navigation,
 tool switching, slider, and advanced options toggle.
 """
 
-from unittest.mock import patch
+from unittest.mock import MagicMock, patch
 
 import pytest
 from PyQt5 import QtCore
@@ -472,9 +472,9 @@ class TestSlider:
         low = slider_widget.slider.minimum()
         high = slider_widget.slider.maximum()
 
-        slider_widget.slider_moved(low)
+        slider_widget.slider.setValue(low)
         assert str(low) in slider_widget.label.text()
-        slider_widget.slider_moved(high)
+        slider_widget.slider.setValue(high)
         assert str(high) in slider_widget.label.text()
 
     def test_update_procs_sets_selected_cores(self, main_window):
@@ -522,7 +522,9 @@ class TestProcessSignals:
     def test_finished_signal_resets_progress(self, main_window, qtbot):
         emitter = _ProcessEmitter()
         emitter.finished.connect(main_window.process_finished)
-        main_window.process = object()
+        main_window.process = MagicMock()
+        main_window.process.readAllStandardOutput.return_value = b""
+        main_window.process.readAllStandardError.return_value = b""
         main_window.progress_bar.setValue(67)
         main_window.progress_label.setText("Running")
 

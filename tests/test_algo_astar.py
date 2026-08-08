@@ -52,9 +52,34 @@ def test_astar_corridor_uses_zero_inside_one_outside():
     )
 
     values = set(np.unique(np.ma.asarray(corridor).compressed()).tolist())
-    assert values <= {0.0, 1.0}
+    assert values == {0.0, 1.0}
     assert details["inside_cells"] == int(np.count_nonzero(corridor == 0.0))
-    assert details["inside_cells"] > 0
+    assert details["inside_cells"] > len(line.coords)
+
+
+def test_astar_corridor_expands_when_threshold_increases():
+    cost = np.ones((30, 30), dtype=np.float32)
+    meta = _meta(cost)
+    line = LineString([(2.5, 15.5), (27.5, 15.5)])
+
+    narrow, _ = astar_accumulation_corridor_raster(
+        cost,
+        meta,
+        line,
+        corridor_threshold=0.1,
+        line_bias_weight=0.1,
+        distance_penalty_weight=0.0,
+    )
+    wide, _ = astar_accumulation_corridor_raster(
+        cost,
+        meta,
+        line,
+        corridor_threshold=4.0,
+        line_bias_weight=0.1,
+        distance_penalty_weight=0.0,
+    )
+
+    assert np.count_nonzero(wide == 0.0) > np.count_nonzero(narrow == 0.0)
 
 
 def test_distance_penalty_does_not_expand_corridor():
