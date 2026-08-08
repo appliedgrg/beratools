@@ -56,9 +56,10 @@ Here is a summary of the actions defined in all workflow files in `.github/workf
     - Builds the package and publishes to TestPyPI.
 
 - __build-win-installer.yml__
-    - Summary: Builds the Windows installer and submits it to SignPath using `test-signing`.
+    - Summary: Builds and signs the Windows installer in test or release mode.
     - Trigger: Manually triggered via `workflow_dispatch` on the selected branch.
-    - Does not require signing approval and uploads unsigned and test-signed Actions artifacts without publishing a GitHub Release.
+    - With no release tag, uses `test-signing` and uploads test-signed Actions artifacts without publishing a GitHub Release.
+    - With a release tag, requires `main`, verifies that the tag points exactly to the dispatched commit, uses `release-signing`, and attaches the approved installer to that GitHub Release.
 
 ### Version tag push
 
@@ -71,11 +72,6 @@ Here is a summary of the actions defined in all workflow files in `.github/workf
     - Summary: Official PyPI publish workflow for tagged releases.
     - Trigger: On version tag push from `main`.
     - Builds the package and publishes to PyPI.
-
-- __build-win-installer.yml__
-    - Summary: Builds the Windows installer and submits it to SignPath using `release-signing`.
-    - Trigger: On a version tag push whose commit is in `main`.
-    - Waits for SignPath approval, verifies the formal signature, and attaches the signed installer to the GitHub Release.
 
 See [Publishing BERA Tools](publishing.md#windows-installer-signing) for the signing and release procedure.
 
@@ -106,16 +102,17 @@ flowchart LR
 
     CheckType -->|Manual trigger| Manual[Workflow Dispatch]
     Manual --> PyPITest[Test PyPI]
-    Manual --> InstallerTest[Windows Installer Test]
+    Manual --> InstallerMode{Release tag supplied?}
+    InstallerMode -->|No| InstallerTest[Windows Installer Test]
     InstallerTest --> TestSign[SignPath test-signing]
     TestSign --> SignedTest[Signed Actions Artifact]
+    InstallerMode -->|Yes, from main| WindowsInstaller[Windows Installer Release]
+    WindowsInstaller --> SignPathApproval[SignPath Approval]
+    SignPathApproval --> SignedRelease[Signed GitHub Release]
     
     CheckType -->|Version tag| Release[Release]
     Release --> Anaconda[Conda]
     Release --> PyPI[PyPI]
-    Release --> WindowsInstaller[Windows Installer]
-    WindowsInstaller --> SignPathApproval[SignPath Approval]
-    SignPathApproval --> SignedRelease[Signed GitHub Release]
     
     classDef push fill:#e1f5ff,stroke:#01579b
     classDef pr fill:#fff3e0,stroke:#e65100
@@ -123,7 +120,7 @@ flowchart LR
     classDef rel fill:#e8f5e9,stroke:#2e7d32
     
     class Mkdocs,Pytest push
-    class PyPITest,InstallerTest,TestSign,SignedTest manual
+    class PyPITest,InstallerMode,InstallerTest,TestSign,SignedTest manual
     class Tox pr
     class Anaconda,PyPI,WindowsInstaller,SignPathApproval,SignedRelease rel
 ```

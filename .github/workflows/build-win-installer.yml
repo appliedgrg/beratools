@@ -1,10 +1,12 @@
 name: Build Windows Installer
 
 on:
-  push:
-    tags:
-      - '*.*.*'
   workflow_dispatch:
+    inputs:
+      release_tag:
+        description: "Version tag to release (leave empty for test-signing)"
+        required: false
+        type: string
 
 jobs:
   build:
@@ -24,33 +26,43 @@ jobs:
       - name: Select signing policy
         id: signing
         shell: pwsh
+        env:
+          RELEASE_TAG: ${{ inputs.release_tag }}
         run: |
           $ErrorActionPreference = "Stop"
-          if ($env:GITHUB_EVENT_NAME -eq "workflow_dispatch") {
+          $releaseTag = ([string]$env:RELEASE_TAG).Trim()
+
+          if (-not $releaseTag) {
             "enabled=true" | Out-File -FilePath $env:GITHUB_OUTPUT -Encoding utf8 -Append
             "signing_policy=test-signing" | Out-File -FilePath $env:GITHUB_OUTPUT -Encoding utf8 -Append
             "publish_release=false" | Out-File -FilePath $env:GITHUB_OUTPUT -Encoding utf8 -Append
-            Write-Host "Manual run: building with the test-signing policy."
+            Write-Host "No release tag supplied. Building with the test-signing policy."
             exit 0
           }
 
-          $commitSha = (git rev-parse "$env:GITHUB_SHA^{commit}").Trim()
-          git fetch --no-tags origin main:refs/remotes/origin/main
-          git merge-base --is-ancestor $commitSha origin/main
-          $mergeBaseResult = $LASTEXITCODE
-
-          if ($mergeBaseResult -eq 0) {
-            "enabled=true" | Out-File -FilePath $env:GITHUB_OUTPUT -Encoding utf8 -Append
-            "signing_policy=release-signing" | Out-File -FilePath $env:GITHUB_OUTPUT -Encoding utf8 -Append
-            "publish_release=true" | Out-File -FilePath $env:GITHUB_OUTPUT -Encoding utf8 -Append
-            Write-Host "Tag commit is on main. Building with the release-signing policy."
-          } elseif ($mergeBaseResult -eq 1) {
-            "enabled=false" | Out-File -FilePath $env:GITHUB_OUTPUT -Encoding utf8 -Append
-            "publish_release=false" | Out-File -FilePath $env:GITHUB_OUTPUT -Encoding utf8 -Append
-            Write-Host "Tag commit is not on main. Build and signing steps will be skipped."
-          } else {
-            throw "Unable to determine whether $commitSha is on main."
+          if ($env:GITHUB_REF -ne "refs/heads/main") {
+            throw "Release signing must be dispatched from the main branch."
           }
+          if ($releaseTag -notmatch '^\d+\.\d+\.\d+(?:\.\d+)?$') {
+            throw "Release tag must be a numeric version such as 1.2.3: $releaseTag"
+          }
+
+          git show-ref --verify --quiet "refs/tags/$releaseTag"
+          if ($LASTEXITCODE -ne 0) {
+            throw "Release tag does not exist: $releaseTag"
+          }
+
+          $tagCommit = (git rev-parse "refs/tags/$releaseTag^{commit}").Trim()
+          $workflowCommit = (git rev-parse "$env:GITHUB_SHA^{commit}").Trim()
+          if ($tagCommit -ne $workflowCommit) {
+            throw "Release tag $releaseTag points to $tagCommit, but main was dispatched at $workflowCommit."
+          }
+
+          "enabled=true" | Out-File -FilePath $env:GITHUB_OUTPUT -Encoding utf8 -Append
+          "signing_policy=release-signing" | Out-File -FilePath $env:GITHUB_OUTPUT -Encoding utf8 -Append
+          "publish_release=true" | Out-File -FilePath $env:GITHUB_OUTPUT -Encoding utf8 -Append
+          "release_tag=$releaseTag" | Out-File -FilePath $env:GITHUB_OUTPUT -Encoding utf8 -Append
+          Write-Host "Tag $releaseTag matches main at $workflowCommit. Building with the release-signing policy."
 
       - name: Setup Go
         if: steps.signing.outputs.enabled == 'true'
@@ -76,6 +88,8 @@ jobs:
       - name: Build installer
         id: build-installer
         if: steps.signing.outputs.enabled == 'true'
+        env:
+          RELEASE_TAG: ${{ steps.signing.outputs.release_tag }}
         run: |
           powershell -ExecutionPolicy Bypass -File packaging/build.ps1
 
@@ -88,7 +102,12 @@ jobs:
             throw "Installer filename does not contain a supported version: $($installers[0].Name)"
           }
 
-          "version=$($Matches[1])" | Out-File -FilePath $env:GITHUB_OUTPUT -Encoding utf8 -Append
+          $version = $Matches[1]
+          if ($env:RELEASE_TAG -and $version -ne $env:RELEASE_TAG) {
+            throw "Built installer version $version does not match release tag $env:RELEASE_TAG."
+          }
+
+          "version=$version" | Out-File -FilePath $env:GITHUB_OUTPUT -Encoding utf8 -Append
         shell: pwsh
         working-directory: ${{ github.workspace }}
 
@@ -150,7 +169,7 @@ jobs:
         if: steps.signing.outputs.publish_release == 'true'
         uses: softprops/action-gh-release@v2
         with:
-          tag_name: ${{ github.ref_name }}
+          tag_name: ${{ steps.signing.outputs.release_tag }}
           files: packaging/dist-signed/beratools-installer-*.exe
           body: |
             Windows installer signed under the [BERA Tools Code signing policy](https://github.com/appliedgrg/beratools/blob/main/CODE_SIGNING_POLICY.md).

@@ -1,6 +1,6 @@
 # Publishing BERA Tools
 
-BERA Tools is published to Conda and PyPI when the `main` branch is tagged with a new version. The same tag builds, signs, and publishes the Windows installer.
+BERA Tools is published to Conda and PyPI when the `main` branch is tagged with a new version. The Windows installer is then built, signed, and published by manually dispatching its release workflow from that tagged `main` commit.
 
 ## Versioning
 
@@ -31,9 +31,8 @@ Official Windows installers follow the project [Code signing policy](https://git
 
 | Trigger | Signing policy | Approval | Result |
 | --- | --- | --- | --- |
-| Manual `workflow_dispatch` | `test-signing` | Disabled by policy | Signed GitHub Actions artifact only |
-| Version tag on a commit in `main` | `release-signing` | One approval required | Signed artifact and GitHub Release |
-| Version tag outside `main` | None | None | Build and signing steps are skipped |
+| Manual dispatch with no release tag | `test-signing` | Disabled by policy | Signed GitHub Actions artifact only |
+| Manual dispatch from `main` with a matching release tag | `release-signing` | One approval required | Signed artifact and GitHub Release |
 
 ### Manual Signing Test
 
@@ -50,12 +49,13 @@ The test certificate is self-signed, so `Get-AuthenticodeSignature` may report `
 ### Production Release
 
 1. Merge the release changes into `main` and ensure all release workflows are ready.
-2. Create a `major.minor.patch` version tag on a commit in `main` and push the tag.
-3. Monitor the [Build Windows Installer](https://github.com/appliedgrg/beratools/actions/workflows/build-win-installer.yml) run.
-4. Open the signing request from the SignPath email or the URL printed by the workflow.
-5. An authorized SignPath approver must approve the request within the workflow's one-hour timeout.
-6. Confirm the release signature status is `Valid`.
-7. Confirm the signed installer was attached to the GitHub Release.
+2. Create a `major.minor.patch` version tag on the current `main` commit and push the tag. Do not advance `main` until all release workflows complete.
+3. Open [Build Windows Installer](https://github.com/appliedgrg/beratools/actions/workflows/build-win-installer.yml), select **Run workflow**, choose `main`, and enter the version tag in **Version tag to release**.
+4. Confirm the workflow verifies that the supplied tag points exactly to the dispatched `main` commit and submits with `release-signing`.
+5. Open the signing request from the SignPath email or the URL printed by the workflow.
+6. An authorized SignPath approver must approve the request within the workflow's one-hour timeout.
+7. Confirm the release signature status is `Valid`.
+8. Confirm the signed installer was attached to the GitHub Release.
 
 The person who creates the tag does not need to be a SignPath approver. With multiple approvers and one required approval, any listed approver can authorize the request. If the request is denied or times out, the workflow does not publish the installer.
 
@@ -73,6 +73,8 @@ Open **Projects -> beratools -> Signing policies** in SignPath to review policy 
 | Result | Actions artifact only | Approved GitHub Release |
 
 For `release-signing`, require trusted-build-system verification and origin verification. Set the repository URL to `https://github.com/appliedgrg/beratools.git`, the allowed branch to `main`, and the allowed build definition to `.github/workflows/build-win-installer.yml`.
+
+GitHub reports a tag-triggered workflow's tag name as its origin branch. Do not add version tags or wildcard patterns to the production policy's allowed branches. Release signing is dispatched from `main`, and the workflow verifies that the supplied tag resolves exactly to that `main` commit.
 
 Both policies use the default artifact configuration below. Only these artifact rules are shared; certificates, approval requirements, branch restrictions, and origin settings remain policy-specific.
 
@@ -96,7 +98,7 @@ The GitHub workflow reads `SIGNPATH_API_TOKEN` and `SIGNPATH_ORGANIZATION_ID` fr
 
 For maintainer handoff, add replacement users as SignPath approvers and retain at least one organization administrator or project configurator. With multiple approvers and one required approval, any listed approver can approve. Require MFA, keep the `CI builds` submitter independent of personal accounts, and verify replacement access before removing a departing maintainer.
 
-After any portal or artifact-configuration change, run the manual signing test. The message `No GitHub policy found at .signpath/policies/...` is informational when no repository policy file is configured; open the signing request in SignPath for actual processing failures.
+After any portal or artifact-configuration change, run the manual signing test. The message `No GitHub policy found at .signpath/policies/...` is informational when no repository policy file is configured; open the signing request in SignPath for actual processing failures. GitHub connector requests contain attestation authorization data and cannot be promoted with SignPath's resubmit API.
 
 ## Releases
 
