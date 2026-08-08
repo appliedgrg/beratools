@@ -38,14 +38,14 @@ Here is a summary of the actions defined in all workflow files in `.github/workf
 
 ### Pull request to main
 
-- __python-tests.yml__
-    - Summary: CI test and coverage workflow using Pixi and pytest that reports to Codecov.
-    - Trigger: On push or pull request to `main` affecting `beratools/**`.
-    - Runs pytest with coverage and uploads results to Codecov.
+- __python-integration-tests.yml__
+    - Summary: Workflow integration tests using Pixi and pytest.
+    - Trigger: On push or pull request to `main` affecting application, test, or environment files.
+    - Runs the end-to-end workflow test with terminal coverage reporting.
 
 ### Manual (workflow_dispatch)
 
-- __tox-grid-tests.yml__
+- __python-compatibility-tests.yml__
     - Summary: Manual Python compatibility grid using tox inside micromamba environments with conda-forge GDAL.
     - Trigger: Manually triggered via `workflow_dispatch`.
     - Runs pytest across Python 3.12-3.14 without relying on Ubuntu apt GDAL.
@@ -98,9 +98,10 @@ flowchart LR
     Files -->|beratools/**| Pytest[CI Tests]
     
     CheckType -->|PR to main| PR[PR Validation]
-    PR --> Tox[Tox Grid Tests]
+    PR --> Integration[Python Integration Tests]
 
     CheckType -->|Manual trigger| Manual[Workflow Dispatch]
+    Manual --> Compatibility[Python Compatibility Matrix]
     Manual --> PyPITest[Test PyPI]
     Manual --> InstallerMode{Release tag supplied?}
     InstallerMode -->|No| InstallerTest[Windows Installer Test]
@@ -120,8 +121,8 @@ flowchart LR
     classDef rel fill:#e8f5e9,stroke:#2e7d32
     
     class Zensical,Pytest push
-    class PyPITest,InstallerMode,InstallerTest,TestSign,SignedTest manual
-    class Tox pr
+    class PyPITest,Compatibility,InstallerMode,InstallerTest,TestSign,SignedTest manual
+    class Integration pr
     class Anaconda,PyPI,WindowsInstaller,SignPathApproval,SignedRelease rel
 ```
 

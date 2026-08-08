@@ -1,10 +1,11 @@
-name: Tox Grid Tests
+name: Python Tests / Compatibility Matrix
 
 on:
   workflow_dispatch:
 
 jobs:
-  test:
+  compatibility:
+    name: Tox / Python ${{ matrix.python-version }}
     runs-on: ubuntu-latest
     timeout-minutes: 20
     permissions:

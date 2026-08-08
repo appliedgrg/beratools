@@ -6,9 +6,9 @@ BERA Tools employs a `pytest` framework to ensure code quality and reliability. 
 
 - **pytest**: All code is tested using the pytest framework. Tests are located in the `tests` directory and cover modules, tools, and workflows.
 - **Test triggers**: Tests run automatically on push and pull request events affecting `beratools` via GitHub Actions.
-- **Coverage**: Test coverage is measured and reported to Codecov.
-- **Runtime testing**: The `python-tests.yml` workflow runs tests in the Pixi-managed Python 3.12/GDAL environment.
-- **Manual compatibility testing**: The `tox-grid-tests.yml` workflow can be run manually to test Python 3.12-3.14 in micromamba environments with conda-forge GDAL.
+- **Coverage**: Integration-test coverage is reported in the GitHub Actions job log.
+- **Runtime testing**: The `python-integration-tests.yml` workflow runs tests in the Pixi-managed Python 3.12/GDAL environment.
+- **Manual compatibility testing**: The `python-compatibility-tests.yml` workflow can be run manually to test Python 3.12-3.14 in micromamba environments with conda-forge GDAL.
 
 ## Running Tests Locally
 
@@ -44,9 +44,9 @@ To run tests locally, follow these steps:
 
 BERA Tools uses GitHub Actions to automate testing and deployment processes. This document describes the various workflows set up in the repository to ensure code quality and streamline releases.
 
-1. **tox-grid-tests.yml**: This manual workflow runs a Python 3.12-3.14 tox grid inside micromamba environments where conda-forge provides GDAL and native geospatial libraries.
+1. **python-compatibility-tests.yml**: This manual workflow runs a Python 3.12-3.14 tox grid inside micromamba environments where conda-forge provides GDAL and native geospatial libraries.
 
-1. **python-tests.yml**: This workflow runs the test suite using `pytest` whenever code is pushed to the repository or a pull request is created. It helps catch issues early in the development process.
+1. **python-integration-tests.yml**: This workflow runs the integration test using `pytest` whenever relevant code is pushed or a pull request is created. It helps catch workflow regressions early in development.
 
 Refer to the [Maintainer Guide](./maintainer.md#pull-request-to-main) for more information on these workflows.
 

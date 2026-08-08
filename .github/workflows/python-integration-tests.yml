@@ -1,4 +1,4 @@
-name: Python Tests (Pixi)
+name: Python Tests / Integration
 
 on:
   pull_request:
@@ -11,6 +11,7 @@ on:
       - 'pixi.lock'
       - 'pyproject.toml'
       - 'environment.yml'
+      - '.github/workflows/python-integration-tests.yml'
   push:
     branches:
       - main
@@ -21,9 +22,11 @@ on:
       - 'pixi.lock'
       - 'pyproject.toml'
       - 'environment.yml'
+      - '.github/workflows/python-integration-tests.yml'
 
 jobs:
-  test:
+  integration:
+    name: Pixi integration
     timeout-minutes: 20
     runs-on: ubuntu-latest
     permissions:
@@ -47,9 +50,9 @@ jobs:
           cd $GITHUB_WORKSPACE
           pixi install
 
-      - name: Run Tests with Coverage
+      - name: Run integration tests
         run: |
-          echo "Running pytest with coverage"
+          echo "Running workflow integration tests"
           export PATH="$HOME/.pixi/bin:$PATH"
           cd $GITHUB_WORKSPACE
           pixi run pytest --cov=beratools --cov-report=term tests/test_workflow.py --maxfail=1 --disable-warnings -s -v --log-cli-level=INFO
