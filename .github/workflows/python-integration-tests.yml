@@ -10,7 +10,6 @@ on:
       - 'pixi.toml'
       - 'pixi.lock'
       - 'pyproject.toml'
-      - 'environment.yml'
       - '.github/workflows/python-integration-tests.yml'
   push:
     branches:
@@ -21,7 +20,6 @@ on:
       - 'pixi.toml'
       - 'pixi.lock'
       - 'pyproject.toml'
-      - 'environment.yml'
       - '.github/workflows/python-integration-tests.yml'
 
 jobs:

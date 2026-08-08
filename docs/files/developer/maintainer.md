@@ -36,24 +36,19 @@ Here is a summary of the actions defined in all workflow files in `.github/workf
     - Trigger: On pull requests and pushes to `main` affecting documentation, its dependencies, or the workflow.
     - Builds with Zensical and deploys the generated artifact to GitHub Pages on pushes.
 
-### Pull request to main
+### Automatic integration tests
 
 - __python-integration-tests.yml__
     - Summary: Workflow integration tests using Pixi and pytest.
-    - Trigger: On push or pull request to `main` affecting application, test, or environment files.
-    - Runs the end-to-end workflow test with terminal coverage reporting.
+    - Trigger: On pushes to `main` and qualifying pull requests targeting `main` when application, test, Pixi/project configuration, or workflow files change.
+    - Runs `tests/test_workflow.py` in the Pixi-managed Python 3.12 environment with terminal coverage reporting.
 
 ### Manual (workflow_dispatch)
 
 - __python-compatibility-tests.yml__
     - Summary: Manual Python compatibility grid using tox inside micromamba environments with conda-forge GDAL.
     - Trigger: Manually triggered via `workflow_dispatch`.
-    - Runs pytest across Python 3.12-3.14 without relying on Ubuntu apt GDAL.
-
-- __publish_to_pypi_test.yml__
-    - Summary: Manual TestPyPI deployment to validate package publishing on demand.
-    - Trigger: Manually triggered via `workflow_dispatch`.
-    - Builds the package and publishes to TestPyPI.
+    - Runs `tests/test_workflow.py` through tox under Python 3.12, 3.13, and 3.14 without relying on Ubuntu apt GDAL.
 
 - __build-win-installer.yml__
     - Summary: Builds and signs the Windows installer in test or release mode.
@@ -95,14 +90,14 @@ flowchart LR
     
     CheckType -->|Push to main| Files{Files changed}
     Files -->|Documentation inputs| Zensical[Deploy Docs]
-    Files -->|beratools/**| Pytest[CI Tests]
+    Files -->|Integration-workflow inputs| IntegrationPush[Python Integration Tests]
     
     CheckType -->|PR to main| PR[PR Validation]
-    PR --> Integration[Python Integration Tests]
+    PR --> PRFiles{Files changed}
+    PRFiles -->|Integration-workflow inputs| IntegrationPR[Python Integration Tests]
 
     CheckType -->|Manual trigger| Manual[Workflow Dispatch]
     Manual --> Compatibility[Python Compatibility Matrix]
-    Manual --> PyPITest[Test PyPI]
     Manual --> InstallerMode{Release tag supplied?}
     InstallerMode -->|No| InstallerTest[Windows Installer Test]
     InstallerTest --> TestSign[SignPath test-signing]
@@ -120,9 +115,9 @@ flowchart LR
     classDef manual fill:#f3e5f5,stroke:#6a1b9a
     classDef rel fill:#e8f5e9,stroke:#2e7d32
     
-    class Zensical,Pytest push
-    class PyPITest,Compatibility,InstallerMode,InstallerTest,TestSign,SignedTest manual
-    class Integration pr
+    class Zensical,IntegrationPush push
+    class Compatibility,InstallerMode,InstallerTest,TestSign,SignedTest manual
+    class IntegrationPR pr
     class Anaconda,PyPI,WindowsInstaller,SignPathApproval,SignedRelease rel
 ```
 

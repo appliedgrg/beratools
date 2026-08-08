@@ -127,7 +127,7 @@ exclude = [
 ]
 
 # Target Python version
-target-version = "py311"
+target-version = "py312"
 
 # mypy settings
 [tool.mypy]
