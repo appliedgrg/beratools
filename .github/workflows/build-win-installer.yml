@@ -43,7 +43,8 @@ jobs:
           if ($env:GITHUB_REF -ne "refs/heads/main") {
             throw "Release signing must be dispatched from the main branch."
           }
-          if ($releaseTag -notmatch '^\d+\.\d+\.\d+(?:\.\d+)?$') {
+          $versionPattern = '^(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)$'
+          if ($releaseTag -notmatch $versionPattern) {
             throw "Release tag must be a numeric version such as 1.2.3: $releaseTag"
           }
 
@@ -56,6 +57,12 @@ jobs:
           $workflowCommit = (git rev-parse "$env:GITHUB_SHA^{commit}").Trim()
           if ($tagCommit -ne $workflowCommit) {
             throw "Release tag $releaseTag points to $tagCommit, but main was dispatched at $workflowCommit."
+          }
+
+          $versionTags = @(git tag --list | Where-Object { $_ -match $versionPattern })
+          $latestTag = $versionTags | Sort-Object { [version]$_ } -Descending | Select-Object -First 1
+          if ($releaseTag -ne $latestTag) {
+            throw "Release tag $releaseTag is not the latest numeric version; expected $latestTag."
           }
 
           "enabled=true" | Out-File -FilePath $env:GITHUB_OUTPUT -Encoding utf8 -Append
@@ -90,6 +97,7 @@ jobs:
         if: steps.signing.outputs.enabled == 'true'
         env:
           RELEASE_TAG: ${{ steps.signing.outputs.release_tag }}
+          APP_VERSION: ${{ steps.signing.outputs.release_tag }}
         run: |
           powershell -ExecutionPolicy Bypass -File packaging/build.ps1
 
@@ -171,6 +179,7 @@ jobs:
         with:
           tag_name: ${{ steps.signing.outputs.release_tag }}
           files: packaging/dist-signed/beratools-installer-*.exe
+          overwrite_files: false
           body: |
             Windows installer signed under the [BERA Tools Code signing policy](https://github.com/appliedgrg/beratools/blob/main/CODE_SIGNING_POLICY.md).
           append_body: true

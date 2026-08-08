@@ -51,13 +51,13 @@ The test certificate is self-signed, so `Get-AuthenticodeSignature` may report `
 1. Merge the release changes into `main` and ensure all release workflows are ready.
 2. Create a `major.minor.patch` version tag on the current `main` commit and push the tag. Do not advance `main` until all release workflows complete.
 3. Open [Build Windows Installer](https://github.com/appliedgrg/beratools/actions/workflows/build-win-installer.yml), select **Run workflow**, choose `main`, and enter the version tag in **Version tag to release**.
-4. Confirm the workflow verifies that the supplied tag points exactly to the dispatched `main` commit and submits with `release-signing`.
+4. Confirm the workflow verifies that the supplied tag points exactly to the dispatched `main` commit, is the latest numeric version tag, and submits with `release-signing`.
 5. Open the signing request from the SignPath email or the URL printed by the workflow.
 6. An authorized SignPath approver must approve the request within the workflow's one-hour timeout.
 7. Confirm the release signature status is `Valid`.
 8. Confirm the signed installer was attached to the GitHub Release.
 
-The person who creates the tag does not need to be a SignPath approver. With multiple approvers and one required approval, any listed approver can authorize the request. If the request is denied or times out, the workflow does not publish the installer.
+The person who creates the tag does not need to be a SignPath approver. With multiple approvers and one required approval, any listed approver can authorize the request. If the request is denied or times out, the workflow does not publish the installer. A rerun does not overwrite an installer asset that is already attached to the release.
 
 ### SignPath Configuration
 
