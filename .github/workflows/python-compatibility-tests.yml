@@ -1,0 +1,68 @@
+name: Python Tests / Compatibility Matrix
+
+on:
+  workflow_dispatch:
+
+jobs:
+  compatibility:
+    name: Tox / Python ${{ matrix.python-version }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    permissions:
+      contents: read
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - python-version: "3.12"
+            toxenv: py312
+          - python-version: "3.13"
+            toxenv: py313
+          - python-version: "3.14"
+            toxenv: py314
+
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          token: ${{ github.token }}
+          persist-credentials: true
+          fetch-depth: 1
+
+      - name: Set up micromamba
+        uses: mamba-org/setup-micromamba@v2
+        with:
+          environment-name: bera-tox
+          create-args: >-
+            python=${{ matrix.python-version }}
+            dask
+            gdal>=3.12,<4
+            geopandas
+            networkit
+            numpy>=1.26,<2.4
+            pandas
+            pyogrio>=0.12
+            pyqt
+            rasterio>=1.5
+            scikit-image>=0.24
+            tqdm
+            xarray-spatial
+            pandarallel
+            pytest
+            pytest-qt
+            tox
+          condarc: |
+            channel_priority: strict
+            channels:
+              - appliedgrg
+              - conda-forge
+          cache-environment: true
+
+      - name: Install project
+        shell: bash -el {0}
+        run: |
+          python -m pip install -e . --no-deps
+
+      - name: Run Tests
+        shell: bash -el {0}
+        run: |
+          tox -e ${{ matrix.toxenv }}

@@ -17,18 +17,19 @@ Description:
 import math
 import tempfile
 import logging
+import json
 from pathlib import Path
 
 import geopandas as gpd
 import numpy as np
 import pyproj
+from osgeo import gdal, ogr
 import rasterio
 import shapely
 import shapely.affinity as sh_aff
 import shapely.geometry as sh_geom
 import shapely.ops as sh_ops
 import skimage.graph as sk_graph
-from osgeo import gdal, ogr
 from scipy import ndimage
 
 import beratools.core.algo_cost as algo_cost
@@ -385,31 +386,48 @@ def prepare_lines_gdf(file_path, layer=None, proc_segments=True):
     return lines_gdf_to_list(gdf)
 
 
-# TODO use function from common
-def morph_raster(corridor_thresh, canopy_raster, exp_shk_cell, cell_size_x):
-    # Process: Stamp CC and Max Line Width
-    temp1 = corridor_thresh + canopy_raster
-    raster_class = np.ma.where(temp1 == 0, 1, 0).data
+def corridor_threshold_to_mask(corridor_thresh):
+    """Convert BERA corridor threshold raster to a binary inside-corridor mask.
 
-    if exp_shk_cell > 0 and cell_size_x < 1:
-        # Process: Expand
-        # FLM original Expand equivalent
+    Corridor rasters use 0 for inside the selected corridor and 1 for outside.
+    Polygonization and morphology helpers use 1 for selected cells.
+    """
+
+    return np.ma.where(corridor_thresh == 0.0, 1, 0).filled(0).astype(np.int32)
+
+
+def apply_canopy_mask(corridor_mask, canopy_raster):
+    """Gate corridor cells by canopy raster where canopy value 0 means keep."""
+
+    canopy = np.ma.asarray(canopy_raster).filled(1)
+    return np.where((np.asarray(corridor_mask) == 1) & (canopy == 0), 1, 0).astype(np.int32)
+
+
+def generalize_binary_mask(binary_mask, exp_shk_cell, boundary_clean=True):
+    """Apply FLM-style cell-based expand/shrink and boundary clean."""
+
+    clean_raster = np.asarray(binary_mask, dtype=np.int32)
+    exp_shk_cell = int(float(exp_shk_cell or 0))
+
+    if exp_shk_cell > 0:
+        # FLM original Expand/Shrink equivalent. The range is cell-based.
         cell_size = int(exp_shk_cell * 2 + 1)
-        expanded = ndimage.grey_dilation(raster_class, size=(cell_size, cell_size))
+        clean_raster = ndimage.grey_dilation(clean_raster, size=(cell_size, cell_size))
+        clean_raster = ndimage.grey_erosion(clean_raster, size=(cell_size, cell_size))
+    elif bt_const.BT_DEBUGGING:
+        print("No Expand And Shrink cell performed.")
 
-        # Process: Shrink
-        # FLM original Shrink equivalent
-        file_shrink = ndimage.grey_erosion(expanded, size=(cell_size, cell_size))
+    if boundary_clean:
+        # Pragmatic open-source approximation of ArcGIS BoundaryClean_sa.
+        clean_raster = ndimage.median_filter(clean_raster, size=3)
 
-    else:
-        if bt_const.BT_DEBUGGING:
-            print("No Expand And Shrink cell performed.")
-        file_shrink = raster_class
+    return clean_raster.astype(np.int32)
 
-    # Process: Boundary Clean
-    clean_raster = ndimage.gaussian_filter(file_shrink, sigma=0, mode="nearest")
 
-    return clean_raster
+def morph_raster(corridor_thresh, canopy_raster, exp_shk_cell, cell_size_x):
+    corridor_mask = corridor_threshold_to_mask(corridor_thresh)
+    raster_class = apply_canopy_mask(corridor_mask, canopy_raster)
+    return generalize_binary_mask(raster_class, exp_shk_cell)
 
 
 def closest_point_to_line(point, line):
@@ -530,9 +548,9 @@ def generate_raster_footprint(in_raster, latlon=True):
             inter_img = Path(tmp_folder).joinpath(inter_img).as_posix()
             gdal.Translate(inter_img, src_ds, options=options)
 
-        shapes = gdal.Footprint(None, inter_img, dstSRS=src_crs, format="GeoJSON")
-        target_feat = shapes["features"][0]
-        geom = sh_geom.shape(target_feat["geometry"])
+        shapes = gdal.Footprint("", inter_img, dstSRS=src_crs, format="MEM")
+        target_feat = shapes.GetLayer(0).GetNextFeature()
+        geom = sh_geom.shape(json.loads(target_feat.GetGeometryRef().ExportToJson()))
 
     if geom is not None and latlon:
         out_crs = pyproj.CRS("EPSG:4326")

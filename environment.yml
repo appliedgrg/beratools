@@ -3,21 +3,22 @@
 # name: bera
 channels:
   - nodefaults
-  - appliedgrg
   - conda-forge
+  - appliedgrg
 dependencies:
-  - python=3.11
-  - appliedgrg::beratools
+  - python=3.12
   - dask
-  - gdal=3.10.3
+  - gdal>=3.12,<4
   - geopandas
   - networkit
+  - numpy>=1.26,<2.4
   - pandas
-  - pyogrio>=0.9.0
+  - pyogrio>=0.12
   - pyqt
-  - rasterio
+  - rasterio>=1.5
   - scikit-image>=0.24.0
   - tqdm
   - xarray-spatial
   - pandarallel
+  - tabulate
 variables:

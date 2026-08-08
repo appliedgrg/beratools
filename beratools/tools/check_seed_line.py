@@ -65,6 +65,9 @@ class SeedLineQCConfig:
     densify_long_lines: bool = False
     max_segment_length: float = bt_const.LP_SEGMENT_LENGTH
     use_angle_grouping: bool = True
+    warn_nodata_vertices: bool = True
+    nodata_vertex_search_radius: float = 10.0
+    check_internal_vertices: bool = False
     apply_seed_line_correction: bool = False
     slc_search_distance: float = 5.0
     slc_line_radius: float = 15.0
@@ -153,6 +156,7 @@ def _print_qc_summary(qc_summary, aux_file):
         print(f"  Unsnapped endpoints:   {qc_summary['unsnapped_endpoint']} issues")
         print(f"  Self-crossing:         {qc_summary['self_crossing']} issues")
         print(f"  Overlapping lines:     {qc_summary['overlap']} issues")
+        print(f"  CHM NoData vertices:   {qc_summary.get('chm_nodata_vertex', 0)} issues")
         print(f"  {'-' * 35}")
         print(f"  Total issues:          {qc_summary['total']}")
         print(f"  Details saved to: {aux_file} (layer: qc_report_issues)")
@@ -229,6 +233,9 @@ def check_seed_line(
     densify_long_lines=False,
     max_segment_length=bt_const.LP_SEGMENT_LENGTH,
     use_angle_grouping=True,
+    warn_nodata_vertices=True,
+    nodata_vertex_search_radius=10.0,
+    check_internal_vertices=False,
     apply_seed_line_correction=False,
     slc_search_distance=5.0,
     slc_line_radius=15.0,
@@ -263,6 +270,9 @@ def check_seed_line(
         densify_long_lines=_to_bool(densify_long_lines),
         max_segment_length=float(max_segment_length),
         use_angle_grouping=_to_bool(use_angle_grouping),
+        warn_nodata_vertices=_to_bool(warn_nodata_vertices),
+        nodata_vertex_search_radius=float(nodata_vertex_search_radius),
+        check_internal_vertices=_to_bool(check_internal_vertices),
         apply_seed_line_correction=_to_bool(apply_seed_line_correction),
         slc_search_distance=float(slc_search_distance),
         slc_line_radius=float(slc_line_radius),
@@ -405,6 +415,9 @@ def check_seed_line(
             "group_lines": int(config.group_lines),
             "densify_long_lines": int(config.densify_long_lines),
             "max_segment_length_m": float(config.max_segment_length),
+            "warn_nodata_vertices": int(config.warn_nodata_vertices),
+            "nodata_vertex_search_radius_m": float(config.nodata_vertex_search_radius),
+            "check_internal_vertices": int(config.check_internal_vertices),
             "apply_seed_line_correction": int(config.apply_seed_line_correction),
             "slc_search_distance": float(config.slc_search_distance),
             "slc_line_radius": float(config.slc_line_radius),
@@ -840,6 +853,10 @@ def check_seed_line(
         min_length_m=config.minimum_line_length * 2.0,
         close_distance_m=effective_preclean_close_distance * 2.0,
         snap_tolerance_m=config.snap_tolerance * 2.0,
+        in_raster=in_raster,
+        warn_nodata_vertices=config.warn_nodata_vertices,
+        nodata_vertex_search_radius_m=config.nodata_vertex_search_radius,
+        check_internal_vertices=config.check_internal_vertices,
     )
     _mark_layer("qc_report_issues", qc_issues_gdf)
     _log_step(

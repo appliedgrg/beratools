@@ -152,19 +152,22 @@ class TestCheckSeedLines:
         assert not slc_line_radius.isHidden()
         assert not slc_internal.isHidden()
 
-    def test_in_raster_visibility_with_clip_or_slc(self, make_tool_widget):
+    def test_in_raster_visibility_with_clip_slc_or_nodata_warning(self, make_tool_widget):
         tw = make_tool_widget(self.TOOL, show_advanced=True)
 
         in_raster = _find_widget(tw, "in_raster")
         clip_to_chm = _find_widget(tw, "clip_to_chm_footprint")
         apply_slc = _find_widget(tw, "apply_seed_line_correction")
+        warn_nodata = _find_widget(tw, "warn_nodata_vertices")
 
         assert in_raster is not None
         assert clip_to_chm is not None
         assert apply_slc is not None
+        assert warn_nodata is not None
 
         clip_to_chm.set_value(False)
         apply_slc.set_value(False)
+        warn_nodata.set_value(False)
         tw._update_dependency_states()
         assert in_raster.isHidden()
 
@@ -175,6 +178,11 @@ class TestCheckSeedLines:
 
         clip_to_chm.set_value(False)
         apply_slc.set_value(True)
+        tw._update_dependency_states()
+        assert not in_raster.isHidden()
+
+        apply_slc.set_value(False)
+        warn_nodata.set_value(True)
         tw._update_dependency_states()
         assert not in_raster.isHidden()
 

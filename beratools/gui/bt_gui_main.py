@@ -116,7 +116,9 @@ class BTTreeView(QtWidgets.QWidget):
         # select recent tool
         if bt.recent_tool:
             index = self.get_tool_index(bt.recent_tool)
-        else:
+        if index is None or not index.isValid():
+            index = self.get_tool_index("Centerline")
+        if index is None or not index.isValid():
             # index_set = self.tree_model.index(0, 0)
             index = self.tree_model.indexFromItem(first_child)
 
@@ -186,14 +188,16 @@ class BTTreeView(QtWidgets.QWidget):
             item.setIcon(QtGui.QIcon(os.path.join(bt_const.ASSETS_PATH, "close.gif")))
 
     def get_tool_index(self, tool_name):
-        item = self.tree_model.findItems(tool_name, QtCore.Qt.MatchExactly | QtCore.Qt.MatchRecursive)
-        if len(item) > 0:
-            item = item[0]
+        items = self.tree_model.findItems(tool_name, QtCore.Qt.MatchExactly | QtCore.Qt.MatchRecursive)
+        if not items:
+            return QtCore.QModelIndex()
 
-        index = self.tree_model.indexFromItem(item)
-        return index
+        return self.tree_model.indexFromItem(items[0])
 
     def select_tool_by_index(self, index):
+        if index is None or not index.isValid():
+            return
+
         proxy_index = self.tags_model.mapFromSource(index)
         self.tree_sel_model.select(proxy_index, QtCore.QItemSelectionModel.ClearAndSelect)
         self.tree_view.expand(proxy_index.parent())
@@ -370,7 +374,7 @@ class MainWindow(QtWidgets.QMainWindow):
         self._create_help_menu()
         self.tool_api = None
         self.tool_name = "Centerline"
-        self.recent_tool = bt.recent_tool
+        self.recent_tool = bt.recent_tool if bt.recent_tool in bt.tools_list else None
         if self.recent_tool:
             self.tool_name = self.recent_tool
             self.tool_api = bt.get_bera_tool_api(self.tool_name)
@@ -443,7 +447,7 @@ class MainWindow(QtWidgets.QMainWindow):
 
         # ToolWidgets
         tool_args = bt.get_bera_tool_args(self.tool_name)
-        self.tool_widget = ToolWidgets(self.recent_tool, tool_args, bt.show_advanced, bt_data_obj=bt)
+        self.tool_widget = ToolWidgets(self.tool_name, tool_args, bt.show_advanced, bt_data_obj=bt)
         self.tool_scroll_area = QtWidgets.QScrollArea()
         self.tool_scroll_area.setWidgetResizable(True)
         self.tool_scroll_area.setHorizontalScrollBarPolicy(QtCore.Qt.ScrollBarAsNeeded)

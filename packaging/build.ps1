@@ -30,18 +30,18 @@ $buildDir = Join-Path $scriptDir "build"
 New-Item -Path $buildDir -ItemType Directory -Force | Out-Null
 
 # Step 2: Download Python Embedded
-Write-Host "`n[2/9] Downloading Python 3.11 Embedded Distribution..." -ForegroundColor Yellow
+Write-Host "`n[2/9] Downloading Python 3.12 Embedded Distribution..." -ForegroundColor Yellow
 
 if (-not (Test-Path (Join-Path $buildDir "python\python.exe"))) {
-    # Find latest Python 3.11.x version with embeddable distribution
-    Write-Host "Finding latest Python 3.11.x version..."
+    # Find latest Python 3.12.x version with embeddable distribution
+    Write-Host "Finding latest Python 3.12.x version..."
     $ftpListing = Invoke-WebRequest -Uri "https://www.python.org/ftp/python/" -UseBasicParsing
-    $versions = [regex]::Matches($ftpListing.Content, 'href="(3\.11\.\d+)/"') | 
+    $versions = [regex]::Matches($ftpListing.Content, 'href="(3\.12\.\d+)/"') |
         ForEach-Object { $_.Groups[1].Value } | 
         Sort-Object { [version]$_ } -Descending
     
     if ($versions.Count -eq 0) {
-        Write-Host "Failed to find Python 3.11.x versions" -ForegroundColor Red
+        Write-Host "Failed to find Python 3.12.x versions" -ForegroundColor Red
         exit 1
     }
     
@@ -62,7 +62,7 @@ if (-not (Test-Path (Join-Path $buildDir "python\python.exe"))) {
     }
     
     if (-not $foundVersion) {
-        Write-Host "Failed to find any Python 3.11.x embeddable distribution" -ForegroundColor Red
+        Write-Host "Failed to find any Python 3.12.x embeddable distribution" -ForegroundColor Red
         exit 1
     }
     

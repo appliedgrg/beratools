@@ -44,6 +44,29 @@ class CenterlineStrategy(enum.Enum):
 CENTERLINE_GUIDED_STRATEGY = CenterlineStrategy.PAIRWISE
 
 
+@enum.unique
+class CenterlineMethod(enum.Enum):
+    """Least-cost path and corridor raster method for centerline extraction."""
+
+    BERA = "bera"
+    ASTAR = "astar"
+
+
+CENTERLINE_METHOD = CenterlineMethod.BERA
+
+
+@enum.unique
+class CenterlineChmMode(enum.Enum):
+    """CHM preprocessing mode for centerline extraction."""
+
+    CURRENT = "current"
+    ALT = "alt"
+    BUFFER = "buffer"
+
+
+CENTERLINE_CHM_MODE = CenterlineChmMode.CURRENT
+
+
 class CenterlineFlags(enum.Flag):
     """Flags for the centerline algorithm."""
 
@@ -61,4 +84,3 @@ class ParallelMode(enum.IntEnum):
     CONCURRENT = 3
     DASK = 4
     SLURM = 5
-

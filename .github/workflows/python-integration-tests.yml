@@ -1,0 +1,56 @@
+name: Python Tests / Integration
+
+on:
+  pull_request:
+    branches:
+      - main
+    paths:
+      - 'beratools/**'
+      - 'tests/**'
+      - 'pixi.toml'
+      - 'pixi.lock'
+      - 'pyproject.toml'
+      - '.github/workflows/python-integration-tests.yml'
+  push:
+    branches:
+      - main
+    paths:
+      - 'beratools/**'
+      - 'tests/**'
+      - 'pixi.toml'
+      - 'pixi.lock'
+      - 'pyproject.toml'
+      - '.github/workflows/python-integration-tests.yml'
+
+jobs:
+  integration:
+    name: Pixi integration
+    timeout-minutes: 20
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - name: "Checking out code"
+        run: echo "Checking out code"
+      - name: Checkout Code
+        uses: actions/checkout@v6
+        with:
+          token: ${{ github.token }}
+          persist-credentials: true
+
+      - name: Install Pixi
+        run: echo "Installing Pixi" && curl -fsSL https://pixi.sh/install.sh | bash
+
+      - name: Setup Pixi Environment
+        run: |
+          echo "Setting up Pixi environment"
+          export PATH="$HOME/.pixi/bin:$PATH"
+          cd $GITHUB_WORKSPACE
+          pixi install
+
+      - name: Run integration tests
+        run: |
+          echo "Running workflow integration tests"
+          export PATH="$HOME/.pixi/bin:$PATH"
+          cd $GITHUB_WORKSPACE
+          pixi run pytest --cov=beratools --cov-report=term tests/test_workflow.py --maxfail=1 --disable-warnings -s -v --log-cli-level=INFO

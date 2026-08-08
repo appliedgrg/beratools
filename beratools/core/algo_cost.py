@@ -15,8 +15,56 @@ Description:
 
 import numpy as np
 import scipy
+from rasterio.features import geometry_mask
 
 import beratools.core.constants as bt_const
+
+
+def reduce_chm_in_line_buffer(
+    in_chm,
+    meta,
+    line,
+    buffer_width,
+    multiplier=0.5,
+):
+    """Return a CHM copy with valid values reduced inside a line buffer."""
+    buffer_width = float(buffer_width)
+    multiplier = float(multiplier)
+    if buffer_width < 0.0:
+        raise ValueError("buffer_width must be greater than or equal to zero")
+    if not 0.0 <= multiplier <= 1.0:
+        raise ValueError("multiplier must be between zero and one")
+    if line is None or line.is_empty:
+        raise ValueError("line must be a non-empty geometry")
+
+    source = np.ma.asarray(in_chm)
+    if source.ndim == 2:
+        raster_shape = source.shape
+    elif source.ndim == 3 and source.shape[0] == 1:
+        raster_shape = source.shape[1:]
+    else:
+        raise ValueError("in_chm must be a 2D or single-band 3D raster")
+
+    reduced = np.ma.array(source, dtype=float, copy=True)
+    if buffer_width == 0.0 or multiplier == 1.0:
+        return reduced
+
+    inside_buffer = geometry_mask(
+        [line.buffer(buffer_width)],
+        out_shape=raster_shape,
+        transform=meta["transform"],
+        invert=True,
+    )
+    if reduced.ndim == 3:
+        inside_buffer = inside_buffer[np.newaxis, ...]
+
+    data = reduced.data
+    valid = inside_buffer & ~np.ma.getmaskarray(reduced) & np.isfinite(data)
+    nodata = meta.get("nodata")
+    if nodata is not None and np.isfinite(nodata):
+        valid &= data != nodata
+    data[valid] *= multiplier
+    return reduced
 
 
 def cost_raster(

@@ -9,6 +9,9 @@ import subprocess
 import tempfile
 from pathlib import Path
 
+import geopandas as gpd
+from shapely.geometry import LineString
+
 
 def validate_diameter(value):
     try:
@@ -29,6 +32,39 @@ def build_temp_output_same_folder(out_file, suffix=".gpkg", prefix="centerline_t
     fd, temp_path = tempfile.mkstemp(prefix=prefix, suffix=suffix, dir=out_dir)
     os.close(fd)
     return Path(temp_path)
+
+
+def simplify_line_reduce_bend(line: LineString, *, crs, diameter: float, smooth_line=True) -> LineString:
+    if diameter <= 0:
+        return line
+
+    with tempfile.TemporaryDirectory(prefix="beratools_line_simplify_") as temp_dir:
+        temp_path = Path(temp_dir)
+        input_file = temp_path / "input.gpkg"
+        output_file = temp_path / "output.gpkg"
+        in_layer = "line_temp"
+        out_layer = "line_simplified"
+        gdf = gpd.GeoDataFrame([{}], geometry=[line], crs=crs)
+        gdf.to_file(input_file, layer=in_layer)
+        run_reduce_bend(
+            input_file=input_file,
+            in_layer=in_layer,
+            output_file=output_file.as_posix(),
+            out_layer=out_layer,
+            diameter=diameter,
+            smooth_line=smooth_line,
+        )
+        simplified = gpd.read_file(output_file, layer=out_layer)
+        if simplified.empty:
+            raise RuntimeError("geo-simplify returned no features")
+        geom = simplified.geometry.iloc[0]
+        if geom is None or geom.is_empty:
+            raise RuntimeError("geo-simplify returned empty geometry")
+        if geom.geom_type == "MultiLineString" and len(geom.geoms) == 1:
+            geom = geom.geoms[0]
+        if not isinstance(geom, LineString):
+            raise RuntimeError(f"geo-simplify returned unsupported geometry: {geom.geom_type}")
+        return geom
 
 
 def run_reduce_bend(input_file, in_layer, output_file, out_layer, diameter, smooth_line=True):

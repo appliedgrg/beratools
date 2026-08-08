@@ -55,6 +55,20 @@ def generate_line_class_list(
     layer=None,
     proc_segments=True,
     guided_strategy=bt_const.CENTERLINE_GUIDED_STRATEGY.value,
+    centerline_method=bt_const.CENTERLINE_METHOD.value,
+    lcp_simplify_enabled=False,
+    lcp_simplify_diameter=10.0,
+    lcp_smooth_enabled=False,
+    lcp_smooth_iterations=1,
+    chm_mode=bt_const.CENTERLINE_CHM_MODE.value,
+    chm_buffer_width=5.0,
+    chm_buffer_multiplier=0.5,
+    astar_corridor_line_bias_weight=0.1,
+    astar_corridor_distance_penalty_weight=0.2,
+    corridor_simplify_polygon=False,
+    corridor_simplify_length=0.5,
+    corridor_smooth_polygon=False,
+    corridor_polygon_smooth_iterations=1,
 ) -> list:
     line_classes = []
     line_list = algo_common.prepare_lines_gdf(in_vector, layer, proc_segments)
@@ -67,6 +81,20 @@ def generate_line_class_list(
                 proc_segments,
                 line_radius,
                 guided_strategy=guided_strategy,
+                centerline_method=centerline_method,
+                lcp_simplify_enabled=lcp_simplify_enabled,
+                lcp_simplify_diameter=lcp_simplify_diameter,
+                lcp_smooth_enabled=lcp_smooth_enabled,
+                lcp_smooth_iterations=lcp_smooth_iterations,
+                chm_mode=chm_mode,
+                chm_buffer_width=chm_buffer_width,
+                chm_buffer_multiplier=chm_buffer_multiplier,
+                astar_corridor_line_bias_weight=astar_corridor_line_bias_weight,
+                astar_corridor_distance_penalty_weight=astar_corridor_distance_penalty_weight,
+                corridor_simplify_polygon=corridor_simplify_polygon,
+                corridor_simplify_length=corridor_simplify_length,
+                corridor_smooth_polygon=corridor_smooth_polygon,
+                corridor_polygon_smooth_iterations=corridor_polygon_smooth_iterations,
             )
         )
 
@@ -84,9 +112,23 @@ def centerline(
     line_radius,
     proc_segments,
     out_line,
+    centerline_method=bt_const.CENTERLINE_METHOD.value,
     guided_strategy=bt_const.CENTERLINE_GUIDED_STRATEGY.value,
     simplify_centerline=False,
     simplify_diameter=10.0,
+    lcp_simplify_enabled=False,
+    lcp_simplify_diameter=10.0,
+    lcp_smooth_enabled=False,
+    lcp_smooth_iterations=1,
+    chm_mode=bt_const.CENTERLINE_CHM_MODE.value,
+    chm_buffer_width=5.0,
+    chm_buffer_multiplier=0.5,
+    astar_corridor_line_bias_weight=0.1,
+    astar_corridor_distance_penalty_weight=0.2,
+    corridor_simplify_polygon=False,
+    corridor_simplify_length=0.5,
+    corridor_smooth_polygon=False,
+    corridor_polygon_smooth_iterations=1,
     use_angle_grouping=True,
     processes=0,
     call_mode=CallMode.CLI,
@@ -102,8 +144,14 @@ def centerline(
     """
     if isinstance(guided_strategy, str):
         guided_strategy = bt_const.CenterlineStrategy(guided_strategy)
+    if isinstance(centerline_method, str):
+        centerline_method = bt_const.CenterlineMethod(centerline_method)
+    if isinstance(chm_mode, str):
+        chm_mode = bt_const.CenterlineChmMode(chm_mode)
 
     guided_strategy_value = guided_strategy.value
+    centerline_method_value = centerline_method.value
+    chm_mode_value = chm_mode.value
 
     in_file, in_layer = sp_common.decode_file_layer(in_line)
     out_file, out_layer = sp_common.decode_file_layer(out_line)
@@ -116,6 +164,11 @@ def centerline(
         vec_crs_osr,
         line_radius_m,
         "Line Processing Radius (m)",
+    )
+    chm_buffer_width_native = unit_conversion.convert_meters_param_projected_from_osr(
+        vec_crs_osr,
+        float(chm_buffer_width),
+        "CHM Buffer Width (m)",
     )
 
     if not sp_common.compare_crs(vec_crs_osr, sp_common.raster_crs(in_raster)):
@@ -138,6 +191,20 @@ def centerline(
         layer=in_layer,
         proc_segments=proc_segments,
         guided_strategy=guided_strategy_value,
+        centerline_method=centerline_method_value,
+        lcp_simplify_enabled=_to_bool(lcp_simplify_enabled),
+        lcp_simplify_diameter=tool_geo_simplify.validate_diameter(lcp_simplify_diameter),
+        lcp_smooth_enabled=_to_bool(lcp_smooth_enabled),
+        lcp_smooth_iterations=int(lcp_smooth_iterations),
+        chm_mode=chm_mode_value,
+        chm_buffer_width=chm_buffer_width_native,
+        chm_buffer_multiplier=float(chm_buffer_multiplier),
+        astar_corridor_line_bias_weight=float(astar_corridor_line_bias_weight),
+        astar_corridor_distance_penalty_weight=float(astar_corridor_distance_penalty_weight),
+        corridor_simplify_polygon=_to_bool(corridor_simplify_polygon),
+        corridor_simplify_length=float(corridor_simplify_length),
+        corridor_smooth_polygon=_to_bool(corridor_smooth_polygon),
+        corridor_polygon_smooth_iterations=int(corridor_polygon_smooth_iterations),
     )
 
     print("{} lines to be processed.".format(len(line_class_list)))

@@ -1,7 +1,7 @@
 import logging
 
 import pytest
-from shapely.geometry import Point
+from shapely.geometry import Point, Polygon
 
 from beratools.external.polygon_centerline import get_centerline
 from beratools.external.polygon_centerline.exceptions import CenterlineError
@@ -140,6 +140,60 @@ def test_centerline_guided_failure_soft_mode_warns_and_falls_back(footprint_shap
 def test_centerline_guided_strategy_invalid(footprint_shape):
     with pytest.raises(ValueError):
         get_centerline(footprint_shape, guided_strategy="unknown")
+
+
+def test_safe_voronoi_retries_qhull_with_q12(monkeypatch, footprint_shape):
+    calls = []
+
+    class FakeVoronoi:
+        def __init__(self, points, qhull_options=None):
+            calls.append(qhull_options)
+            if qhull_options is None:
+                raise src_module.QhullError("wide merge for facet; Allow with 'Q12'")
+            self.points = points
+
+    monkeypatch.setattr(src_module, "Voronoi", FakeVoronoi)
+
+    outline = src_module._segmentize(footprint_shape.exterior, 1)
+    vor, vor_geom, info = src_module._safe_voronoi_for_polygon(
+        footprint_shape,
+        segmentize_maxlen=1,
+        max_points=3000,
+        simplification=0.05,
+        outline_points=outline.coords,
+    )
+
+    assert isinstance(vor, FakeVoronoi)
+    assert vor_geom.equals(footprint_shape)
+    assert calls == [None, src_module.QHULL_STABILIZED_OPTIONS]
+    assert info["qhull_retry"] == "q12"
+    assert info["polygon_stabilized"] is False
+
+
+def test_safe_voronoi_uses_q12_for_thin_polygon_precheck(monkeypatch):
+    thin_polygon = Polygon([(0, 0), (100, 0), (100, 1), (0, 1), (0, 0)])
+    calls = []
+
+    class FakeVoronoi:
+        def __init__(self, points, qhull_options=None):
+            calls.append(qhull_options)
+            self.points = points
+
+    monkeypatch.setattr(src_module, "Voronoi", FakeVoronoi)
+
+    outline = src_module._segmentize(thin_polygon.exterior, 1)
+    _vor, vor_geom, info = src_module._safe_voronoi_for_polygon(
+        thin_polygon,
+        segmentize_maxlen=1,
+        max_points=3000,
+        simplification=0.05,
+        outline_points=outline.coords,
+    )
+
+    assert vor_geom.equals(thin_polygon)
+    assert calls == [src_module.QHULL_STABILIZED_OPTIONS]
+    assert info["qhull_retry"] == "q12_thin_precheck"
+    assert info["polygon_stabilized"] is False
 
 
 def test_centerline_upstream_kwargs_regression(footprint_shape, footprint_endpoint_areas):

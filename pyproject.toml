@@ -6,7 +6,7 @@ build-backend = "hatchling.build"
 name = "BERATools"
 dynamic = ["version"]
 description = "An advanced forest line feature analysis platform"
-requires-python = ">=3.10"
+requires-python = ">=3.12,<3.15"
 readme = "README.md"
 license = { text = "GPL-3.0-or-later" }
 authors = [
@@ -21,20 +21,19 @@ classifiers = [
     "Intended Audience :: Developers",
     "License :: OSI Approved :: GNU General Public License v3 (GPLv3)",
     "Natural Language :: English",
-    "Programming Language :: Python :: 3.10",
-    "Programming Language :: Python :: 3.11",
     "Programming Language :: Python :: 3.12",
     "Programming Language :: Python :: 3.13",
     "Programming Language :: Python :: 3.14",
 ]
 
 dependencies = [
-    "gdal; platform_system != 'Windows'",
+    "gdal>=3.12,<4; platform_system != 'Windows'",
     "geopandas",
     "networkit",
-    "pyogrio>=0.9.0",
+    "numpy>=1.26,<2.4",
+    "pyogrio>=0.12.0",
     "PyQt5",
-    "rasterio",
+    "rasterio>=1.5.0",
     "scikit-image>=0.24.0",
     "tabulate",
     "tqdm",
@@ -56,7 +55,6 @@ dev = [
     "twine"
 ]
 test = [
-    "gdal==3.8.4",
     "pytest",
     "pytest-qt",
     "pywinauto; platform_system == 'Windows'",
@@ -77,7 +75,7 @@ beratools = "beratools.cli.entry:run"
 Homepage = "https://github.com/appliedgrg/beratools"
 
 [tool.beratools]
-gdal_url = "https://github.com/cgohlke/geospatial-wheels/releases/download/v2025.10.25/gdal-3.11.4-cp311-cp311-win_amd64.whl"
+gdal_url = "https://github.com/cgohlke/geospatial-wheels/releases/download/v2026.2.26/gdal-3.12.2-cp312-cp312-win_amd64.whl"
 
 [tool.hatch.metadata]
 allow-direct-references = true
@@ -129,11 +127,11 @@ exclude = [
 ]
 
 # Target Python version
-target-version = "py311"
+target-version = "py312"
 
 # mypy settings
 [tool.mypy]
-python_version = "3.11"
+python_version = "3.12"
 
 ignore_missing_imports = true
 disallow_untyped_defs = false

@@ -15,7 +15,7 @@ jobs:
     timeout-minutes: 60
     strategy:
       matrix:
-        python-version: ["3.11"]
+        python-version: ["3.12"]
 
     steps:
       - name: Checkout
@@ -103,6 +103,47 @@ jobs:
 
           echo "✅ Artifacts staged in dist/conda:"
           ls -lah dist/conda
+
+      - name: Set up conda smoke-test environment
+        if: steps.tag_guard.outputs.on_main == 'true'
+        uses: mamba-org/setup-micromamba@v2
+        with:
+          environment-name: bera-conda-smoke
+          create-args: >-
+            python=3.12
+            pytest
+          condarc: |
+            channel_priority: strict
+            channels:
+              - appliedgrg
+              - conda-forge
+          cache-environment: false
+
+      - name: Validate built conda package
+        if: steps.tag_guard.outputs.on_main == 'true'
+        shell: bash -el {0}
+        run: |
+          set -euo pipefail
+          shopt -s nullglob
+
+          files=(dist/conda/*.conda dist/conda/*.tar.bz2)
+          if [ ${#files[@]} -eq 0 ]; then
+            echo "❌ No package artifacts found to validate."
+            exit 1
+          fi
+
+          echo "📦 Installing built package artifact(s):"
+          printf '  %s\n' "${files[@]}"
+          micromamba install -n bera-conda-smoke -y -c appliedgrg -c conda-forge "${files[@]}"
+
+          echo "🔎 Smoke testing installed package"
+          micromamba run -n bera-conda-smoke python -c "import beratools; print(beratools.__version__)"
+          micromamba run -n bera-conda-smoke python -c "from osgeo import gdal; print(gdal.VersionInfo('--version'))"
+          micromamba run -n bera-conda-smoke bt --help
+          micromamba run -n bera-conda-smoke beratools --help
+
+          echo "🧪 Running package integration test"
+          micromamba run -n bera-conda-smoke pytest tests/test_workflow.py --maxfail=1 -q
 
       - name: Upload to Anaconda.org (binstar)
         if: steps.tag_guard.outputs.on_main == 'true'

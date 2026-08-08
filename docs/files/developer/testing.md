@@ -4,10 +4,11 @@ BERA Tools employs a `pytest` framework to ensure code quality and reliability. 
 
 ## Testing Workflows
 
-- **pytest**: All code is tested using the pytest framework. Tests are located in the `tests` directory and cover modules, tools, and workflows.
-- **Test triggers**: Tests run automatically on push and pull request events affecting `beratools` via GitHub Actions.
-- **Coverage**: Test coverage is measured and reported to Codecov.
-- **Matrix testing**: The `tox.yml` workflow runs tests across multiple Python versions (3.10–3.14) to ensure compatibility.
+- **pytest**: Tests use pytest and are located in the `tests` directory. The automated workflows described below run only `tests/test_workflow.py`, not the complete test suite.
+- **Automatic integration testing**: The `python-integration-tests.yml` workflow runs `tests/test_workflow.py` on pushes to `main` and on qualifying pull requests targeting `main` when its configured path filters match.
+- **Coverage**: Coverage from `tests/test_workflow.py` is printed in the GitHub Actions job log; it is not uploaded to an external service.
+- **Runtime environment**: The automatic integration workflow uses the Pixi-managed Python 3.12/GDAL environment.
+- **Manual compatibility testing**: The dispatch-only `python-compatibility-tests.yml` workflow runs `tests/test_workflow.py` through tox in Python 3.12, 3.13, and 3.14 micromamba environments with conda-forge GDAL.
 
 ## Running Tests Locally
 
@@ -43,11 +44,11 @@ To run tests locally, follow these steps:
 
 BERA Tools uses GitHub Actions to automate testing and deployment processes. This document describes the various workflows set up in the repository to ensure code quality and streamline releases.
 
-1. **tox.yml**: This workflow runs tests across multiple Python versions (3.10 to 3.14) using `tox`. It ensures that the codebase is compatible with all supported Python versions.
+1. **python-compatibility-tests.yml**: This dispatch-only workflow runs `tests/test_workflow.py` through tox under Python 3.12, 3.13, and 3.14 in micromamba environments with conda-forge GDAL and native geospatial libraries.
 
-1. **python-tests.yml**: This workflow runs the test suite using `pytest` whenever code is pushed to the repository or a pull request is created. It helps catch issues early in the development process.
+2. **python-integration-tests.yml**: This automatic workflow runs `tests/test_workflow.py` with terminal coverage on pushes to `main` and qualifying pull requests targeting `main`.
 
-Refer to the [Maintainer Guide](./maintainer.md#pull-request-to-main) for more information on these workflows.
+Refer to the [Maintainer Guide](./maintainer.md#automatic-integration-tests) for more information on these workflows.
 
 ## Write Tests
 

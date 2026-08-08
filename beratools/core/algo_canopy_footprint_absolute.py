@@ -30,6 +30,7 @@ from skimage.graph import MCP_Flexible
 
 import beratools.core.algo_common as algo_common
 import beratools.core.algo_cost as algo_cost
+import beratools.core.algo_geometry as algo_geometry
 import beratools.core.constants as bt_const
 import beratools.core.tool_base as bt_base
 import beratools.utility.spatial_common as sp_common
@@ -54,6 +55,10 @@ class CanopyFootprintRequest:
     canopy_avoidance: float | None = None
     exponent: float | None = None
     canopy_thresh_percentage: float | None = None
+    simplify_footprint_polygon: bool = True
+    footprint_simplify_length: float = 0.5
+    smooth_footprint_polygon: bool = False
+    footprint_polygon_smooth_iterations: int = 1
 
 
 @dataclass
@@ -86,8 +91,48 @@ def cast_request_types(request: CanopyFootprintRequest) -> CanopyFootprintReques
         request.exponent = float(request.exponent)
     if request.canopy_thresh_percentage is not None:
         request.canopy_thresh_percentage = float(request.canopy_thresh_percentage)
+    request.simplify_footprint_polygon = _to_bool(request.simplify_footprint_polygon)
+    request.footprint_simplify_length = float(request.footprint_simplify_length)
+    request.smooth_footprint_polygon = _to_bool(request.smooth_footprint_polygon)
+    request.footprint_polygon_smooth_iterations = int(request.footprint_polygon_smooth_iterations)
 
     return request
+
+
+def _to_bool(value):
+    if isinstance(value, bool):
+        return value
+    if isinstance(value, str):
+        lowered = value.strip().lower()
+        if lowered in {"true", "1", "yes", "y", "on"}:
+            return True
+        if lowered in {"false", "0", "no", "n", "off"}:
+            return False
+    return bool(value)
+
+
+def process_footprint_polygon_gdf(
+    footprint_gdf,
+    *,
+    simplify_footprint_polygon=True,
+    footprint_simplify_length=0.5,
+    smooth_footprint_polygon=False,
+    footprint_polygon_smooth_iterations=1,
+):
+    if footprint_gdf is None or footprint_gdf.empty:
+        return footprint_gdf
+
+    processed = footprint_gdf.copy()
+    processed.geometry = processed.geometry.apply(
+        lambda geom: algo_geometry.process_corridor_polygon(
+            geom,
+            simplify=simplify_footprint_polygon,
+            simplify_length=footprint_simplify_length,
+            smooth=smooth_footprint_polygon,
+            smooth_iterations=footprint_polygon_smooth_iterations,
+        )
+    )
+    return processed
 
 
 def save_main_footprint(
@@ -188,6 +233,11 @@ class FootprintCanopyAdaptive:
         canopy_avoidance=0.0,
         exponent=1.0,
         canopy_thresh_percentage=50.0,
+        exp_shk_cell=0,
+        simplify_footprint_polygon=True,
+        footprint_simplify_length=0.5,
+        smooth_footprint_polygon=False,
+        footprint_polygon_smooth_iterations=1,
     ):
         in_file, in_layer = sp_common.decode_file_layer(in_geom)
         data = algo_common.read_geospatial_file(in_file, layer=in_layer)
@@ -206,6 +256,11 @@ class FootprintCanopyAdaptive:
                 canopy_avoidance=canopy_avoidance,
                 exponent=exponent,
                 canopy_thresh_percentage=canopy_thresh_percentage,
+                exp_shk_cell=exp_shk_cell,
+                simplify_footprint_polygon=simplify_footprint_polygon,
+                footprint_simplify_length=footprint_simplify_length,
+                smooth_footprint_polygon=smooth_footprint_polygon,
+                footprint_polygon_smooth_iterations=footprint_polygon_smooth_iterations,
             )
             self.lines.append(line)
 
@@ -294,6 +349,11 @@ class LineInfo:
         canopy_avoidance=0.0,
         exponent=1.0,
         canopy_thresh_percentage=50.0,
+        exp_shk_cell=0,
+        simplify_footprint_polygon=True,
+        footprint_simplify_length=0.5,
+        smooth_footprint_polygon=False,
+        footprint_polygon_smooth_iterations=1,
     ):
         self.line = line_gdf
         self.in_chm = in_chm
@@ -309,6 +369,11 @@ class LineInfo:
         self.canopy_thresh_percentage = canopy_thresh_percentage
         self.canopy_avoidance = canopy_avoidance
         self.exponent = exponent
+        self.exp_shk_cell = exp_shk_cell
+        self.simplify_footprint_polygon = _to_bool(simplify_footprint_polygon)
+        self.footprint_simplify_length = float(footprint_simplify_length)
+        self.smooth_footprint_polygon = _to_bool(smooth_footprint_polygon)
+        self.footprint_polygon_smooth_iterations = int(footprint_polygon_smooth_iterations)
         self.max_line_width = max_line_width
         self.max_line_dist = max_line_dist
         self.tree_radius = tree_radius
@@ -336,6 +401,13 @@ class LineInfo:
             self.footprint = None
             return
         self.footprint = merged
+        self.footprint = process_footprint_polygon_gdf(
+            self.footprint,
+            simplify_footprint_polygon=self.simplify_footprint_polygon,
+            footprint_simplify_length=self.footprint_simplify_length,
+            smooth_footprint_polygon=self.smooth_footprint_polygon,
+            footprint_polygon_smooth_iterations=self.footprint_polygon_smooth_iterations,
+        )
 
         # Transfer group value to footprint if present
         if bt_const.BT_GROUP in self.line.columns:
@@ -667,7 +739,7 @@ class LineInfo:
 
             corridor_thresh = np.ma.where(corridor_norm >= corridor_threshold, 1.0, 0.0)
             clean_raster = algo_common.morph_raster(
-                corridor_thresh, canopy_raster, self.exponent, cell_size_x
+                corridor_thresh, canopy_raster, self.exp_shk_cell, cell_size_x
             )
 
             # create mask for non-polygon area
@@ -719,12 +791,20 @@ class FootprintCanopyAbsolute:
         corridor_thresh,
         max_ln_width,
         exp_shk_cell,
+        simplify_footprint_polygon=True,
+        footprint_simplify_length=0.5,
+        smooth_footprint_polygon=False,
+        footprint_polygon_smooth_iterations=1,
     ):
         self.line_seg = line_seg
         self.in_chm = in_chm
         self.corridor_thresh = corridor_thresh
         self.max_ln_width = max_ln_width
         self.exp_shk_cell = exp_shk_cell
+        self.simplify_footprint_polygon = _to_bool(simplify_footprint_polygon)
+        self.footprint_simplify_length = float(footprint_simplify_length)
+        self.smooth_footprint_polygon = _to_bool(smooth_footprint_polygon)
+        self.footprint_polygon_smooth_iterations = int(footprint_polygon_smooth_iterations)
 
         self.footprint = None
         self.corridor_poly_gpd = None
@@ -752,7 +832,20 @@ class FootprintCanopyAbsolute:
             raster["cell_size_x"],
         )
         self.footprint = self.build_candidate_polygon(clean_raster, raster["out_transform"])
-        self.postprocess_output(corridor_thresh, raster["out_transform"], prep["line_gpd"], prep["feat"])
+        self.footprint = process_footprint_polygon_gdf(
+            self.footprint,
+            simplify_footprint_polygon=self.simplify_footprint_polygon,
+            footprint_simplify_length=self.footprint_simplify_length,
+            smooth_footprint_polygon=self.smooth_footprint_polygon,
+            footprint_polygon_smooth_iterations=self.footprint_polygon_smooth_iterations,
+        )
+        self.postprocess_output(
+            corridor_thresh,
+            raster["out_transform"],
+            prep["line_gpd"],
+            prep["feat"],
+            self.exp_shk_cell,
+        )
 
     def prepare_inputs(self):
         corridor_thresh = self.corridor_thresh
@@ -832,10 +925,12 @@ class FootprintCanopyAbsolute:
         footprint.set_crs(crs_str, inplace=True)
         return footprint
 
-    def postprocess_output(self, corridor_thresh, out_transform, line_gpd, feat):
+    def postprocess_output(self, corridor_thresh, out_transform, line_gpd, feat, exp_shk_cell=0):
         import beratools.core.algo_centerline as algo_cl
 
-        corridor_poly_gpd = algo_cl.find_corridor_polygon(corridor_thresh, out_transform, line_gpd)
+        corridor_poly_gpd = algo_cl.find_corridor_polygon(
+            corridor_thresh, out_transform, line_gpd, exp_shk_cell=exp_shk_cell
+        )
         centerline, _status = algo_cl.find_centerline(corridor_poly_gpd.geometry.iloc[0], feat)
 
         self.corridor_poly_gpd = corridor_poly_gpd
@@ -858,6 +953,10 @@ def generate_absolute_line_class_list(
     corridor_thresh,
     max_ln_width,
     exp_shk_cell,
+    simplify_footprint_polygon=True,
+    footprint_simplify_length=0.5,
+    smooth_footprint_polygon=False,
+    footprint_polygon_smooth_iterations=1,
     in_layer=None,
 ):
     """Build absolute footprint work list."""
@@ -867,7 +966,17 @@ def generate_absolute_line_class_list(
 
     for line in line_list:
         line_classes.append(
-            FootprintCanopyAbsolute(line, in_chm, corridor_thresh, max_ln_width, exp_shk_cell)
+            FootprintCanopyAbsolute(
+                line,
+                in_chm,
+                corridor_thresh,
+                max_ln_width,
+                exp_shk_cell,
+                simplify_footprint_polygon=simplify_footprint_polygon,
+                footprint_simplify_length=footprint_simplify_length,
+                smooth_footprint_polygon=smooth_footprint_polygon,
+                footprint_polygon_smooth_iterations=footprint_polygon_smooth_iterations,
+            )
         )
 
     return line_classes

@@ -4,7 +4,7 @@ import networkx as nx
 from networkx.exception import NetworkXNoPath
 import numpy as np
 import operator
-from scipy.spatial import Voronoi
+from scipy.spatial import QhullError, Voronoi
 from scipy.ndimage import gaussian_filter1d
 from shapely.geometry import LineString, MultiLineString, Point, MultiPoint
 
@@ -17,6 +17,18 @@ logger = logging.getLogger(__name__)
 
 ANGLE_PENALTY_WEIGHT = 0.02
 GUIDED_PATH_CANDIDATE_LIMIT = 40
+QHULL_STABILIZED_OPTIONS = "Qbb Qc Qz Q12"
+THIN_POLYGON_RATIO = 0.02
+_LAST_CENTERLINE_INFO = {}
+
+
+def get_last_centerline_info():
+    return dict(_LAST_CENTERLINE_INFO)
+
+
+def _set_last_centerline_info(**kwargs):
+    _LAST_CENTERLINE_INFO.clear()
+    _LAST_CENTERLINE_INFO.update(kwargs)
 
 
 def filter_nodes(geom, graph, vor, end_nodes):
@@ -90,6 +102,11 @@ def get_centerline(
 
     """
     logger.debug("geometry type %s", geom.geom_type)
+    _set_last_centerline_info(
+        qhull_retry="none",
+        polygon_stabilized=False,
+        thin_polygon_ratio=None,
+    )
 
     valid_endpoint_modes = {"strict", "soft"}
     if endpoint_mode not in valid_endpoint_modes:
@@ -117,8 +134,15 @@ def get_centerline(
 
         # calculate Voronoi diagram and convert to graph but only use points
         # from within the original polygon
-        vor = Voronoi(outline_points)
-        graph = _graph_from_voronoi(vor, geom)
+        vor, vor_geom, vor_info = _safe_voronoi_for_polygon(
+            geom,
+            segmentize_maxlen,
+            max_points,
+            simplification,
+            outline_points,
+        )
+        _set_last_centerline_info(**vor_info)
+        graph = _graph_from_voronoi(vor, vor_geom)
         logger.debug("voronoi diagram: %s", _multilinestring_from_voronoi(vor, geom))
 
         # determine longest path between all end nodes from graph
@@ -342,6 +366,110 @@ def _segmentize(geom, max_len):
         # finally, add end point
         points.append(current)
     return LineString(points)
+
+
+def _safe_voronoi_for_polygon(geom, segmentize_maxlen, max_points, simplification, outline_points):
+    """Build Voronoi while suppressing noisy Qhull precision dumps."""
+    thin_ratio = _polygon_thin_ratio(geom)
+    is_thin_polygon = thin_ratio is not None and thin_ratio < THIN_POLYGON_RATIO
+    info = {
+        "qhull_retry": "none",
+        "polygon_stabilized": False,
+        "thin_polygon_ratio": thin_ratio,
+    }
+
+    q12_failed = False
+    if is_thin_polygon:
+        try:
+            info["qhull_retry"] = "q12_thin_precheck"
+            return Voronoi(outline_points, qhull_options=QHULL_STABILIZED_OPTIONS), geom, info
+        except QhullError as e:
+            q12_failed = True
+            logger.info(
+                "Thin polygon precheck Q12 retry failed; retrying with a tiny stabilized footprint. %s",
+                _qhull_error_summary(e),
+            )
+
+    if not q12_failed:
+        try:
+            return Voronoi(outline_points), geom, info
+        except QhullError as e:
+            logger.info(
+                "Voronoi failed for likely thin/degenerate polygon; retrying with Q12. %s",
+                _qhull_error_summary(e),
+            )
+
+        try:
+            info["qhull_retry"] = "q12"
+            return Voronoi(outline_points, qhull_options=QHULL_STABILIZED_OPTIONS), geom, info
+        except QhullError as e:
+            logger.info(
+                "Voronoi Q12 retry failed; retrying with a tiny stabilized footprint. %s",
+                _qhull_error_summary(e),
+            )
+
+    stabilized = _stabilize_polygon_for_voronoi(geom, segmentize_maxlen, thin_ratio)
+    stabilized_outline = _segmentize(stabilized.exterior, segmentize_maxlen)
+    stabilized_points = stabilized_outline.coords
+    simplification_updated = simplification
+    while len(stabilized_points) > max_points:
+        simplification_updated += simplification
+        stabilized_points = stabilized_outline.simplify(simplification_updated).coords
+
+    try:
+        info["qhull_retry"] = "q12_buffered_polygon"
+        info["polygon_stabilized"] = True
+        return Voronoi(stabilized_points, qhull_options=QHULL_STABILIZED_OPTIONS), geom, info
+    except QhullError as e:
+        raise CenterlineError(
+            "Voronoi failed for thin/degenerate polygon after stabilized retry"
+        ) from e
+
+
+def _polygon_thin_ratio(geom):
+    try:
+        rect = geom.minimum_rotated_rectangle
+        coords = list(rect.exterior.coords)
+    except Exception:
+        return None
+
+    if len(coords) < 4:
+        return None
+
+    side_lengths = [Point(coords[i]).distance(Point(coords[i + 1])) for i in range(4)]
+    positive_lengths = [length for length in side_lengths if length > 0]
+    if len(positive_lengths) < 2:
+        return None
+
+    short_side = min(positive_lengths)
+    long_side = max(positive_lengths)
+    if long_side <= 0:
+        return None
+    return short_side / long_side
+
+
+def _stabilize_polygon_for_voronoi(geom, segmentize_maxlen, thin_ratio):
+    bounds_width = max(geom.bounds[2] - geom.bounds[0], geom.bounds[3] - geom.bounds[1])
+    if bounds_width <= 0:
+        bounds_width = segmentize_maxlen
+    buffer_distance = min(segmentize_maxlen * 0.1, bounds_width * 0.001)
+    if thin_ratio is not None and thin_ratio < THIN_POLYGON_RATIO:
+        buffer_distance = min(segmentize_maxlen * 0.25, max(buffer_distance, bounds_width * 0.0005))
+    buffer_distance = max(buffer_distance, 1e-9)
+
+    stabilized = geom.buffer(buffer_distance)
+    if not stabilized or stabilized.is_empty:
+        return geom
+    return stabilized
+
+
+def _qhull_error_summary(error):
+    message = str(error).splitlines()
+    for line in message:
+        stripped = line.strip()
+        if stripped:
+            return stripped
+    return error.__class__.__name__
 
 
 def _smooth_linestring(linestring, smooth_sigma):

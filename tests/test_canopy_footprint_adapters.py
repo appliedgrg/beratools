@@ -127,6 +127,29 @@ def test_canopy_footprint_abs_converts_max_ln_width_meters_to_native_units(monke
         "beratools.tools.canopy_footprint_absolute.sp_common.vector_crs",
         lambda *_args, **_kwargs: _FakeOSR(pyproj.CRS.from_epsg(2263).to_wkt()),
     )
+    monkeypatch.setattr(
+        "beratools.tools.canopy_footprint_absolute.sp_common.raster_crs",
+        lambda *_args, **_kwargs: object(),
+    )
+    monkeypatch.setattr(
+        "beratools.tools.canopy_footprint_absolute.sp_common.compare_crs",
+        lambda *_args, **_kwargs: True,
+    )
+    monkeypatch.setattr(
+        "beratools.tools.canopy_footprint_absolute.sp_common.check_vector_raster_extent_overlap",
+        lambda *_args, **_kwargs: True,
+    )
+    monkeypatch.setattr(
+        "beratools.tools.canopy_footprint_absolute.gpd.read_file",
+        lambda *_args, **_kwargs: gpd.GeoDataFrame(
+            geometry=[sh_geom.LineString([(0.0, 0.0), (1.0, 0.0)])],
+            crs="EPSG:2263",
+        ),
+    )
+    monkeypatch.setattr(
+        "beratools.tools.canopy_footprint_absolute.sp_common.check_vector_raster_overlap",
+        lambda *_args, **_kwargs: True,
+    )
 
     def _fake_run_absolute(req):
         captured["max_ln_width"] = req.max_ln_width
@@ -196,6 +219,7 @@ def test_run_adaptive_request_preserves_float_threshold_inputs(monkeypatch):
             in_chm="dummy.tif",
             out_footprint="out.gpkg|fp",
             max_ln_width=32.7,
+            exp_shk_cell=2,
             canopy_thresh_percentage=55.5,
             processes=0,
         )
@@ -204,6 +228,7 @@ def test_run_adaptive_request_preserves_float_threshold_inputs(monkeypatch):
     _run_adaptive_request(req)
 
     assert captured["max_line_width"] == 32.7
+    assert captured["exp_shk_cell"] == 2
     assert captured["canopy_thresh_percentage"] == 55.5
 
 

@@ -5,7 +5,7 @@ Tests window setup, button presence, tree view navigation,
 tool switching, slider, and advanced options toggle.
 """
 
-from unittest.mock import patch
+from unittest.mock import MagicMock, patch
 
 import pytest
 from PyQt5 import QtCore
@@ -39,6 +39,17 @@ class TestMainWindowBasics:
 
     def test_window_visible(self, main_window):
         assert main_window.isVisible()
+
+    def test_stale_recent_tool_falls_back_to_centerline(self, qtbot, monkeypatch):
+        from beratools.gui import bt_gui_main
+
+        monkeypatch.setattr(bt_gui_main.bt, "recent_tool", "Missing Tool")
+
+        window = bt_gui_main.MainWindow()
+        qtbot.addWidget(window)
+
+        assert window.recent_tool is None
+        assert window.tool_name == "Centerline"
 
     def test_run_button_exists(self, main_window):
         assert main_window.btn_run is not None
@@ -331,6 +342,21 @@ class TestTreeView:
 
         search.setText("")
 
+    def test_stale_recent_tool_falls_back_to_centerline(self, qtbot, monkeypatch):
+        from beratools.gui import bt_gui_main
+
+        monkeypatch.setattr(bt_gui_main.bt, "recent_tool", "Missing Tool")
+
+        tree_view = bt_gui_main.BTTreeView()
+        qtbot.addWidget(tree_view)
+
+        index = tree_view.tree_sel_model.currentIndex()
+        source_index = tree_view.tags_model.mapToSource(index)
+        item = tree_view.tree_model.itemFromIndex(source_index)
+
+        assert item is not None
+        assert item.text() == "Centerline"
+
 
 class TestKeyboardInput:
     def test_search_box_key_clicks_filters_and_clears(self, main_window, qtbot):
@@ -446,9 +472,9 @@ class TestSlider:
         low = slider_widget.slider.minimum()
         high = slider_widget.slider.maximum()
 
-        slider_widget.slider_moved(low)
+        slider_widget.slider.setValue(low)
         assert str(low) in slider_widget.label.text()
-        slider_widget.slider_moved(high)
+        slider_widget.slider.setValue(high)
         assert str(high) in slider_widget.label.text()
 
     def test_update_procs_sets_selected_cores(self, main_window):
@@ -496,7 +522,9 @@ class TestProcessSignals:
     def test_finished_signal_resets_progress(self, main_window, qtbot):
         emitter = _ProcessEmitter()
         emitter.finished.connect(main_window.process_finished)
-        main_window.process = object()
+        main_window.process = MagicMock()
+        main_window.process.readAllStandardOutput.return_value = b""
+        main_window.process.readAllStandardError.return_value = b""
         main_window.progress_bar.setValue(67)
         main_window.progress_label.setText("Running")
 

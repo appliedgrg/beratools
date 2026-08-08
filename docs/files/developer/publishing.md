@@ -20,10 +20,15 @@ See the following workflows:
 
 - Conda Packaging and Release: [publish_to_anaconda.yml](https://github.com/appliedgrg/beratools/blob/main/.github/workflows/publish_to_anaconda.yml)
 - PyPI Packaging and Release: [publish_to_pypi.yml](https://github.com/appliedgrg/beratools/blob/main/.github/workflows/publish_to_pypi.yml)
-- TestPyPI Packaging (manual): [publish_to_pypi_test.yml](https://github.com/appliedgrg/beratools/blob/main/.github/workflows/publish_to_pypi_test.yml)
 - Windows Installer Build and Signing: [build-win-installer.yml](https://github.com/appliedgrg/beratools/blob/main/.github/workflows/build-win-installer.yml)
 
 See the workflow inventory in the [Maintainer Guide](maintainer.md#actions).
+
+### Re-running a Failed PyPI Publication
+
+If `publish_to_pypi.yml` fails before PyPI accepts any distribution files, a maintainer with write access can open the original GitHub Actions run and select **Re-run jobs -> Re-run failed jobs**. GitHub rebuilds and republishes from the same version tag, commit SHA, Git ref, and trusted-publishing identity. Workflow runs can be rerun for up to 30 days.
+
+Before rerunning, confirm that the version has no files on PyPI. If PyPI accepted any files before the failure, do not rerun blindly: distribution filenames are immutable and duplicate uploads fail. Inspect the release and publish a new patch version if the release is incomplete. A rerun also uses the workflow definition from the tagged commit, so a defect in the workflow itself must be fixed before creating a new release tag.
 
 ## Windows Installer Signing
 
@@ -104,12 +109,4 @@ After any portal or artifact-configuration change, run the manual signing test. 
 
 [Anaconda BERA Tools](https://anaconda.org/appliedgrg/beratools)
 
-[Pypi BERA Tools](https://pypi.org/project/BERATools)
-
-## TestPyPI (Manual Validation)
-
-For release rehearsals or packaging checks, maintainers can trigger the TestPyPI workflow manually.
-
-1. Go to **Actions** in GitHub and select **Publish to PyPI Test**.
-2. Click **Run workflow** to trigger the `workflow_dispatch` job.
-3. The workflow builds the package and publishes it to TestPyPI.
+[PyPI BERA Tools](https://pypi.org/project/BERATools)
