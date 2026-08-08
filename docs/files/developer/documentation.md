@@ -36,32 +36,32 @@ By following these guidelines, you can help ensure that BERA Tools documentation
 
 ## Developing Documentation Locally
 
-Use the Conda environment `data` to build and preview the documentation locally.
+Activate the development environment described in the [local development setup](development.md#local-development-setup), then run these commands from the repository root.
 
 1. Install the required dependencies from the repository root:
 
-   ```powershell
-   conda run -n data python -m pip install -r docs/files/requirements.txt
+   ```console
+   python -m pip install -r docs/files/requirements.txt
    ```
 
    Alternatively, install the documentation extra from `pyproject.toml`:
 
-   ```powershell
-   conda run -n data python -m pip install ".[doc]"
+   ```console
+   python -m pip install ".[doc]"
    ```
 
 2. Serve the documentation locally. This starts a development server that automatically rebuilds when files change:
 
-   ```powershell
-   conda run -n data zensical serve -f docs/mkdocs.yml
+   ```console
+   zensical serve -f docs/mkdocs.yml
    ```
 
    Open `http://127.0.0.1:8000` to preview the site.
 
 3. Build the documentation. This generates the static site in `docs/site/`:
 
-   ```powershell
-   conda run -n data zensical build -f docs/mkdocs.yml
+   ```console
+   zensical build -f docs/mkdocs.yml
    ```
 
 ## Deployment
