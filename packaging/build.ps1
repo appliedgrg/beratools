@@ -7,14 +7,19 @@ Write-Host "=== Beratools Windows Installer Build ===" -ForegroundColor Cyan
 
 $scriptDir = Split-Path -Parent $MyInvocation.MyCommand.Definition
 
-# Get version from git tag
-$version = (git describe --tags --abbrev=0 2>$null)
-if (-not $version) {
-    $version = "0.0.0"
-    Write-Host "No git tag found, using default version: $version" -ForegroundColor Yellow
+# Use the verified CI release version when provided; local and test builds fall back to Git.
+$version = ([string]$env:APP_VERSION).Trim()
+if ($version) {
+    Write-Host "Version from APP_VERSION: $version" -ForegroundColor Green
 } else {
-    $version = $version.TrimStart('v')
-    Write-Host "Version from git tag: $version" -ForegroundColor Green
+    $version = (git describe --tags --abbrev=0 2>$null)
+    if (-not $version) {
+        $version = "0.0.0"
+        Write-Host "No git tag found, using default version: $version" -ForegroundColor Yellow
+    } else {
+        $version = $version.TrimStart('v')
+        Write-Host "Version from git tag: $version" -ForegroundColor Green
+    }
 }
 $env:APP_VERSION = $version
 
