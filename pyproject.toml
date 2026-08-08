@@ -61,14 +61,12 @@ test = [
     "pytest-qt",
     "pywinauto; platform_system == 'Windows'",
 ]
+# Zensical consumes docs/mkdocs.yml through its supported compatibility layer.
 doc = [
-    "mkdocs",
-    "mkdocs-material",
+    "zensical==0.0.53",
     "mkdocstrings",
     "mkdocstrings-python",
     "pymdown-extensions",
-    "mkdocs-git-revision-date-localized-plugin",
-    "click==8.2.1",
 ]
 
 [project.scripts]

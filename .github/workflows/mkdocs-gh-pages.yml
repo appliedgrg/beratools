@@ -11,11 +11,15 @@ on:
       - main
     paths:
       - 'docs/**'
+      - 'pyproject.toml'
+      - '.github/workflows/mkdocs-gh-pages.yml'
   push:
     branches:
       - main
     paths:
       - 'docs/**'
+      - 'pyproject.toml'
+      - '.github/workflows/mkdocs-gh-pages.yml'
 
 jobs:
   test-docs:
