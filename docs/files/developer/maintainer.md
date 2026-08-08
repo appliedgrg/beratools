@@ -32,9 +32,9 @@ Here is a summary of the actions defined in all workflow files in `.github/workf
 ### Push to main
 
 - __mkdocs-gh-pages.yml__
-    - Summary: Documentation deployment workflow that builds and publishes docs on changes to `docs/**`.
-    - Trigger: On push to `main` affecting `docs/**`.
-    - Deploys MkDocs documentation to GitHub Pages.
+    - Summary: Zensical validation and deployment workflow for documentation inputs.
+    - Trigger: On pull requests and pushes to `main` affecting documentation, its dependencies, or the workflow.
+    - Builds with Zensical and deploys the generated artifact to GitHub Pages on pushes.
 
 ### Pull request to main
 
@@ -94,7 +94,7 @@ flowchart LR
     Start([Code Change]) --> CheckType{Push to GitHub}
     
     CheckType -->|Push to main| Files{Files changed}
-    Files -->|docs/**| Mkdocs[Deploy Docs]
+    Files -->|Documentation inputs| Zensical[Deploy Docs]
     Files -->|beratools/**| Pytest[CI Tests]
     
     CheckType -->|PR to main| PR[PR Validation]
@@ -119,7 +119,7 @@ flowchart LR
     classDef manual fill:#f3e5f5,stroke:#6a1b9a
     classDef rel fill:#e8f5e9,stroke:#2e7d32
     
-    class Mkdocs,Pytest push
+    class Zensical,Pytest push
     class PyPITest,InstallerMode,InstallerTest,TestSign,SignedTest manual
     class Tox pr
     class Anaconda,PyPI,WindowsInstaller,SignPathApproval,SignedRelease rel

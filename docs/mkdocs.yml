@@ -1,3 +1,4 @@
+# Zensical compatibility configuration. Build with `zensical`, not `mkdocs`.
 site_name: BERA Tools Guide
 
 theme:
@@ -108,8 +109,6 @@ nav:
 
 plugins:
   - search
-  - git-revision-date-localized:
-      type: date
   - mkdocstrings:
       handlers:
         python:
@@ -142,5 +141,4 @@ plugins:
             - url: https://shapely.readthedocs.io/en/stable/objects.inv
             - url: https://numpy.org/doc/stable/objects.inv
             - url: https://pandas.pydata.org/pandas-docs/stable/objects.inv
-
 

@@ -1,10 +1,10 @@
-# Markdownlint configuration for MkDocs documentation
+# Markdownlint configuration for Zensical documentation
 
 # Enable all rules by default
 default: true
 
 # MD007: Unordered list indentation
-# MkDocs uses 4 spaces for nested lists
+# The documentation uses 4 spaces for nested lists
 MD007:
   indent: 4
 

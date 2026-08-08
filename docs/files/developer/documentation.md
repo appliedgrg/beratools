@@ -1,6 +1,6 @@
 # Documentation
 
-BERA Tools uses MkDocs for user/developer/API documentation. MkDocs is a static site generator that's geared towards project documentation. The documentation source files are written in Markdown and are located in the `docs/` folder of the GitHub repository.
+BERA Tools uses [Zensical](https://zensical.org/) for user, developer, and API documentation. The documentation source files are written in Markdown and are located in the `docs/` folder of the GitHub repository. Zensical reads the existing `mkdocs.yml` through its supported compatibility layer; use the `zensical` CLI rather than invoking `mkdocs` directly.
 
 ## Documentation File Structure
 
@@ -11,7 +11,7 @@ docs/
 │   ├── developer_guide.md  # Developer guide
 │   ├── index.md            # Documentation homepage
 │   ├── overview.md         # Project overview
-│   ├── requirements.txt    # Python requirements for mkdocs
+│   ├── requirements.txt    # Python requirements for Zensical
 │   ├── user_guide.md       # User guide
 │   │
 │   ├── css/                # Custom CSS for docs
@@ -19,7 +19,7 @@ docs/
 │   ├── icons/              # Project and documentation icons
 │   ├── screenshots/        # Screenshots for guides and docs
 │   ├── user/               # User-specific documentation
-├── mkdocs.yml              # MkDocs configuration file
+├── mkdocs.yml              # Zensical-compatible configuration file
 ```
 
 ## Contribution Guidelines
@@ -36,40 +36,38 @@ By following these guidelines, you can help ensure that BERA Tools documentation
 
 ## Developing Documentation Locally
 
-To build the documentation locally, you need to have MkDocs and extensions installed in development environment.
+Use the Conda environment `data` to build and preview the documentation locally.
 
-1. Install the required dependencies in development environment using the `docs/requirements.txt` file:
+1. Install the required dependencies from the repository root:
 
-   ```bash
-   pip install -r requirements.txt
+   ```powershell
+   conda run -n data python -m pip install -r docs/files/requirements.txt
    ```
 
-   or use the pyproject.toml in the root directory:
+   Alternatively, install the documentation extra from `pyproject.toml`:
 
-   ```bash
-   pip install .[doc]
+   ```powershell
+   conda run -n data python -m pip install ".[doc]"
    ```
 
-2. Serve the live documentation locally
-   This command starts a local development server that automatically rebuilds the documentation when changes are made . It is useful for previewing changes in real-time.
+2. Serve the documentation locally. This starts a development server that automatically rebuilds when files change:
 
-   ```bash
-   mkdocs serve
+   ```powershell
+   conda run -n data zensical serve -f docs/mkdocs.yml
    ```
 
- Open your browser and navigate to `http://127.0.0.1:8000` to view the documentation.
+   Open `http://127.0.0.1:8000` to preview the site.
 
-1. Build the documentation locally
-This generates the static site files in the `site/` directory. It's optional for local preview (use `mkdocs serve` for a live‑reloading preview).
+3. Build the documentation. This generates the static site in `docs/site/`:
 
-```bash
-mkdocs build
-```
+   ```powershell
+   conda run -n data zensical build -f docs/mkdocs.yml
+   ```
 
 ## Deployment
 
-The documentation is automatically deployed to GitHub Pages using a GitHub Actions workflow defined in `.github/workflows/mkdocs-gh-pages.yml`.
+The documentation is automatically validated and deployed to GitHub Pages using `.github/workflows/mkdocs-gh-pages.yml`.
 
-This workflow triggers on pushes to the `main` branch that affect files in the `docs/` directory. It builds the documentation and publishes it to the `gh-pages` branch, making it available at `https://appliedgrg.github.io/beratools/`.
+Pull requests that change documentation inputs run a Zensical build without deploying. Matching pushes to `main` build `docs/site`, upload it as a GitHub Pages artifact, and deploy it with GitHub's Pages action. The published site is available at `https://appliedgrg.github.io/beratools/`.
 
 ![Doc Deployment Config](../screenshots/gh_pages_config.png)
