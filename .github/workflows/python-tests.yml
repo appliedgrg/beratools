@@ -1,4 +1,4 @@
-name: Python Test & Coverage (Pixi)
+name: Python Tests (Pixi)
 
 on:
   pull_request:
