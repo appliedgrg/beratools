@@ -34,7 +34,7 @@ Before rerunning, confirm that the version has no files on PyPI. If PyPI accepte
 
 If the tag-triggered Anaconda workflow fails before uploading a package, open [Publish to Anaconda](https://github.com/appliedgrg/beratools/actions/workflows/publish_to_anaconda.yml), select **Run workflow**, choose `main`, and enter the existing numeric version tag in **Version tag to publish**. The workflow checks out that tag and verifies that its commit belongs to `main` before rebuilding.
 
-Leave **Build and validate without publishing** enabled to test the complete build and smoke-test path without using the Anaconda token or modifying a GitHub Release. The validated Conda package is attached to the workflow run as an artifact. For a production recovery, confirm that the version is absent from [Anaconda BERA Tools](https://anaconda.org/appliedgrg/beratools), disable the dry run, and dispatch the workflow. Do not rerun it after a package file has already been accepted.
+Leave **Build and validate without publishing** enabled to test the complete build and smoke-test path without using the Anaconda token or modifying a GitHub Release. The built Conda package is attached to the workflow run as an artifact, including when smoke validation fails. For a production recovery, confirm that the version is absent from [Anaconda BERA Tools](https://anaconda.org/appliedgrg/beratools), disable the dry run, and dispatch the workflow. Do not rerun it after a package file has already been accepted.
 
 ## Windows Installer Signing
 

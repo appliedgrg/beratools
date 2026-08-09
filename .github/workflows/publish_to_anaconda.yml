@@ -152,7 +152,6 @@ jobs:
           condarc: |
             channel_priority: strict
             channels:
-              - appliedgrg
               - conda-forge
           cache-environment: false
 
@@ -171,7 +170,7 @@ jobs:
 
           echo "📦 Installing built package artifact(s):"
           printf '  %s\n' "${files[@]}"
-          micromamba install -n bera-conda-smoke -y -c appliedgrg -c conda-forge "${files[@]}"
+          micromamba install -n bera-conda-smoke -y -c conda-forge "${files[@]}"
 
           echo "🔎 Smoke testing installed package"
           micromamba run -n bera-conda-smoke python -c "import beratools; print(beratools.__version__)"
@@ -206,12 +205,12 @@ jobs:
           echo "🎉 Upload complete!"
 
       - name: Upload dry-run Conda package
-        if: steps.tag_guard.outputs.publish == 'false'
+        if: always() && steps.tag_guard.outputs.publish == 'false'
         uses: actions/upload-artifact@v7
         with:
           name: beratools-conda-${{ steps.tag_guard.outputs.release_tag }}
           path: dist/conda/*
-          if-no-files-found: error
+          if-no-files-found: warn
 
       - name: Zip test data files
         if: steps.tag_guard.outputs.publish == 'true'
