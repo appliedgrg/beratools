@@ -30,6 +30,12 @@ If `publish_to_pypi.yml` fails before PyPI accepts any distribution files, a mai
 
 Before rerunning, confirm that the version has no files on PyPI. If PyPI accepted any files before the failure, do not rerun blindly: distribution filenames are immutable and duplicate uploads fail. Inspect the release and publish a new patch version if the release is incomplete. A rerun also uses the workflow definition from the tagged commit, so a defect in the workflow itself must be fixed before creating a new release tag.
 
+### Re-running a Failed Anaconda Publication
+
+If the tag-triggered Anaconda workflow fails before uploading a package, open [Publish to Anaconda](https://github.com/appliedgrg/beratools/actions/workflows/publish_to_anaconda.yml), select **Run workflow**, choose `main`, and enter the existing numeric version tag in **Version tag to publish**. The workflow checks out that tag and verifies that its commit belongs to `main` before rebuilding.
+
+Leave **Build and validate without publishing** enabled to test the complete build and smoke-test path without using the Anaconda token or modifying a GitHub Release. The validated Conda package is attached to the workflow run as an artifact. For a production recovery, confirm that the version is absent from [Anaconda BERA Tools](https://anaconda.org/appliedgrg/beratools), disable the dry run, and dispatch the workflow. Do not rerun it after a package file has already been accepted.
+
 ## Windows Installer Signing
 
 Official Windows installers follow the project [Code signing policy](https://github.com/appliedgrg/beratools/blob/main/CODE_SIGNING_POLICY.md). Test and release signing use the same SignPath artifact configuration so a manual test validates the artifact that will later be released.
