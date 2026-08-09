@@ -165,8 +165,11 @@ jobs:
 
           echo "📦 Installing built package artifact(s):"
           printf '  %s\n' "${files[@]}"
-          micromamba create -n bera-conda-smoke -y -c conda-forge \
-            python=3.12 pytest "${files[@]}"
+          local_channel="$RUNNER_TEMP/beratools-channel"
+          rattler-build publish "${files[0]}" --to "file://$local_channel"
+          micromamba create -n bera-conda-smoke -y \
+            -c "file://$local_channel" -c conda-forge \
+            python=3.12 pytest "beratools=$VERSION"
 
           echo "🔎 Smoke testing installed package"
           micromamba run -n bera-conda-smoke python -c "import beratools; print(beratools.__version__)"
