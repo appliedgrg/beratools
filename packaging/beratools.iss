@@ -5,9 +5,16 @@
 
 [Setup]
 AppName=BERA Tools
+AppPublisher=Applied Geospatial Research Group
+AppPublisherURL=https://www.appliedgrg.ca/
+AppSupportURL=https://github.com/appliedgrg/beratools/issues
+AppUpdatesURL=https://github.com/appliedgrg/beratools/releases/latest
 WizardImageFile=..\beratools\gui\assets\BERA_WizardImage.png
 AppVersion={#MyAppVersion}
 VersionInfoVersion={#MyAppVersion}
+VersionInfoCompany=Applied Geospatial Research Group
+VersionInfoDescription=BERA Tools Installer
+VersionInfoCopyright=Copyright (c) 2026 Applied Geospatial Research Group
 VersionInfoProductName=BERA Tools
 VersionInfoProductVersion={#MyAppVersion}
 VersionInfoProductTextVersion={#MyAppVersion}
