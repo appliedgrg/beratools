@@ -10,6 +10,8 @@ recipe.yaml
 - `beratools.iss`: defines the installer layout and Windows version metadata.
 - `main.go`: builds the Windows GUI launcher included in the installer.
 
+Keep `beratools.__version__` and the release tag identical. The release workflow passes the validated tag to `build.ps1` as `APP_VERSION`, and `beratools.iss` uses it for all installer version fields and the output filename. Do not hardcode an independent version in the Inno script.
+
 ## Build locally
 
 Run the following command to build the Windows installer locally:
