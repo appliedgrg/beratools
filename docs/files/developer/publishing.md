@@ -80,6 +80,10 @@ The test certificate is self-signed, so `Get-AuthenticodeSignature` may report `
 
 The person who creates the tag does not need to be a SignPath approver. With multiple approvers and one required approval, any listed approver can authorize the request. If the request is denied or times out, the workflow does not publish the installer. A rerun does not overwrite an installer asset that is already attached to the release.
 
+### Installer Identity
+
+Before tagging a release, update `beratools.__version__` to the same `major.minor.patch` value. The validated release tag becomes `APP_VERSION`, which supplies that version to `packaging/beratools.iss` for the installer filename, Installed Apps version, and executable product/file versions. Do not hardcode a separate version in the Inno script. Publisher, company, support, and update metadata remain stable; the Authenticode publisher comes from the signing certificate and therefore appears as **SignPath Foundation**.
+
 ### SignPath Configuration
 
 Open **Projects -> beratools -> Signing policies** in SignPath to review policy settings.
