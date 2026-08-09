@@ -90,8 +90,8 @@ import site
     Write-Host "Configured Python path with beratools parent directory" -ForegroundColor Green
 }
 
-# Step 4: Install pip
-Write-Host "`n[4/9] Installing pip..." -ForegroundColor Yellow
+# Step 4: Install pip and Python build tools
+Write-Host "`n[4/9] Installing pip and Python build tools..." -ForegroundColor Yellow
 
 if (-not (Test-Path (Join-Path $buildDir "python\Scripts\pip.exe"))) {
     Invoke-WebRequest -Uri "https://bootstrap.pypa.io/get-pip.py" -OutFile "get-pip.py" -Verbose
@@ -101,6 +101,14 @@ if (-not (Test-Path (Join-Path $buildDir "python\Scripts\pip.exe"))) {
 } else {
     Write-Host "Pip already exists, skipping" -ForegroundColor Green
 }
+
+# Python 3.12's get-pip.py no longer installs these packages automatically.
+& (Join-Path $buildDir "python\python.exe") -m pip install --upgrade setuptools wheel --quiet --no-warn-script-location
+if ($LASTEXITCODE -ne 0) {
+    Write-Host "Failed to install Python build tools" -ForegroundColor Red
+    exit 1
+}
+Write-Host "Python build tools installed" -ForegroundColor Green
 
 # Step 5: Install dependencies from pyproject.toml
 Write-Host "`n[5/9] Installing Python dependencies..." -ForegroundColor Yellow
