@@ -9,8 +9,8 @@ package:
   version: ${{ version }}
 
 source:
-  git: https://github.com/appliedgrg/beratools.git
-  tag: ${{ env.get("GIT_TAG") }}
+  path: ..
+  use_gitignore: true
 
 build:
   number: 0
