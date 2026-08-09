@@ -1,6 +1,6 @@
 # Publishing BERA Tools
 
-BERA Tools is published to Conda and PyPI when the `main` branch is tagged with a new version. The Windows installer is then built, signed, and published by manually dispatching its release workflow from that tagged `main` commit.
+BERA Tools is published to PyPI when the `main` branch is tagged with a new version. Conda and Windows installer publishing are manually dispatched from the tagged `main` commit.
 
 ## Versioning
 
@@ -14,7 +14,7 @@ BERA Tools Versioning follows [PEP440](https://peps.python.org/pep-0440/): `majo
 
 ## Packaging BERA Tools
 
-BERA Tools is packaged for distribution on both PyPI and Anaconda. The packaging process is automated using GitHub Actions workflows that are triggered on version tag pushes to the main branch.
+BERA Tools is packaged for distribution on both PyPI and Anaconda. PyPI publishing is triggered by a version tag push; Anaconda publishing requires an explicit manual run from the tagged `main` commit.
 
 See the following workflows:
 
@@ -29,6 +29,22 @@ See the workflow inventory in the [Maintainer Guide](maintainer.md#actions).
 If `publish_to_pypi.yml` fails before PyPI accepts any distribution files, a maintainer with write access can open the original GitHub Actions run and select **Re-run jobs -> Re-run failed jobs**. GitHub rebuilds and republishes from the same version tag, commit SHA, Git ref, and trusted-publishing identity. Workflow runs can be rerun for up to 30 days.
 
 Before rerunning, confirm that the version has no files on PyPI. If PyPI accepted any files before the failure, do not rerun blindly: distribution filenames are immutable and duplicate uploads fail. Inspect the release and publish a new patch version if the release is incomplete. A rerun also uses the workflow definition from the tagged commit, so a defect in the workflow itself must be fixed before creating a new release tag.
+
+### Anaconda Publication
+
+Open [Publish to Anaconda](https://github.com/appliedgrg/beratools/actions/workflows/publish_to_anaconda.yml) and select **Run workflow**. Leaving **Version tag to publish** empty runs a non-publishing build and smoke test of the selected branch. The resulting Conda package is attached to the workflow run as an artifact, including when smoke validation fails.
+
+For an Anaconda release:
+
+1. Merge the release changes into `main`.
+2. Optionally dispatch the workflow from `main` without a version tag for a final dry run.
+3. Create and push the new `major.minor.patch` tag on that exact `main` commit.
+4. Dispatch the workflow from `main` again and enter the new tag in **Version tag to publish**.
+5. Confirm the build and smoke test pass and the package appears on [Anaconda BERA Tools](https://anaconda.org/appliedgrg/beratools).
+
+Pushing the tag does not trigger Anaconda publishing. Publishing proceeds only when the manually supplied tag is the latest numeric version tag and points exactly to the selected `main` commit. A valid tag supplied from another branch, a tag that does not match the selected commit, or an older tag automatically becomes a dry run; a malformed or nonexistent tag fails validation. Confirm that the version is absent from Anaconda before publishing because existing package files are never overwritten.
+
+If `main` advances after a failed publication, fix the release issue and create a new version tag on the updated commit. The workflow will not publish an older tag from a newer `main` commit.
 
 ## Windows Installer Signing
 

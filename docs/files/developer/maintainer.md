@@ -56,12 +56,13 @@ Here is a summary of the actions defined in all workflow files in `.github/workf
     - With no release tag, uses `test-signing` and uploads test-signed Actions artifacts without publishing a GitHub Release.
     - With a release tag, requires `main`, verifies that the tag points exactly to the dispatched commit, uses `release-signing`, and attaches the approved installer to that GitHub Release.
 
-### Version tag push
-
 - __publish_to_anaconda.yml__
-    - Summary: Conda packaging and release workflow that publishes packages and attaches test data to Releases.
-    - Trigger: On version tag push from `main`.
-    - Uses Pixi and rattler-build to build Conda packages, collects build artifacts, uploads them to Anaconda.org, and zips test data to attach to a GitHub Release.
+    - Summary: Builds and smoke-tests Conda packages, publishes eligible releases to Anaconda.org, and attaches test data to GitHub Releases.
+    - Trigger: Manually triggered via `workflow_dispatch` on the selected branch; pushing a version tag does not start this workflow.
+    - With no release tag, runs a non-publishing build and smoke test and uploads the Conda package as an Actions artifact.
+    - With a release tag, publishes only from `main` when the latest numeric tag points exactly to the dispatched commit.
+
+### Version tag push
 
 - __publish_to_pypi.yml__
     - Summary: Official PyPI publish workflow for tagged releases.

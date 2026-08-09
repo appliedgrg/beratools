@@ -1,13 +1,21 @@
 name: Publish to Anaconda (rattler-build + Pixi)
 
+run-name: Anaconda ${{ inputs.release_tag || 'dry run' }} from ${{ github.ref_name }}
+
 permissions:
   contents: write
 
 on:
-  push:
-    tags:
-        - '*.*.*' # Trigger when a tagged with format like 1.0.0
   workflow_dispatch:
+    inputs:
+      release_tag:
+        description: "Version tag to publish (leave empty for dry run)"
+        required: false
+        type: string
+
+concurrency:
+  group: anaconda-${{ inputs.release_tag || github.ref }}
+  cancel-in-progress: false
 
 jobs:
   build-publish:
@@ -22,64 +30,119 @@ jobs:
         uses: actions/checkout@v6
         with:
           token: ${{ github.token }}
-          persist-credentials: true
+          persist-credentials: false
+          fetch-depth: 0
 
-      - name: Check if tagged commit is on main
+      - name: Validate release tag
         id: tag_guard
+        env:
+          INPUT_RELEASE_TAG: ${{ inputs.release_tag }}
         run: |
           set -euo pipefail
-          commit_sha="${GITHUB_SHA:-$(git rev-parse HEAD)}"
-          git fetch origin main
-          if git branch -r --contains "$commit_sha" | grep -q 'origin/main'; then
-            echo "on_main=true" >> "$GITHUB_OUTPUT"
-            echo "✅ Tag commit is on main. Proceeding with publish steps."
-          else
-            echo "on_main=false" >> "$GITHUB_OUTPUT"
-            echo "⏭️ Tag commit is not on main. All publish steps will be skipped."
+          release_tag="$INPUT_RELEASE_TAG"
+          publish=false
+          reason="No release tag supplied."
+          git fetch origin main --tags
+
+          if [[ -n "$release_tag" ]]; then
+            if [[ ! "$release_tag" =~ ^(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)$ ]]; then
+              echo "Release tag must be a numeric version such as 1.2.3: $release_tag" >&2
+              exit 1
+            fi
+
+            if ! tag_commit="$(git rev-parse "refs/tags/$release_tag^{commit}")"; then
+              echo "Release tag does not exist: $release_tag" >&2
+              exit 1
+            fi
+
+            latest_tag="$(git tag --list | grep -E '^(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)$' | sort -V | tail -n 1)"
+            workflow_commit="$(git rev-parse "$GITHUB_SHA^{commit}")"
+
+            if [[ "$GITHUB_REF" != "refs/heads/main" ]]; then
+              reason="Publishing requires a workflow dispatched from main."
+            elif [[ "$tag_commit" != "$workflow_commit" ]]; then
+              reason="Tag $release_tag does not point to the selected main commit."
+            elif [[ "$release_tag" != "$latest_tag" ]]; then
+              reason="Tag $release_tag is not the latest numeric tag ($latest_tag)."
+            else
+              publish=true
+              reason="Tag $release_tag exactly matches the current main commit and is latest."
+              git checkout --detach "$tag_commit"
+            fi
           fi
 
+          echo "release_tag=$release_tag" >> "$GITHUB_OUTPUT"
+          echo "publish=$publish" >> "$GITHUB_OUTPUT"
+          echo "reason=$reason" >> "$GITHUB_OUTPUT"
+
+          if [[ "$publish" == "true" ]]; then
+            echo "$reason"
+          else
+            echo "::warning title=Anaconda dry run::$reason Continuing without publishing."
+          fi
+
+          {
+            echo "### Anaconda workflow mode"
+            echo "- Selected ref: \`$GITHUB_REF\`"
+            echo "- Release tag: \`${release_tag:-none}\`"
+            echo "- Publish: \`$publish\`"
+            echo "- Reason: $reason"
+          } >> "$GITHUB_STEP_SUMMARY"
+
       - name: Set up Python ${{ matrix.python-version }}
-        if: steps.tag_guard.outputs.on_main == 'true'
         uses: actions/setup-python@v6
         with:
           python-version: ${{ matrix.python-version }}
 
-      # Disable Pixi cache to avoids pixi.lock lookup
+      # Disable Pixi cache to avoid pixi.lock lookup
       - name: Setup Pixi
-        if: steps.tag_guard.outputs.on_main == 'true'
         uses: prefix-dev/setup-pixi@v0.8.1
         with:
           cache: false
 
       - name: Install rattler-build + anaconda-client
-        if: steps.tag_guard.outputs.on_main == 'true'
         run: |
           pixi global install rattler-build anaconda-client
           echo "$HOME/.pixi/bin" >> "$GITHUB_PATH"
 
-      - name: Set VERSION from tag
-        if: steps.tag_guard.outputs.on_main == 'true'
+      - name: Set package version
+        id: package
+        env:
+          PUBLISH: ${{ steps.tag_guard.outputs.publish }}
+          RELEASE_TAG: ${{ steps.tag_guard.outputs.release_tag }}
         run: |
-          echo "VERSION=${GITHUB_REF_NAME}" >> $GITHUB_ENV
-          echo "GIT_TAG=${GITHUB_REF_NAME}" >> $GITHUB_ENV
+          set -euo pipefail
+          if [[ "$PUBLISH" == "true" ]]; then
+            version="$RELEASE_TAG"
+          else
+            version="$(pixi run python -c "from setuptools_scm import get_version; print(get_version(root='.'))")"
+          fi
+
+          if [[ ! "$version" =~ ^[0-9][0-9A-Za-z.+_-]*$ ]]; then
+            echo "Unsupported package version: $version" >&2
+            exit 1
+          fi
+
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+          echo "VERSION=$version" >> "$GITHUB_ENV"
+          echo "SETUPTOOLS_SCM_PRETEND_VERSION=$version" >> "$GITHUB_ENV"
+          echo "Package version: $version"
 
       # IMPORTANT: run build inside ./packaging and pass channels explicitly
       - name: Build Conda package (from ./packaging, with channels)
-        if: steps.tag_guard.outputs.on_main == 'true'
         working-directory: packaging
         env:
-          VERSION: ${{ github.ref_name }}
-          GIT_TAG: ${{ github.ref_name }}
+          VERSION: ${{ steps.package.outputs.version }}
+          SETUPTOOLS_SCM_PRETEND_VERSION: ${{ steps.package.outputs.version }}
         run: |
           set -euo pipefail
-          echo "🏗️ Building version: $VERSION (tag: $GIT_TAG)"
+          echo "🏗️ Building version: $VERSION"
           echo "📌 Using channels: appliedgrg, conda-forge"
           rattler-build build -c appliedgrg -c conda-forge
           echo "Build complete. Outputs under ./output"
 
       # Collect artifacts from a certain place into ./dist/conda
       - name: Collect artifacts to ./dist/conda
-        if: steps.tag_guard.outputs.on_main == 'true'
         run: |
           set -euo pipefail
           mkdir -p dist/conda
@@ -92,52 +155,51 @@ jobs:
             files=($(find packaging -type f \( -name '*.conda' -o -name '*.tar.bz2' \)))
           fi
 
-          if [ ${#files[@]} -eq 0 ]; then
-            echo "❌ No build artifacts found. Check rattler-build output."
+          if [ ${#files[@]} -ne 1 ]; then
+            echo "❌ Expected one build artifact, found ${#files[@]}."
             exit 1
           fi
 
-          for f in "${files[@]}"; do
-            cp -v "$f" dist/conda/
-          done
+          cp -v "${files[0]}" dist/conda/
 
           echo "✅ Artifacts staged in dist/conda:"
           ls -lah dist/conda
 
       - name: Set up conda smoke-test environment
-        if: steps.tag_guard.outputs.on_main == 'true'
         uses: mamba-org/setup-micromamba@v2
         with:
-          environment-name: bera-conda-smoke
-          create-args: >-
-            python=3.12
-            pytest
           condarc: |
             channel_priority: strict
             channels:
-              - appliedgrg
               - conda-forge
-          cache-environment: false
 
       - name: Validate built conda package
-        if: steps.tag_guard.outputs.on_main == 'true'
         shell: bash -el {0}
         run: |
           set -euo pipefail
           shopt -s nullglob
 
           files=(dist/conda/*.conda dist/conda/*.tar.bz2)
-          if [ ${#files[@]} -eq 0 ]; then
-            echo "❌ No package artifacts found to validate."
+          if [ ${#files[@]} -ne 1 ]; then
+            echo "❌ Expected one package artifact to validate, found ${#files[@]}."
             exit 1
           fi
 
           echo "📦 Installing built package artifact(s):"
           printf '  %s\n' "${files[@]}"
-          micromamba install -n bera-conda-smoke -y -c appliedgrg -c conda-forge "${files[@]}"
+          local_channel="$RUNNER_TEMP/beratools-channel"
+          rattler-build publish "${files[0]}" --to "file://$local_channel"
+          micromamba create -n bera-conda-smoke -y \
+            -c "file://$local_channel" -c conda-forge \
+            python=3.12 pytest "beratools=$VERSION"
 
           echo "🔎 Smoke testing installed package"
-          micromamba run -n bera-conda-smoke python -c "import beratools; print(beratools.__version__)"
+          installed_version="$(micromamba run -n bera-conda-smoke python -c "from importlib.metadata import version; print(version('BERATools'))")"
+          if [[ "$installed_version" != "$VERSION" ]]; then
+            echo "Installed version $installed_version does not match expected version $VERSION." >&2
+            exit 1
+          fi
+          echo "Installed BERA Tools $installed_version"
           micromamba run -n bera-conda-smoke python -c "from osgeo import gdal; print(gdal.VersionInfo('--version'))"
           micromamba run -n bera-conda-smoke bt --help
           micromamba run -n bera-conda-smoke beratools --help
@@ -146,7 +208,7 @@ jobs:
           micromamba run -n bera-conda-smoke pytest tests/test_workflow.py --maxfail=1 -q
 
       - name: Upload to Anaconda.org (binstar)
-        if: steps.tag_guard.outputs.on_main == 'true'
+        if: steps.tag_guard.outputs.publish == 'true'
         env:
           ANACONDA_API_TOKEN: ${{ secrets.ANACONDA_API_TOKEN }}
         run: |
@@ -154,32 +216,39 @@ jobs:
           shopt -s nullglob
           files=(dist/conda/*.conda dist/conda/*.tar.bz2)
 
-          if [ ${#files[@]} -eq 0 ]; then
-            echo "❌ No package artifacts found to upload."
+          if [ ${#files[@]} -ne 1 ]; then
+            echo "❌ Expected one package artifact to upload, found ${#files[@]}."
             exit 1
           fi
 
-          for f in "${files[@]}"; do
-            echo "🚀 Uploading $f"
-            # Pixi exposes `binstar` (not `anaconda`). Use --label (not --channel).
-            binstar -t "$ANACONDA_API_TOKEN" upload "$f" \
-              --user appliedgrg --label main
-          done
+          echo "🚀 Uploading ${files[0]}"
+          # Pixi exposes `binstar` (not `anaconda`). Use --label (not --channel).
+          binstar -t "$ANACONDA_API_TOKEN" upload --fail "${files[0]}" \
+            --user appliedgrg --label main
 
           echo "🎉 Upload complete!"
 
+      - name: Upload dry-run Conda package
+        if: always() && steps.tag_guard.outputs.publish == 'false'
+        uses: actions/upload-artifact@v7
+        with:
+          name: beratools-conda-${{ steps.package.outputs.version }}
+          path: dist/conda/*
+          if-no-files-found: warn
+
       - name: Zip test data files
-        if: steps.tag_guard.outputs.on_main == 'true'
+        if: steps.tag_guard.outputs.publish == 'true'
         run: |
           zip -j test_data.zip examples/data/CHM.tif examples/data/seed_lines.gpkg
 
       - name: Create or update GitHub Release and upload test data
-        if: steps.tag_guard.outputs.on_main == 'true'
+        if: steps.tag_guard.outputs.publish == 'true'
         uses: softprops/action-gh-release@v2
         with:
-          tag_name: ${{ github.ref_name }}
-          name: Release ${{ github.ref_name }}
+          tag_name: ${{ steps.tag_guard.outputs.release_tag }}
+          name: Release ${{ steps.tag_guard.outputs.release_tag }}
           generate_release_notes: true 
           files: test_data.zip
+          overwrite_files: false
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
