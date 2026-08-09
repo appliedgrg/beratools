@@ -34,7 +34,15 @@ Before rerunning, confirm that the version has no files on PyPI. If PyPI accepte
 
 Open [Publish to Anaconda](https://github.com/appliedgrg/beratools/actions/workflows/publish_to_anaconda.yml) and select **Run workflow**. Leaving **Version tag to publish** empty runs a non-publishing build and smoke test of the selected branch. The resulting Conda package is attached to the workflow run as an artifact, including when smoke validation fails.
 
-To publish, choose `main` and enter the latest numeric version tag. Publishing proceeds only when that tag points exactly to the selected `main` commit. A valid tag supplied from another branch, a tag that does not match the selected commit, or an older tag automatically becomes a dry run; a malformed or nonexistent tag fails validation. Confirm that the version is absent from [Anaconda BERA Tools](https://anaconda.org/appliedgrg/beratools) before publishing because existing package files are never overwritten.
+For an Anaconda release:
+
+1. Merge the release changes into `main`.
+2. Optionally dispatch the workflow from `main` without a version tag for a final dry run.
+3. Create and push the new `major.minor.patch` tag on that exact `main` commit.
+4. Dispatch the workflow from `main` again and enter the new tag in **Version tag to publish**.
+5. Confirm the build and smoke test pass and the package appears on [Anaconda BERA Tools](https://anaconda.org/appliedgrg/beratools).
+
+Pushing the tag does not trigger Anaconda publishing. Publishing proceeds only when the manually supplied tag is the latest numeric version tag and points exactly to the selected `main` commit. A valid tag supplied from another branch, a tag that does not match the selected commit, or an older tag automatically becomes a dry run; a malformed or nonexistent tag fails validation. Confirm that the version is absent from Anaconda before publishing because existing package files are never overwritten.
 
 If `main` advances after a failed publication, fix the release issue and create a new version tag on the updated commit. The workflow will not publish an older tag from a newer `main` commit.
 
