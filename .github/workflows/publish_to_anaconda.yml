@@ -145,15 +145,10 @@ jobs:
         if: steps.tag_guard.outputs.on_main == 'true'
         uses: mamba-org/setup-micromamba@v2
         with:
-          environment-name: bera-conda-smoke
-          create-args: >-
-            python=3.12
-            pytest
           condarc: |
             channel_priority: strict
             channels:
               - conda-forge
-          cache-environment: false
 
       - name: Validate built conda package
         if: steps.tag_guard.outputs.on_main == 'true'
@@ -170,7 +165,8 @@ jobs:
 
           echo "📦 Installing built package artifact(s):"
           printf '  %s\n' "${files[@]}"
-          micromamba install -n bera-conda-smoke -y -c conda-forge "${files[@]}"
+          micromamba create -n bera-conda-smoke -y -c conda-forge \
+            python=3.12 pytest "${files[@]}"
 
           echo "🔎 Smoke testing installed package"
           micromamba run -n bera-conda-smoke python -c "import beratools; print(beratools.__version__)"
