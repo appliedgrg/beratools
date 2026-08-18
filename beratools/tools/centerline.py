@@ -71,7 +71,7 @@ def generate_line_class_list(
     corridor_polygon_smooth_iterations=1,
 ) -> list:
     line_classes = []
-    line_list = algo_common.prepare_lines_gdf(in_vector, layer, proc_segments)
+    line_list, gdf = algo_common.prepare_lines_gdf(in_vector, layer, proc_segments)
 
     for item in line_list:
         line_classes.append(
@@ -98,7 +98,7 @@ def generate_line_class_list(
             )
         )
 
-    return line_classes
+    return line_classes,gdf
 
 
 def process_single_line_class(seed_line):
@@ -184,7 +184,7 @@ def centerline(
         print("Input line(s) do not overlap input raster.")
         return
 
-    line_class_list = generate_line_class_list(
+    line_class_list,seedline_gdf = generate_line_class_list(
         in_file,
         in_raster,
         line_radius=line_radius_native,

@@ -57,17 +57,30 @@ def alt_astar_accumulation_corridor_raster(
     transformer = rasterio.transform.AffineTransformer(transform)
     segment_list = []
     try:
-        for coord in lc_path.coords:
-            segment_list.append(coord)
-        if lc_path.length >= 10:
-            distance_delta = 5
+        target_spacing = 5.0
+        min_tail = 2.0
+
+        if lc_path.length <= target_spacing:
+            multipoint_along_line = [
+                Point(lc_path.coords[0]),
+                Point(lc_path.coords[-1]),
+            ]
         else:
-            distance_delta=2
-        distances = np.arange(0, lc_path.length, distance_delta)
-        multipoint_along_line = [lc_path.interpolate(distance) for distance in distances]
-        multipoint_along_line.append(Point(segment_list[-1]))
+            distances = np.arange(0, lc_path.length, target_spacing)
+
+            tail = lc_path.length - distances[-1]
+
+            if tail < min_tail:
+                distances[-1] = lc_path.length
+            else:
+                distances = np.append(distances, lc_path.length)
+
+            multipoint_along_line = [
+                lc_path.interpolate(d)
+                for d in distances
+            ]
     except Exception as e:
-        raise RuntimeError("1 A* corridor requires a valid least-cost path")
+        raise RuntimeError("1 Error: A* sampling along LCP fail")
 
     forward_list=[]
     reverse_list=[]
@@ -91,8 +104,7 @@ def alt_astar_accumulation_corridor_raster(
                 continue
             sampling = _raster_sampling(transform)
         except Exception as e:
-            print(e)
-            print("3 A* corridor requires a valid least-cost path")
+            print (f"2 Error: {e}, skipping")
             continue
         try:
             forward = _astar_mcp_geometric_accumulation(
@@ -112,8 +124,7 @@ def alt_astar_accumulation_corridor_raster(
             )
             reverse_list.append(reverse)
         except Exception as e:
-            print(e)
-            print("4 A* corridor requires a valid least-cost path")
+            print("3 Error: {e}, skipping")
             continue
 
         try:
@@ -121,22 +132,31 @@ def alt_astar_accumulation_corridor_raster(
             local_data = forward.g_scores + reverse.g_scores - forward.best_cost
             total_forward_path = total_forward_path + forward.path
             valid_total[(valid)]=valid[(valid)]
-            astar_path = _path_to_linestring(
-                    forward.path,
-                    transformer,
-                    start_xy=source,
-                    end_xy=destination,
-                )
+            if source!=destination:
+                astar_path = _path_to_linestring(
+                        forward.path,
+                        transformer,
+                        start_xy=source,
+                        end_xy=destination,
+                    )
+            else:
+                continue
+
             dist_to_path_list.append(_distance_raster_to_line(astar_path, meta, cost.shape))
+            valid_local = np.isfinite(local_data)
+            total_score_[valid_local] = np.minimum(total_score_[valid_local],local_data[valid_local])
+            valid_total |= valid
             total_score_[~np.isinf(local_data)] = local_data[~np.isinf(local_data)]
         except Exception as e:
-            print(e)
-            print("5 A* corridor requires a valid least-cost path")
+            print(f"4 Error: {e}, skipping")
             continue
 
     total_score_[np.isinf(total_score_)] = 0.
-    cleaned_arrays = [np.where(np.isinf(arr), np.nan, arr) for arr in dist_to_path_list]
-    total_distance_to_path=np.fmin.reduce(cleaned_arrays)
+    try:
+        cleaned_arrays = [np.where(np.isinf(arr), np.nan, arr) for arr in dist_to_path_list]
+        total_distance_to_path=np.fmin.reduce(cleaned_arrays)
+    except Exception as e:
+        raise RuntimeError(f"5 Error: A* corridor segments error: {e}.")
 
     if distance_penalty_weight > 0.0:
         total_score = total_score_ + total_distance_to_path * distance_penalty_weight
@@ -144,9 +164,11 @@ def alt_astar_accumulation_corridor_raster(
         total_score = total_score_ + total_distance_to_path
 
     score = np.ma.masked_invalid(total_score)
-
-    score = np.ma.array(score, mask=np.ma.getmaskarray(score) | ~skimage.morphology.dilation(valid_total, skimage.morphology.disk(int(1/distance_penalty_weight))))
-    # score = np.ma.array(score, mask=np.ma.getmaskarray(score) | ~valid_total)
+    buffer_pixels = max(
+        1, min(10,int(round(1.0 / max(distance_penalty_weight, 0.1))))    )
+    score = np.ma.array(score, mask=np.ma.getmaskarray(score) |
+                                    ~skimage.morphology.dilation(valid_total,
+                                skimage.morphology.disk(buffer_pixels)))
 
     inside = (~np.ma.getmaskarray(score)) & np.asarray(
         score.filled(np.inf) < corridor_threshold, dtype=bool
@@ -543,4 +565,71 @@ def _prepare_cost_surface(cost_arr, meta: dict) -> np.ndarray:
     except Exception as e:
         print(f"Failed to prepare cost surface: {e}")
         return cost_arr
+
+def astar_accumulation_corridor_raster_v2(
+    cost_arr,
+    meta: dict,
+    lc_path: LineString,
+    *,
+    corridor_threshold: float,
+    line_bias_weight: float = DEFAULT_CORRIDOR_LINE_BIAS_WEIGHT,
+    distance_penalty_weight: float = DEFAULT_CORRIDOR_DISTANCE_PENALTY_WEIGHT,
+) -> tuple[np.ma.MaskedArray, dict[str, object]]:
+    """Build an A* accumulation corridor raster using BERA's 0-inside/1-outside convention."""
+
+    if lc_path is None or lc_path.is_empty or len(lc_path.coords) < 2:
+        raise RuntimeError("A* corridor requires a valid least-cost path")
+
+    cost = _prepare_corridor_cost_surface(cost_arr, meta)
+    rows, cols = cost.shape
+    transform = meta["transform"]
+    transformer = rasterio.transform.AffineTransformer(transform)
+    start_xy = lc_path.coords[0]
+    end_xy = lc_path.coords[-1]
+    source = _clamp_row_col(transformer.rowcol(*start_xy), rows, cols)
+    destination = _clamp_row_col(transformer.rowcol(*end_xy), rows, cols)
+    sampling = _raster_sampling(transform)
+
+    forward = _astar_mcp_geometric_accumulation(
+        cost,
+        source,
+        destination,
+        sampling=sampling,
+        line_bias_weight=line_bias_weight,
+    )
+    reverse = _astar_mcp_geometric_accumulation(
+        cost,
+        destination,
+        source,
+        sampling=sampling,
+        line_bias_weight=line_bias_weight,
+    )
+
+    valid = forward.closed | reverse.closed
+    score_data = forward.g_scores + reverse.g_scores - forward.best_cost
+    if distance_penalty_weight > 0.0:
+        astar_path = _path_to_linestring(forward.path, transformer, start_xy, end_xy)
+        distance_to_path = _distance_raster_to_line(astar_path, meta, cost.shape)
+        score_data = score_data + distance_to_path * distance_penalty_weight
+
+    score = np.ma.array(score_data, mask=np.logical_and(np.ma.masked_invalid(score_data).mask , ~valid))
+    inside = (~np.ma.getmaskarray(score)) & np.asarray(score < corridor_threshold, dtype=bool)
+    corridor = np.ma.where(inside, 0.0, 1.0)
+    corridor = np.ma.array(corridor, mask=np.ma.getmaskarray(score))
+
+    details = {
+        "corridor_threshold": float(corridor_threshold),
+        "astar_line_bias_weight": float(line_bias_weight),
+        "astar_distance_penalty_weight": float(distance_penalty_weight),
+        "astar_best_cost": float(forward.best_cost),
+        "inside_cells": int(np.count_nonzero(inside)),
+        "inside_area": float(np.count_nonzero(inside) * _cell_area(transform)),
+        "forward_closed_cells": int(np.count_nonzero(forward.closed)),
+        "reverse_closed_cells": int(np.count_nonzero(reverse.closed)),
+        "both_closed_cells": int(np.count_nonzero(valid)),
+        "astar_path_vertices": int(len(forward.path)),
+    }
+    return corridor, details
+
+
 

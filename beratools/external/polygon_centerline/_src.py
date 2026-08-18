@@ -1,15 +1,18 @@
 from itertools import combinations
 import logging
 import networkx as nx
+import scipy.ndimage
 from networkx.exception import NetworkXNoPath
 import numpy as np
 import operator
-from scipy.spatial import Voronoi
-from scipy.ndimage import gaussian_filter1d
+from scipy.spatial import Voronoi, cKDTree
+from scipy.ndimage import gaussian_filter1d, distance_transform_edt
 from shapely.geometry import LineString, MultiLineString, Point, MultiPoint
-
+from skimage.morphology import skeletonize
 from .exceptions import CenterlineError
 from shapely import STRtree
+import shapely.geometry as shp_geom
+import shapely.ops as shp_ops
 
 import networkit as nk
 
@@ -34,8 +37,678 @@ def filter_nodes(geom, graph, vor, end_nodes):
 
     return idx_final
 
+def filter_nodes_v2(geom:shp_geom.Point,
+                    end_nodes:list,
+                    max_dist=5)->list:
+    """
+    graph node contains the coordinates tuples
+    end_nodes should within
+    """
+    if geom is None:
+        return end_nodes
+
+    return [node for node in end_nodes if Point(node).distance(geom) <= max_dist]
 
 def get_centerline(
+    geom,
+    segmentize_maxlen=0.5,
+    max_points=3000,
+    simplification=0.05,
+    smooth_sigma=5,
+    max_paths=5,
+    src_geom=None,
+    dst_geom=None,
+    guided_strategy="virtual_nodes",
+    endpoint_mode="strict",
+    snap_tolerance=None,
+    endpoint_candidate_k=5,
+    max_terminal_angle=55,
+    alpha=0.5,
+    snap_clearance_weight=5.0,
+    cell_size=1.0,
+):
+    """
+    Return centerline from geometry.
+
+    Parameters:
+    -----------
+    geom : shapely Polygon or MultiPolygon
+    segmentize_maxlen : Maximum segment length for polygon borders.
+        (default: 0.5)
+    max_points : Number of points per geometry allowed before simplifying.
+        (default: 3000)
+    simplification : Simplification threshold.
+        (default: 0.05)
+    smooth_sigma : Smoothness of the output centerlines.
+        (default: 5)
+    max_paths : Number of longest paths used to create the centerlines.
+        (default: 5)
+    src_geom, dst_geom : Optional endpoint guidance geometries.
+    guided_strategy : "pairwise", "virtual_nodes", "direct_insert", or "main_route".
+    endpoint_mode : "strict" or "soft".
+    snap_tolerance : Maximum endpoint snap distance for soft mode.
+    endpoint_candidate_k : Number of endpoint graph candidates.
+    max_terminal_angle : Maximum allowed terminal deflection in degrees.
+    alpha : Exponent for medial-aware edge weighting.
+    snap_clearance_weight : (direct_insert only) Penalty for peripheral edges
+        when choosing insertion point. 0 = pure nearest; higher = prefer
+        interior edges. (default: 0.0)
+
+    Returns:
+    --------
+    geometry : LineString or MultiLineString
+
+    Raises:
+    -------
+    CenterlineError : if centerline cannot be extracted from Polygon
+    TypeError : if input geometry is not Polygon or MultiPolygon
+
+    """
+    try:
+        logger.debug("geometry type %s", geom.geom_type)
+
+        valid_endpoint_modes = {"strict", "soft"}
+        if endpoint_mode not in valid_endpoint_modes:
+            raise ValueError("endpoint_mode must be one of %s" % sorted(valid_endpoint_modes))
+
+    valid_guided_strategies = {"pairwise", "virtual_nodes", "direct_insert", "main_route"}
+    if guided_strategy not in valid_guided_strategies:
+        raise ValueError("guided_strategy must be one of %s" % sorted(valid_guided_strategies))
+
+    if geom.geom_type == "Polygon":
+        # segmentized Polygon outline
+        outline = _segmentize(geom.exterior, segmentize_maxlen)
+        logger.debug("outline: %s", outline)
+        valid_guided_strategies = {"pairwise", "virtual_nodes", "direct_insert", "main_route"}
+        if guided_strategy not in valid_guided_strategies:
+            raise ValueError("guided_strategy must be one of %s" % sorted(valid_guided_strategies))
+        #Skeletonize and width analysis
+        if geom.geom_type == "Polygon":
+            #test corridor bottleneck
+            #Automatically repair long 1-cell-wide raster corridors
+            #until the Voronoi skeleton becomes essentially connected.
+            BOTTLENECK_CELLS = 3
+            MIN_NARROW_LENGTH = 5.0
+            poly_mask = shp_rasterize(geom, cell_size)
+            dist = distance_transform_edt(poly_mask)
+            skel = skeletonize(poly_mask)
+            width_cells = 2 * dist[skel]  #cells
+            try:
+                narrow = skel & (2 * dist <= BOTTLENECK_CELLS)
+                labels, n = scipy.ndimage.label(narrow)
+                max_narrow_pixels = 0
+                for i in range(1, n + 1):
+                    max_narrow_pixels = max(
+                        max_narrow_pixels,
+                        np.count_nonzero(labels == i))
+                max_narrow_length = (max_narrow_pixels* cell_size)
+            except Exception as e:
+                import traceback
+            long_skinny_risk = (
+                    np.percentile(width_cells, 5) <= BOTTLENECK_CELLS
+                    and
+                    max_narrow_length >= MIN_NARROW_LENGTH
+            )
+            c_geom=geom
+            if long_skinny_risk:
+                for factor in [1.5,2.0]:
+                    vor_geom = (geom.buffer(cell_size * factor))
+                    outline_test = _segmentize(vor_geom.exterior,cell_size)
+                    vor_test = Voronoi(outline_test.coords)
+                    graph_test = _graph_from_voronoi(vor_test,vor_geom)
+                    try:
+                        largest_ratio = largest_component_ratio(graph_test)
+                        if largest_ratio> 0.98:
+                            c_geom = vor_geom
+                            break
+                    except Exception as e:
+                        print(f"Test voronoi fail: {e}")
+            coords = list(c_geom.exterior.coords)
+            cleaned = [coords[0]]
+            for pt in coords[1:]:
+                if pt != cleaned[-1]:
+                    cleaned.append(pt)
+            c_geom=shp_geom.Polygon(cleaned).buffer(cell_size).buffer(-cell_size)
+            # segmentized Polygon outline
+            outline = _segmentize(c_geom.exterior, segmentize_maxlen)
+            logger.debug("outline: %s", outline)
+
+        # simplify segmentized geometry if necessary and get points
+        outline_points = outline.coords
+        simplification_updated = simplification
+        while len(outline_points) > max_points:
+            # if geometry is too large, apply simplification until geometry
+            # is simplified enough (indicated by the "max_points" value)
+            simplification_updated += simplification
+            outline_points = outline.simplify(simplification_updated).coords
+        logger.debug("simplification used: %s", simplification_updated)
+        logger.debug("simplified points: %s", MultiPoint(outline_points))
+            # simplify segmentized geometry if necessary and get points
+            outline=segmentize_to_target_density(outline, min_points=3000, max_points=12000)
+            outline_points = outline.coords
+
+        # calculate Voronoi diagram and convert to graph but only use points
+        # from within the original polygon
+        vor = Voronoi(outline_points)
+        graph = _graph_from_voronoi(vor, geom)
+        logger.debug("voronoi diagram: %s", _multilinestring_from_voronoi(vor, geom))
+            # calculate Voronoi diagram and convert to graph but only use points
+            # from within the original polygon, graph nodes are store in coordinates
+            vor = Voronoi(outline_points)
+            graph = _graph_from_voronoi(vor, shp_geom.Polygon(outline))
+            components = list(nx.connected_components(graph))
+            try:
+                if len(components)>1:
+                    MIN_MAJOR_SIZE = 50
+                    MAX_MAJOR_GAP = 1.0
+                    MIN_INSIDE_RATIO = 0.99
+                    MIN_RECOVERABEL_RATIO= 0.95
+                    MAX_RECOVERABLE_GAP = 20.0
+                    MAX_OUTSIDE_LENGTH = 1.0
+                    MAX_SMALL_GAP = 4.5
+                    # separate components into large (nodes>=20) or small (nodes<20)
+                    #first merge the small components to nearest bigger compo
+                    merged=True
+                    merge_iter=0
+                    while merged:
+
+                        merge_iter+=1
+                        # print(f"small merge iter={merge_iter}", flush=True)
+                        merged=False
+                        components = list(nx.connected_components(graph))
+                        large = [(cid, comp) for cid, comp in enumerate(components) if len(comp) >= 20]
+                        small = [(cid, comp) for cid, comp in enumerate(components) if 1<len(comp) < 20]
+
+                        for small_id, small_comp in small:
+                            best = None
+                            for large_id, large_comp in large:
+                                pair, dist = nearest_pair_ckdtree(
+                                    small_comp,
+                                    large_comp)
+                                if best is None or dist < best[0]:
+                                    best = (dist, pair,large_id)
+                            if best is None:
+                                continue
+
+                            dist,pair,large_id=best
+                            a = pair[0]
+                            b = pair[1]
+                            bridge = shp_geom.LineString([a,b])
+                            if bridge.length == 0:
+                                continue
+                            if (    dist <= MAX_SMALL_GAP and
+                                    bridge.covered_by(c_geom)):
+                                before=nx.number_connected_components(graph)
+                                graph.add_edge(a,b,weight=dist)
+                                after=nx.number_connected_components(graph)
+                                if after<before:
+                                    merged=True
+
+                                print(
+                                        f"Merged small components "
+                                        f"{small_id} ↔ {large_id}, "
+                                        f"gap={dist:.3f}, "
+                                        f"after merge:{nx.number_connected_components(graph)}"
+                                    )
+                                break
+                        if merge_iter>500:
+                            # print("above small merge",flush=True)
+                            break
+                    merged = True
+                    while merged:
+                        merged = False
+                        components = sorted(
+                            nx.connected_components(graph),
+                            key=len,
+                            reverse=True
+                        )
+                        major = [
+                            comp
+                            for comp in components
+                            if len(comp) >= MIN_MAJOR_SIZE
+                        ]
+
+                        for i in range(len(major)):
+                            for j in range(i + 1, len(major)):
+                                pair, dist = nearest_pair_ckdtree(major[i], major[j])
+                                a, b = pair
+                                bridge = LineString([a, b])
+                                if bridge.length==0:
+                                    continue
+                                # print("testing bridge",dist,flush=True)
+                                inside_len = bridge.intersection(c_geom).length
+                                outside_len = bridge.length - inside_len
+                                inside_ratio = (inside_len/ bridge.length)
+                                deg_a = graph.degree[a]
+                                deg_b = graph.degree[b]
+                                if (deg_a <=2 and deg_b <=2 and (
+                                        (dist <= MAX_MAJOR_GAP and inside_ratio >= MIN_INSIDE_RATIO)
+                                    or (dist <= MAX_RECOVERABLE_GAP and outside_len <= MAX_OUTSIDE_LENGTH
+                                        and inside_ratio>=MIN_RECOVERABEL_RATIO))):
+                                    graph.add_edge(a, b, weight=dist)
+                                    merged = True
+                                    break
+                            if merged:
+                                break
+            except Exception:
+                import traceback
+                print(traceback.print_exc(),flush=True)
+                raise
+            logger.debug("voronoi diagram: %s", _multilinestring_from_voronoi(vor, c_geom))
+
+
+            # determine longest path between all end nodes from graph
+            end_nodes = _get_end_nodes(graph)
+            if len(end_nodes) < 2:
+                # list of nodes with <=2 neighbor node
+                end_nodes = [i for i in graph.nodes() if len(list(graph.neighbors(i))) <= 2]
+                if len(end_nodes) < 2:
+                    logger.debug("Polygon has too few points")
+                    raise CenterlineError("Polygon has too few points")
+            logger.debug("get longest path from %s end nodes", len(end_nodes))
+
+            centerline = None
+            src_point = _as_endpoint_point(src_geom)
+            dst_point = _as_endpoint_point(dst_geom)
+            if snap_tolerance is None:
+                snap_tolerance = 2 * segmentize_maxlen
+
+        guided_attempted = False
+        if (
+            guided_strategy == "direct_insert"
+            and src_point is not None
+            and dst_point is not None
+        ):
+            guided_attempted = True
+            guided = _get_guided_path_direct_insert(
+                graph, vor, geom, src_point, dst_point,
+                max_terminal_angle, alpha,
+                enforce_angle=(endpoint_mode == "strict"),
+                snap_clearance_weight=snap_clearance_weight,
+            )
+            if guided is None and endpoint_mode == "strict":
+                logger.debug("direct_insert strict mode failed, retrying without angle guard")
+                guided = _get_guided_path_direct_insert(
+                    graph, vor, geom, src_point, dst_point,
+                    max_terminal_angle, alpha,
+                    enforce_angle=False,
+                    snap_clearance_weight=snap_clearance_weight,
+                )
+            if guided is not None:
+                ext = guided.get("extended_coords", {})
+                coords = [src_point.coords[0]]
+                for n in guided["path"]:
+                    coords.append(tuple(_get_vertex_coords(n, vor, ext)))
+                coords.append(dst_point.coords[0])
+                deduped = [coords[0]]
+                for c in coords[1:]:
+                    if c != deduped[-1]:
+                        deduped.append(c)
+                centerline = _smooth_linestring_fixed_ends(LineString(deduped), smooth_sigma)
+            guided_attempted = False
+            if (
+                guided_strategy == "direct_insert"
+                and src_point is not None
+                and dst_point is not None
+            ):
+                guided_attempted = True
+                guided = _get_guided_path_direct_insert(
+                    graph, vor, c_geom, src_point, dst_point,
+                    max_terminal_angle, alpha,
+                    enforce_angle=(endpoint_mode == "strict"),
+                    snap_clearance_weight=snap_clearance_weight,
+                )
+                if guided is None and endpoint_mode == "strict":
+                    logger.debug("direct_insert strict mode failed, retrying without angle guard")
+                    guided = _get_guided_path_direct_insert(
+                        graph, vor, c_geom, src_point, dst_point,
+                        max_terminal_angle, alpha,
+                        enforce_angle=False,
+                        snap_clearance_weight=snap_clearance_weight,
+                    )
+                if guided is not None:
+                    ext = guided.get("extended_coords", {})
+                    coords = [src_point.coords[0]]
+                    for n in guided["path"]:
+                        coords.append(tuple(_get_vertex_coords(n, vor, ext)))
+                    coords.append(dst_point.coords[0])
+                    deduped = [coords[0]]
+                    for c in coords[1:]:
+                        if c != deduped[-1]:
+                            deduped.append(c)
+                    if len(deduped) < 2:
+                        centerline = _smooth_linestring_fixed_ends(LineString([src_point.coords[0],dst_point.coords[0]]), smooth_sigma)
+                    else:
+                        centerline = _smooth_linestring_fixed_ends(LineString(deduped), smooth_sigma)
+
+            elif (
+                guided_strategy in {"pairwise", "virtual_nodes"}
+                and src_point is not None
+                and dst_point is not None
+            ):
+                guided_attempted = True
+                src_nodes = filter_nodes_v2(src_geom, end_nodes)
+                dst_nodes = filter_nodes_v2(dst_geom, end_nodes)
+                if endpoint_mode=='strict':
+                    src_candidates = _pick_endpoint_candidates_v2(
+                        src_point,
+                        dst_point,
+                        graph,
+                        c_geom,
+                        endpoint_candidate_k,
+                        preferred_nodes=src_nodes,
+                    )
+                    dst_candidates = _pick_endpoint_candidates_v2(
+                        dst_point,
+                        src_point,
+                        graph,
+                        c_geom,
+                        endpoint_candidate_k,
+                        preferred_nodes=dst_nodes,
+                    )
+                else:
+                    src_candidates = nearest_nodes(src_point,graph,k=8)
+
+                    dst_candidates = nearest_nodes(dst_point,graph,k=8)
+
+            if guided_strategy == "virtual_nodes":
+                guided = _get_guided_path_virtual(
+                    graph,
+                    vor,
+                    geom,
+                    src_point,
+                    dst_point,
+                    src_candidates,
+                    dst_candidates,
+                    max_terminal_angle,
+                    alpha,
+                    enforce_angle=(endpoint_mode == "strict"),
+                )
+            else:
+                guided = _get_guided_path(
+                    graph,
+                    vor,
+                    geom,
+                    src_point,
+                    dst_point,
+                    src_candidates,
+                    dst_candidates,
+                    max_terminal_angle,
+                    alpha,
+                    enforce_angle=(endpoint_mode == "strict"),
+                )
+                if guided_strategy == "virtual_nodes":
+                    guided = _get_guided_path_virtual(
+                        graph,
+                        vor,
+                        c_geom,
+                        src_point,
+                        dst_point,
+                        src_candidates,
+                        dst_candidates,
+                        max_terminal_angle,
+                        alpha,
+                        enforce_angle=(endpoint_mode == "strict"),
+                    )
+                else:
+                    guided = _get_guided_path(
+                        graph,
+                        c_geom,
+                        src_point,
+                        dst_point,
+                        src_candidates,
+                        dst_candidates,
+                        max_terminal_angle,
+                        alpha,
+                        enforce_angle=(endpoint_mode == "strict"),
+                    )
+
+            if guided is None and endpoint_mode == "strict":
+                logger.debug("strict endpoint guidance exceeded angle guard, retrying without guard")
+                if guided_strategy == "virtual_nodes":
+                    guided = _get_guided_path_virtual(
+                        graph,
+                        vor,
+                        geom,
+                        src_point,
+                        dst_point,
+                        src_candidates,
+                        dst_candidates,
+                        max_terminal_angle,
+                        alpha,
+                        enforce_angle=False,
+                    )
+                else:
+                    guided = _get_guided_path(
+                        graph,
+                        vor,
+                        geom,
+                        src_point,
+                        dst_point,
+                        src_candidates,
+                        dst_candidates,
+                        max_terminal_angle,
+                        alpha,
+                        enforce_angle=False,
+                    )
+                if guided is None and endpoint_mode == "strict":
+                    logger.debug("strict endpoint guidance exceeded angle guard, retrying without guard")
+                    if guided_strategy == "virtual_nodes":
+                        guided = _get_guided_path_virtual(
+                            graph,
+                            vor,
+                            c_geom,
+                            src_point,
+                            dst_point,
+                            src_candidates,
+                            dst_candidates,
+                            max_terminal_angle,
+                            alpha,
+                            enforce_angle=False,
+                        )
+                    else:
+                        guided = _get_guided_path(
+                            graph,
+                            c_geom,
+                            src_point,
+                            dst_point,
+                            src_candidates,
+                            dst_candidates,
+                            max_terminal_angle,
+                            alpha,
+                            enforce_angle=False,
+                        )
+
+                if guided is not None:
+                    path_nodes = guided["path"]
+                    if endpoint_mode == "strict":
+                        centerline = _line_from_nodes_with_anchors(path_nodes,  src_point, dst_point)
+                        centerline = _smooth_linestring_fixed_ends(centerline, smooth_sigma)
+                        centerline = trim_to_seed_projections(centerline, src_point, dst_point)
+
+                    else:
+                        coords=[node_to_xy(node,vor) for node in path_nodes]
+                        coords=[src_point]+coords+[dst_point]
+                        centerline = LineString(coords)
+                        centerline = _smooth_linestring(centerline, smooth_sigma)
+                        centerline = _soft_snap_centerline_to_endpoints(
+                                centerline, src_point, dst_point, snap_tolerance
+                            )
+
+            if centerline is None and guided_attempted and endpoint_mode == "strict":
+                print("endpoint_mode:",endpoint_mode,flush=True)
+                print("guided_strategy:", guided_strategy, flush=True)
+                logger.warning(
+                    "endpoint-guided extraction failed in soft mode; "
+                    "falling back to main-route longest-path extraction"
+                )
+                centerline=None
+            if centerline is None and guided_attempted:
+                logger.warning(
+                    "endpoint-guided extraction failed in soft mode; "
+                    "falling back to main-route longest-path extraction"
+                )
+
+        if centerline is None:
+            graph_nk = _graph_from_voronoi_nk(vor, geom)
+            longest_paths = _get_main_route_longest_paths(graph_nk)
+            if not longest_paths:
+                logger.debug("no paths found between end nodes")
+                raise CenterlineError("no paths found between end nodes")
+            if logger.getEffectiveLevel() <= 10:
+                logger.debug("longest paths:")
+                for path in longest_paths:
+                    logger.debug(LineString(vor.vertices[path]))
+
+            centerline = _smooth_linestring(
+                LineString(vor.vertices[_get_least_curved_path(longest_paths, vor.vertices)]),
+                smooth_sigma,
+            )
+        logger.debug("centerline: %s", centerline)
+        logger.debug("return linestring")
+            if centerline is None:
+                graph_nk = _graph_from_voronoi_nk(vor, c_geom)
+                longest_paths = _get_main_route_longest_paths(graph_nk)
+                if not longest_paths:
+                    logger.debug("no paths found between end nodes")
+                    raise CenterlineError("no paths found between end nodes")
+                else:
+                    longest_paths_xy = [[tuple(vor.vertices[idx]) for idx in path]
+                                    for path in longest_paths]
+
+
+                if len(longest_paths_xy)==1:
+                    best_longest_paths_xy=longest_paths_xy[0]
+                else:
+                    # best_longest_paths_xy = max(longest_paths_xy,key=lambda p: LineString(p).length)
+                    best_longest_paths_xy = min(longest_paths_xy, key=path_curvature)
+                if logger.getEffectiveLevel() <= 10:
+                    logger.debug("longest paths:")
+                    logger.debug(LineString(best_longest_paths_xy))
+                centerline = _smooth_linestring(LineString(best_longest_paths_xy),smooth_sigma)
+            logger.debug("centerline: %s", centerline)
+            logger.debug("return linestring")
+            return centerline
+
+        elif geom.geom_type == "MultiPolygon":
+            logger.debug("MultiPolygon found with %s sub-geometries", len(geom.geoms))
+            # get centerline for each part Polygon and combine into MultiLineString
+            sub_centerlines = []
+            for subgeom in geom.geoms:
+                try:
+                    sub_centerline = get_centerline(
+                        subgeom,
+                        segmentize_maxlen,
+                        max_points,
+                        simplification,
+                        smooth_sigma,
+                        max_paths,
+                        None,
+                        None,
+                        guided_strategy,
+                        endpoint_mode,
+                        snap_tolerance,
+                        endpoint_candidate_k,
+                        max_terminal_angle,
+                        alpha,
+                    )
+                    sub_centerlines.append(sub_centerline)
+                except CenterlineError as e:
+                    logger.debug("subgeometry error: %s", e)
+            # for MultPolygon, only raise CenterlineError if all subgeometries fail
+            if sub_centerlines:
+                return MultiLineString(sub_centerlines)
+            else:
+                raise CenterlineError("all subgeometries failed")
+
+        else:
+            raise TypeError("Geometry type must be Polygon or MultiPolygon, not %s" % geom.geom_type)
+
+    except Exception:
+        import traceback
+        print(traceback.format_exc(),flush=True)
+        raise
+
+from math import hypot
+from scipy.spatial import cKDTree
+
+def nearest_pair_ckdtree(comp_a, comp_b):
+    nodes_a=list(comp_a)
+    nodes_b=list(comp_b)
+
+    arr_a = np.asarray(nodes_a,dtype=float)
+    arr_b = np.asarray(nodes_b,dtype=float)
+
+    if len(arr_a)==0 or len(arr_b)==0:
+        return None,float("inf")
+
+    tree=cKDTree(arr_b)
+    #nearest node in comp_b for every node in comp_a
+    dists,idx=tree.query(arr_a,k=1)
+    #global minimum
+    best_i=np.argmin(dists)
+    a = nodes_a[best_i]
+    b = nodes_b[idx[best_i]]
+    # if a==b:
+    #     print("duplicate snapped node",a)
+    return ((a,b),float(dists[best_i]))
+
+
+def nearest_pair_strtree(comp_a, comp_b):
+    pts_b=[Point(x,y) for x,y in comp_b]
+    tree_b=STRtree(pts_b)
+
+    best_pair = None
+    best_dist = float("inf")
+    for a in comp_a:
+        pa=Point(a)
+        pb=tree_b.nearest(pa)
+        d=pa.distance(pb)
+        if d<best_dist:
+            best_dist=d
+            best_pair=(a,(pb.x,pb.y))
+    return best_pair,best_dist
+
+def nearest_pair(comp_a, comp_b):
+    """
+        Find nearest node pair
+    """
+    best_pair = None
+    best_dist = float("inf")
+
+    for a in comp_a:
+        for b in comp_b:
+
+            dist = hypot(
+                a[0] - b[0],
+                a[1] - b[1]
+            )
+
+            if dist < best_dist:
+                best_dist = dist
+                best_pair = (a, b)
+
+    return best_pair, best_dist
+
+
+def resample_polygon(poly, spacing):
+    ring = shp_geom.LinearRing(poly.exterior.coords)
+
+    n = int(np.ceil(ring.length / spacing))
+
+    coords = [
+        ring.interpolate(i * ring.length / n).coords[0]
+        for i in range(n)
+    ]
+
+    coords.append(coords[0])  # close ring
+
+    return shp_geom.Polygon(coords)
+
+
+
+
+def get_centerline_fr_dissolved_corrider(
     geom,
     segmentize_maxlen=0.5,
     max_points=3000,
@@ -90,7 +763,8 @@ def get_centerline(
 
     """
     logger.debug("geometry type %s", geom.geom_type)
-
+    src_point = _as_endpoint_point(src_geom)
+    dst_point = _as_endpoint_point(dst_geom)
     valid_endpoint_modes = {"strict", "soft"}
     if endpoint_mode not in valid_endpoint_modes:
         raise ValueError("endpoint_mode must be one of %s" % sorted(valid_endpoint_modes))
@@ -100,192 +774,57 @@ def get_centerline(
         raise ValueError("guided_strategy must be one of %s" % sorted(valid_guided_strategies))
 
     if geom.geom_type == "Polygon":
+
+
+
+        coords = list(geom.exterior.coords)
+        cleaned = [coords[0]]
+        for pt in coords[1:]:
+            if pt != cleaned[-1]:
+                cleaned.append(pt)
+        c_geom=shp_geom.Polygon(cleaned)
         # segmentized Polygon outline
-        outline = _segmentize(geom.exterior, segmentize_maxlen)
+        outline = _segmentize(c_geom.exterior, segmentize_maxlen)
         logger.debug("outline: %s", outline)
 
         # simplify segmentized geometry if necessary and get points
         outline_points = outline.coords
         simplification_updated = simplification
-        while len(outline_points) > max_points:
-            # if geometry is too large, apply simplification until geometry
-            # is simplified enough (indicated by the "max_points" value)
-            simplification_updated += simplification
-            outline_points = outline.simplify(simplification_updated).coords
+        try:
+            while len(outline_points) > max_points:
+                # if geometry is too large, apply simplification until geometry
+                # is simplified enough (indicated by the "max_points" value)
+                simplification_updated += simplification
+                outline_points = outline.simplify(simplification_updated).coords
+        except Exception:
+            import traceback
+            print(traceback.format_exc(),flush=True)
+            raise
         logger.debug("simplification used: %s", simplification_updated)
         logger.debug("simplified points: %s", MultiPoint(outline_points))
 
         # calculate Voronoi diagram and convert to graph but only use points
         # from within the original polygon
-        vor = Voronoi(outline_points)
-        graph = _graph_from_voronoi(vor, geom)
+        vor = Voronoi(np.array(outline_points),qhull_options="Qbb Qc Qz")
+        graph = _graph_from_voronoi_v2(vor, c_geom)
+        src_node = min(
+            graph.nodes,
+            key=lambda n: Point(n).distance(src_point)
+        )
+
+        dst_node = min(
+            graph.nodes,
+            key=lambda n: Point(n).distance(dst_point)
+        )
+        if nx.has_path(graph, src_node, dst_node):
+            path = nx.shortest_path(
+            graph,
+            src_node,
+            dst_node,
+            weight="weight"
+            )
+            centerline = LineString(path)
         logger.debug("voronoi diagram: %s", _multilinestring_from_voronoi(vor, geom))
-
-        # determine longest path between all end nodes from graph
-        end_nodes = _get_end_nodes(graph)
-        if len(end_nodes) < 2:
-            logger.debug("Polygon has too few points")
-            raise CenterlineError("Polygon has too few points")
-        logger.debug("get longest path from %s end nodes", len(end_nodes))
-
-        centerline = None
-        src_point = _as_endpoint_point(src_geom)
-        dst_point = _as_endpoint_point(dst_geom)
-        if snap_tolerance is None:
-            snap_tolerance = 2 * segmentize_maxlen
-
-        guided_attempted = False
-        if (
-            guided_strategy == "direct_insert"
-            and src_point is not None
-            and dst_point is not None
-        ):
-            guided_attempted = True
-            guided = _get_guided_path_direct_insert(
-                graph, vor, geom, src_point, dst_point,
-                max_terminal_angle, alpha,
-                enforce_angle=(endpoint_mode == "strict"),
-                snap_clearance_weight=snap_clearance_weight,
-            )
-            if guided is None and endpoint_mode == "strict":
-                logger.debug("direct_insert strict mode failed, retrying without angle guard")
-                guided = _get_guided_path_direct_insert(
-                    graph, vor, geom, src_point, dst_point,
-                    max_terminal_angle, alpha,
-                    enforce_angle=False,
-                    snap_clearance_weight=snap_clearance_weight,
-                )
-            if guided is not None:
-                ext = guided.get("extended_coords", {})
-                coords = [src_point.coords[0]]
-                for n in guided["path"]:
-                    coords.append(tuple(_get_vertex_coords(n, vor, ext)))
-                coords.append(dst_point.coords[0])
-                deduped = [coords[0]]
-                for c in coords[1:]:
-                    if c != deduped[-1]:
-                        deduped.append(c)
-                centerline = _smooth_linestring_fixed_ends(LineString(deduped), smooth_sigma)
-
-        elif (
-            guided_strategy in {"pairwise", "virtual_nodes"}
-            and src_point is not None
-            and dst_point is not None
-        ):
-            guided_attempted = True
-            src_nodes = filter_nodes(src_geom, graph, vor, end_nodes)
-            dst_nodes = filter_nodes(dst_geom, graph, vor, end_nodes)
-            src_candidates = _pick_endpoint_candidates(
-                src_point,
-                graph,
-                vor,
-                geom,
-                endpoint_candidate_k,
-                preferred_nodes=src_nodes,
-            )
-            dst_candidates = _pick_endpoint_candidates(
-                dst_point,
-                graph,
-                vor,
-                geom,
-                endpoint_candidate_k,
-                preferred_nodes=dst_nodes,
-            )
-
-            if guided_strategy == "virtual_nodes":
-                guided = _get_guided_path_virtual(
-                    graph,
-                    vor,
-                    geom,
-                    src_point,
-                    dst_point,
-                    src_candidates,
-                    dst_candidates,
-                    max_terminal_angle,
-                    alpha,
-                    enforce_angle=(endpoint_mode == "strict"),
-                )
-            else:
-                guided = _get_guided_path(
-                    graph,
-                    vor,
-                    geom,
-                    src_point,
-                    dst_point,
-                    src_candidates,
-                    dst_candidates,
-                    max_terminal_angle,
-                    alpha,
-                    enforce_angle=(endpoint_mode == "strict"),
-                )
-
-            if guided is None and endpoint_mode == "strict":
-                logger.debug("strict endpoint guidance exceeded angle guard, retrying without guard")
-                if guided_strategy == "virtual_nodes":
-                    guided = _get_guided_path_virtual(
-                        graph,
-                        vor,
-                        geom,
-                        src_point,
-                        dst_point,
-                        src_candidates,
-                        dst_candidates,
-                        max_terminal_angle,
-                        alpha,
-                        enforce_angle=False,
-                    )
-                else:
-                    guided = _get_guided_path(
-                        graph,
-                        vor,
-                        geom,
-                        src_point,
-                        dst_point,
-                        src_candidates,
-                        dst_candidates,
-                        max_terminal_angle,
-                        alpha,
-                        enforce_angle=False,
-                    )
-
-            if guided is not None:
-                path_nodes = guided["path"]
-                if endpoint_mode == "strict":
-                    centerline = _line_from_nodes_with_anchors(path_nodes, vor, src_point, dst_point)
-                    centerline = _smooth_linestring_fixed_ends(centerline, smooth_sigma)
-                else:
-                    centerline = LineString(vor.vertices[path_nodes])
-                    centerline = _smooth_linestring(centerline, smooth_sigma)
-                    centerline = _soft_snap_centerline_to_endpoints(
-                        centerline, src_point, dst_point, snap_tolerance
-                    )
-
-        if centerline is None and guided_attempted and endpoint_mode == "strict":
-            raise CenterlineError("endpoint-guided extraction failed for provided endpoints")
-
-        if centerline is None and guided_attempted:
-            logger.warning(
-                "endpoint-guided extraction failed in soft mode; "
-                "falling back to main-route longest-path extraction"
-            )
-
-        if centerline is None:
-            graph_nk = _graph_from_voronoi_nk(vor, geom)
-            longest_paths = _get_main_route_longest_paths(graph_nk)
-            if not longest_paths:
-                logger.debug("no paths found between end nodes")
-                raise CenterlineError("no paths found between end nodes")
-            if logger.getEffectiveLevel() <= 10:
-                logger.debug("longest paths:")
-                for path in longest_paths:
-                    logger.debug(LineString(vor.vertices[path]))
-
-            centerline = _smooth_linestring(
-                LineString(vor.vertices[_get_least_curved_path(longest_paths, vor.vertices)]),
-                smooth_sigma,
-            )
-        logger.debug("centerline: %s", centerline)
-        logger.debug("return linestring")
         return centerline
 
     elif geom.geom_type == "MultiPolygon":
@@ -329,17 +868,19 @@ def get_centerline(
 
 def _segmentize(geom, max_len):
     """Interpolate points on segments if they exceed maximum length."""
-    points = []
+    points = [geom.coords[0]]
+
     for previous, current in zip(geom.coords, geom.coords[1:]):
-        line_segment = LineString([previous, current])
-        # add points on line segment if necessary
-        points.extend(
-            [
-                line_segment.interpolate(max_len * i).coords[0]
-                for i in range(int(line_segment.length / max_len))
-            ]
-        )
-        # finally, add end point
+
+        seg = LineString([previous, current])
+
+        n = max(1, int(np.ceil(seg.length / max_len)))
+
+        for i in range(1, n):
+            points.append(
+                seg.interpolate(i * seg.length / n).coords[0]
+            )
+
         points.append(current)
     return LineString(points)
 
@@ -414,13 +955,142 @@ def _pick_endpoint_candidates(point, graph, vor, geometry, candidate_k, preferre
             break
     return chosen
 
+def _pick_endpoint_candidates_v2(
+    point,
+    other_point,
+    graph,
+    geometry,
+    candidate_k,
+    preferred_nodes=None,
+):
+
+    preferred_nodes = preferred_nodes or []
+
+    filtered_preferred = [
+        node
+        for node in preferred_nodes
+        if node in graph
+    ]
+
+    available_nodes = list(filtered_preferred)
+
+    available_nodes.extend(
+        nearest_nodes(
+            point.coords[0],
+            graph,
+            k=50
+        )
+    )
+
+    available_nodes = list(
+        dict.fromkeys(available_nodes)
+    )
+
+    scored = []
+
+    point_xy = np.array(point.coords[0])
+    other_xy = np.array(other_point.coords[0])
+
+    corridor_dir = other_xy - point_xy
+    corridor_norm = np.linalg.norm(corridor_dir)
+
+    for node in available_nodes:
+
+        node_xy = np.array(node)
+
+        dist = point.distance(Point(node))
+
+        boundary_dist = geometry.boundary.distance(
+            Point(node)
+        )
+
+        alignment = 0.0
+
+        candidate_dir = node_xy - point_xy
+        candidate_norm = np.linalg.norm(candidate_dir)
+
+        if corridor_norm > 0 and candidate_norm > 0:
+
+            alignment = np.dot(
+                corridor_dir / corridor_norm,
+                candidate_dir / candidate_norm
+            )
+
+            if alignment < 0:
+                continue
+
+        score = (
+            dist
+            + (0.2 / max(boundary_dist, 0.1))
+            + (1.0 - alignment) * 100.0
+        )
+
+        if node in filtered_preferred:
+            score *= 0.6
+
+        scored.append(
+            (score, node)
+        )
+
+    scored.sort(key=lambda x: x[0])
+
+    return [
+        node
+        for score, node in scored[:candidate_k]
+    ]
+
+
+def _alignment_score(seed_xy, other_seed_xy, candidate_xy):
+    """
+    Returns alignment in [-1, 1]
+
+     1 = perfect direction
+     0 = perpendicular
+    -1 = opposite direction
+    """
+
+    corridor_dir = np.array(other_seed_xy) - np.array(seed_xy)
+    cand_dir = np.array(candidate_xy) - np.array(seed_xy)
+
+    nc = np.linalg.norm(corridor_dir)
+    nd = np.linalg.norm(cand_dir)
+
+    if nc == 0 or nd == 0:
+        return -1.0
+
+    corridor_dir /= nc
+    cand_dir /= nd
+
+    return float(np.dot(corridor_dir, cand_dir))
+
+
+
+
+def trim_to_seed_projections(line, src_point, dst_point):
+
+    src_d = line.project(src_point)
+    dst_d = line.project(dst_point)
+
+    start_d = min(src_d, dst_d)
+    end_d = max(src_d, dst_d)
+
+    trimmed = shp_ops.substring(line, start_d, end_d)
+
+    coords = list(trimmed.coords)
+
+    coords[0] = src_point.coords[0]
+    coords[-1] = dst_point.coords[0]
+
+    return LineString(coords)
+
+
 
 def _build_medial_weighted_graph(graph, vor, geometry, alpha):
     """Build graph with edge costs biased to medial regions."""
     weighted = nx.Graph()
     for u, v in graph.edges():
-        p1 = Point(vor.vertices[u])
-        p2 = Point(vor.vertices[v])
+        p1 = Point(node_to_xy(u,vor))
+        p2 = Point(node_to_xy(v,vor))
         length = p1.distance(p2)
         clearance = min(geometry.boundary.distance(p1), geometry.boundary.distance(p2))
         weight = length / max(clearance, 1e-6) ** alpha
@@ -430,28 +1100,68 @@ def _build_medial_weighted_graph(graph, vor, geometry, alpha):
 
 def _build_medial_weighted_graph_nk(graph, vor, geometry, alpha):
     """Build NetworKit graph with edge costs biased to medial regions."""
+def _build_medial_weighted_graph_nk(
+    graph,
+    geometry,
+    alpha,
+):
+
     nodes = list(graph.nodes())
     if not nodes:
-        return nk.graph.Graph(0, weighted=True)
+        return None, {}, {}
 
-    max_node_id = max(nodes)
-    weighted_nk = nk.graph.Graph(max_node_id + 1, weighted=True)
+    node_to_id = {
+        node: idx
+        for idx, node in enumerate(nodes)
+    }
+
+    id_to_node = {
+        idx: node
+        for node, idx in node_to_id.items()
+    }
+
+    weighted_nk = nk.graph.Graph(
+        len(nodes),
+        weighted=True
+    )
+
     for u, v in graph.edges():
-        p1 = Point(vor.vertices[u])
-        p2 = Point(vor.vertices[v])
+
+        p1 = Point(u)
+        p2 = Point(v)
+
         length = p1.distance(p2)
-        clearance = min(geometry.boundary.distance(p1), geometry.boundary.distance(p2))
-        weight = length / max(clearance, 1e-6) ** alpha
-        weighted_nk.addEdge(u, v, weight)
-    return weighted_nk
+
+        clearance = min(
+            geometry.boundary.distance(p1),
+            geometry.boundary.distance(p2)
+        )
+
+        weight = (
+            length
+            / max(clearance, 1e-6) ** alpha
+        )
+
+        weighted_nk.addEdge(
+            node_to_id[u],
+            node_to_id[v],
+            weight
+        )
+
+    return weighted_nk, node_to_id, id_to_node
+
 
 
 def _nk_shortest_path_and_cost(graph_nk, src_node, dst_node):
     """Return shortest path and cost from NetworKit, or None if unreachable."""
-    src_node = int(src_node)
-    dst_node = int(dst_node)
     node_count = graph_nk.numberOfNodes()
-    if src_node < 0 or dst_node < 0 or src_node >= node_count or dst_node >= node_count:
+
+    if (
+            src_node < 0
+            or dst_node < 0
+            or src_node >= node_count
+            or dst_node >= node_count
+    ):
         return None
 
     solver = None
@@ -504,13 +1214,19 @@ def _nk_shortest_path_and_cost(graph_nk, src_node, dst_node):
 
 
 def _line_from_nodes_with_anchors(path_nodes, vor, src_point, dst_point):
+def _line_from_nodes_with_anchors(path_nodes, src_point, dst_point,vor=None):
+
+    if not path_nodes:
+        return LineString([src_point.coords[0],dst_point.coords[0]])
     coords = [src_point.coords[0]]
-    coords.extend([tuple(vor.vertices[node]) for node in path_nodes])
+    coords.extend(node_to_xy(node,vor) for node in path_nodes)
     coords.append(dst_point.coords[0])
     deduped = [coords[0]]
     for coord in coords[1:]:
         if coord != deduped[-1]:
             deduped.append(coord)
+    if len(deduped)<=2:
+        return LineString([src_point.coords[0],dst_point.coords[0]])
     return LineString(deduped)
 
 
@@ -527,20 +1243,40 @@ def _soft_snap_centerline_to_endpoints(linestring, src_point, dst_point, toleran
     return LineString(coords)
 
 
-def _terminal_deflection_angle(path, vertices, src_point, dst_point):
+def _terminal_deflection_angle(path,src_point, dst_point):
     """Get worst terminal deflection angle in degrees."""
     if len(path) < 2:
         return 0.0
 
     src_xy = np.array(src_point.coords[0])
     dst_xy = np.array(dst_point.coords[0])
-    start_xy = np.array(vertices[path[0]])
-    start_next_xy = np.array(vertices[path[1]])
-    end_xy = np.array(vertices[path[-1]])
-    end_prev_xy = np.array(vertices[path[-2]])
+    start_xy = np.array([path[0]])
+    start_next_xy = np.array([path[1]])
+    end_xy = np.array([path[-1]])
+    end_prev_xy = np.array([path[-2]])
+    corridor_dir = dst_xy - src_xy
 
-    start_angle = _angle_between_vectors(start_xy - src_xy, start_next_xy - start_xy)
-    end_angle = _angle_between_vectors(end_prev_xy - end_xy, dst_xy - end_xy)
+    start_dir = start_next_xy - start_xy
+
+    start_angle = _angle_between_vectors(
+        corridor_dir,
+        start_dir
+    )
+    start_angle = min(start_angle, 180 - start_angle)
+
+    end_dir = end_xy - end_prev_xy
+
+    end_angle = _angle_between_vectors(
+        corridor_dir,
+        end_dir
+    )
+    end_angle = min(end_angle, 180 - end_angle)
+    # print("src connector:", start_xy - src_xy)
+    # print("path start dir:", start_next_xy - start_xy)
+    #
+    # print("dst connector:", dst_xy - end_xy)
+    # print("path end dir:", end_xy - end_prev_xy)
+
     return max(start_angle, end_angle)
 
 
@@ -550,13 +1286,13 @@ def _angle_between_vectors(v1, v2):
     if n1 == 0 or n2 == 0:
         return 0.0
     cosang = np.dot(v1, v2) / (n1 * n2)
-    cosang = max(-1.0, min(1.0, cosang))
+    # cosang = max(-1.0, min(1.0, cosang))
+    cosang = np.clip(cosang, -1.0, 1.0)
     return float(np.degrees(np.arccos(cosang)))
 
 
 def _get_guided_path(
     graph,
-    vor,
     geometry,
     src_point,
     dst_point,
@@ -570,40 +1306,64 @@ def _get_guided_path(
     if not src_candidates or not dst_candidates:
         return None
 
-    weighted_nk = _build_medial_weighted_graph_nk(graph, vor, geometry, alpha)
+    weighted_nk,node_to_id, id_to_node = _build_medial_weighted_graph_nk(graph, geometry, alpha)
     best = None
 
     for src_node in src_candidates:
         for dst_node in dst_candidates:
             if src_node == dst_node:
                 continue
-            solved = _nk_shortest_path_and_cost(weighted_nk, src_node, dst_node)
+            solved = _nk_shortest_path_and_cost(weighted_nk, node_to_id[src_node], node_to_id[dst_node])
             if solved is None:
                 continue
-            path, score = solved
+            path_ids, score = solved
 
-            src_connector_cost = _endpoint_connector_cost(src_point, src_node, vor, geometry)
-            dst_connector_cost = _endpoint_connector_cost(dst_point, dst_node, vor, geometry)
-            terminal_angle = _terminal_deflection_angle(path, vor.vertices, src_point, dst_point)
-            if enforce_angle and terminal_angle > max_terminal_angle:
-                continue
+            path = [
+                id_to_node[node_id]
+                for node_id in path_ids
+            ]
+            # print("path length:", len(path))
+            # print("unique:", len(set(path)))
+            # for n in path:
+            #     d = graph.degree(n)
+            #     if d > 2:
+            #         print("junction:", n, "degree:", d)
+
+            src_connector_cost = _endpoint_connector_cost(src_point, src_node,  geometry)
+            dst_connector_cost = _endpoint_connector_cost(dst_point, dst_node,  geometry)
+            # terminal_angle = _terminal_deflection_angle(path, vor.vertices, src_point, dst_point)
+            start_angle, end_angle = _terminal_angles(path,src_point,dst_point)
+            effective_limit = max(max_terminal_angle, 55.0)
+            try:
+                if enforce_angle:
+                    if start_angle > effective_limit:
+                        continue
+                    if end_angle > effective_limit:
+                        continue
+            except Exception:
+                import traceback
+                print(traceback.format_exc(), flush=True)
+                raise
+            terminal_penalty = (start_angle +end_angle )
 
             total_score = (
-                score + src_connector_cost + dst_connector_cost + ANGLE_PENALTY_WEIGHT * terminal_angle
+                score + src_connector_cost + dst_connector_cost + ANGLE_PENALTY_WEIGHT * terminal_penalty
             )
             candidate = {
                 "path": path,
                 "score": total_score,
-                "angle": terminal_angle,
+                "start_angle": start_angle,
+                "end_angle": end_angle,
             }
             if best is None or candidate["score"] < best["score"]:
                 best = candidate
     return best
 
 
-def _endpoint_connector_cost(endpoint_point, node, vor, geometry):
+def _endpoint_connector_cost(endpoint_point, node, geometry):
     """Cost for connecting endpoint anchor to real graph node."""
-    node_point = Point(vor.vertices[node])
+    # node_point = Point(vor.vertices[node])
+    node_point = Point(node)
     distance_cost = endpoint_point.distance(node_point)
     boundary_penalty = 0.2 / max(geometry.boundary.distance(node_point), 1e-6)
     return distance_cost + boundary_penalty
@@ -638,7 +1398,7 @@ def _get_guided_path_virtual(
         augmented.add_edge(
             src_virtual,
             node,
-            weight=_endpoint_connector_cost(src_point, node, vor, geometry),
+            weight=_endpoint_connector_cost(src_point, node,  geometry),
         )
         src_added += 1
 
@@ -649,7 +1409,7 @@ def _get_guided_path_virtual(
         augmented.add_edge(
             dst_virtual,
             node,
-            weight=_endpoint_connector_cost(dst_point, node, vor, geometry),
+            weight=_endpoint_connector_cost(dst_point, node,  geometry),
         )
         dst_added += 1
 
@@ -671,9 +1431,14 @@ def _get_guided_path_virtual(
             if len(path) < 2:
                 continue
 
-            terminal_angle = _terminal_deflection_angle(path, vor.vertices, src_point, dst_point)
-            if enforce_angle and terminal_angle > max_terminal_angle:
-                continue
+            terminal_angle = _terminal_deflection_angle(path, src_point, dst_point)
+            try:
+                if enforce_angle and terminal_angle > max_terminal_angle:
+                    continue
+            except Exception:
+                import traceback
+                print(traceback.format_exc(), flush=True)
+                raise
 
             score = nx.path_weight(augmented, raw_path, weight="weight")
             score = score + ANGLE_PENALTY_WEIGHT * terminal_angle
@@ -696,7 +1461,7 @@ def _get_vertex_coords(node, vor, extended_coords):
     """Get coordinates for a graph node, checking extended coords first."""
     if extended_coords and node in extended_coords:
         return extended_coords[node]
-    return vor.vertices[node]
+    return node_to_xy(node,vor)
 
 
 def _insert_endpoint_node(
@@ -741,7 +1506,8 @@ def _insert_endpoint_node(
         return None
 
     u, v = best_edge
-    new_id = max(weighted_graph.nodes()) + 1
+    # new_id = max(weighted_graph.nodes()) + 1
+    new_id=(float(best_projected[0]),best_projected[1])
     extended_coords[new_id] = best_projected
 
     weighted_graph.remove_edge(u, v)
@@ -813,9 +1579,13 @@ def _get_guided_path_direct_insert(
     start_angle = _angle_between_vectors(start_xy - src_xy, next_xy - start_xy)
     end_angle = _angle_between_vectors(prev_xy - end_xy, dst_xy - end_xy)
     terminal_angle = max(start_angle, end_angle)
-
-    if enforce_angle and terminal_angle > max_terminal_angle:
-        return None
+    try:
+        if enforce_angle and terminal_angle > max_terminal_angle:
+            return None
+    except Exception:
+        import traceback
+        print(traceback.format_exc(), flush=True)
+        raise
 
     score += ANGLE_PENALTY_WEIGHT * terminal_angle
 
@@ -850,7 +1620,8 @@ def _get_main_route_longest_paths(graph_nk):
     longest_path = dijkstra.getPath(longest[1])
     if not longest_path:
         return []
-    return [[int(i) for i in longest_path]]
+    longest_paths= [[int(i) for i in longest_path]]
+    return longest_paths
 
 
 def _get_least_curved_path(paths, vertices):
@@ -859,6 +1630,40 @@ def _get_least_curved_path(paths, vertices):
         zip([_get_path_angles_sum(path, vertices) for path in paths], paths),
         key=operator.itemgetter(0),
     )[1]
+
+def path_curvature(coords):
+
+    if len(coords) < 3:
+        return 0
+
+    total = 0
+
+    for i in range(1, len(coords) - 1):
+
+        p0 = np.array(coords[i - 1])
+        p1 = np.array(coords[i])
+        p2 = np.array(coords[i + 1])
+
+        v1 = p1 - p0
+        v2 = p2 - p1
+
+        n1 = np.linalg.norm(v1)
+        n2 = np.linalg.norm(v2)
+
+        if n1 == 0 or n2 == 0:
+            continue
+
+        cosang = np.clip(
+            np.dot(v1, v2) / (n1 * n2),
+            -1.0,
+            1.0,
+        )
+
+        total += np.arccos(cosang)
+
+    return total
+
+
 
 
 def _get_path_angles_sum(path, vertices):
@@ -886,10 +1691,19 @@ def _get_end_nodes(graph):
 def _graph_from_voronoi(vor, geometry):
     """Return networkx.Graph from Voronoi diagram within geometry."""
     graph = nx.Graph()
-    for x, y, dist in _yield_ridge_vertices(vor, geometry, dist=True):
+    for x, y, dist in _yield_ridge_vertices_v2(vor, geometry, dist=True):
         graph.add_nodes_from([x, y])
         graph.add_edge(x, y, weight=dist)
     return graph
+
+def _graph_from_voronoi_v2(vor, geometry):
+    """Return networkx.Graph from Voronoi diagram within geometry."""
+    graph = nx.Graph()
+    for x, y, dist in _yield_ridge_vertices_v2(vor, geometry, dist=True):
+        graph.add_nodes_from([x, y])
+        graph.add_edge(x, y, weight=dist)
+    return graph
+
 
 
 def _graph_from_voronoi_nk(vor, geometry):
@@ -928,3 +1742,365 @@ def _yield_ridge_vertices(vor, geometry, dist=False):
                 yield x, y, point1.distance(point2)
             else:
                 yield x, y
+
+
+def _yield_ridge_vertices_v2(vor, geometry, dist=False):
+    """Yield Voronoi ridge vertices within geometry."""
+    def snap(pt,precision=5):
+        return (
+            round(pt[0],precision),
+            round(pt[1],precision),
+        )
+
+    for x, y in vor.ridge_vertices:
+
+        if x < 0 or y < 0:
+            continue
+
+        ridge = LineString([
+            vor.vertices[x],
+            vor.vertices[y]
+        ])
+        if ridge.within(geometry):
+            clipped=ridge
+
+        else:
+            clipped = ridge.intersection(geometry)
+
+        if clipped.is_empty:
+            continue
+
+        if clipped.geom_type == "LineString":
+
+            coords = list(clipped.coords)
+
+            for i in range(len(coords) - 1):
+
+                u = snap(coords[i])
+                v = snap(coords[i + 1])
+                if u==v:
+                    continue
+                if dist:
+                    yield u, v, LineString([u, v]).length
+                else:
+                    yield u, v
+
+        elif clipped.geom_type == "MultiLineString":
+
+            for seg in clipped.geoms:
+
+                coords = list(seg.coords)
+
+                for i in range(len(coords) - 1):
+
+                    u = snap(coords[i])
+                    v = snap(coords[i + 1])
+
+                    if dist:
+                        yield u, v, LineString([u, v]).length
+                    else:
+                        yield u, v
+
+
+def _terminal_angles(path, src_point, dst_point):
+    """
+    Returns:
+        start_angle, end_angle
+    """
+
+    if len(path) < 2:
+        return 180.0, 180.0
+
+    src_xy = np.array(src_point.coords[0])
+    dst_xy = np.array(dst_point.coords[0])
+
+    #
+    # Start angle
+    #
+    first_vertex = np.array(path[0])
+    second_vertex = np.array(path[1])
+
+    corridor_dir = dst_xy - src_xy
+    start_dir = second_vertex - src_xy
+
+    start_angle = _angle_between_vectors(
+        corridor_dir,
+        start_dir
+    )
+
+    #
+    # End angle
+    #
+    last_vertex = np.array(path[-1])
+    prev_vertex = np.array(path[-2])
+
+    end_corridor_dir = src_xy - dst_xy
+    end_dir = prev_vertex - dst_xy
+
+    end_angle = _angle_between_vectors(
+        end_corridor_dir,
+        end_dir
+    )
+
+    return start_angle, end_angle
+
+
+
+def _get_graph_diameter_path(graph):
+    terminals = [
+        n
+        for n in graph.nodes()
+        if graph.degree(n) == 1
+    ]
+
+    if len(terminals) < 2:
+        return None
+
+    best_path = None
+    best_length = -1
+
+    for src in terminals:
+
+        lengths, paths = nx.single_source_dijkstra(
+            graph,
+            src,
+            weight="weight"
+        )
+
+        for dst in terminals:
+
+            if dst == src:
+                continue
+
+            if dst not in lengths:
+                continue
+
+            length = lengths[dst]
+
+            try:
+                if length > best_length:
+                    best_length = length
+                    best_path = paths[dst]
+            except Exception:
+                import traceback
+                print(traceback.format_exc(), flush=True)
+                raise
+
+    return best_path
+
+
+def nk_to_nx(weighted_nk, id_to_node):
+    g = nx.Graph()
+
+    for u, v in weighted_nk.iterEdges():
+        gu = id_to_node[u]
+        gv = id_to_node[v]
+
+        g.add_edge(
+            gu,
+            gv,
+            weight=weighted_nk.weight(u, v)
+        )
+
+    return g
+
+def corridor_width(node_xy, polygon):
+    return 2.0 * Point(node_xy).distance(polygon.boundary)
+
+def is_narrow(node_xy, polygon, cell_size):
+    width = corridor_width(node_xy, polygon)
+    return width <= 2 * cell_size
+
+def narrow_length(graph, polygon, cell_size):
+    total = 0.0
+
+    for u, v in graph.edges:
+
+        wu = corridor_width(u, polygon)
+        wv = corridor_width(v, polygon)
+
+        if (
+            wu <= 2 * cell_size
+            and
+            wv <= 2 * cell_size
+        ):
+            total += LineString([u, v]).length
+
+    return total
+
+def has_long_narrow_section(
+        graph,
+        polygon,
+        cell_size,
+        max_width_cells=2,
+        min_length_cells=20):
+
+    narrow_length = 0
+
+    for u, v in graph.edges:
+
+        wu = 2 * Point(u).distance(
+            polygon.boundary
+        )
+
+        wv = 2 * Point(v).distance(
+            polygon.boundary
+        )
+
+        if (
+            wu <= max_width_cells * cell_size and
+            wv <= max_width_cells * cell_size
+        ):
+            narrow_length += (
+                LineString([u, v]).length
+            )
+
+    return (
+        narrow_length >
+        min_length_cells * cell_size
+    )
+
+def shp_rasterize(in_geom,cell_size):
+    import numpy as np
+    from rasterio.features import rasterize
+    from rasterio.transform import from_origin
+
+    # Shapely polygon
+    poly = in_geom
+
+    minx, miny, maxx, maxy = poly.bounds
+
+    width = int(np.ceil((maxx - minx) / cell_size))
+    height = int(np.ceil((maxy - miny) / cell_size))
+
+    transform = from_origin(
+        minx,
+        maxy,
+        cell_size,
+        cell_size
+    )
+
+    mask = rasterize(
+        [(poly, 1)],
+        out_shape=(height, width),
+        transform=transform,
+        fill=0,
+        dtype=np.uint8
+    )
+    # profile = {
+    #     'driver': 'GTiff',
+    #     'height': mask.shape[0],
+    #     'width': mask.shape[1],
+    #     'count': 1,
+    #     'dtype': mask.dtype,
+    #     'crs': 'EPSG:22812',
+    #     'transform': transform
+    # }
+
+    return mask.astype(bool)
+
+
+def longest_run(mask):
+    longest = current = 0
+
+    for v in mask:
+        if v:
+            current += 1
+            longest = max(longest, current)
+        else:
+            current = 0
+
+    return longest
+
+def largest_component_ratio(graph):
+
+    if graph.number_of_nodes() == 0:
+        return 0
+
+    comps = list(nx.connected_components(graph))
+
+    largest = max(len(c) for c in comps)
+
+    return largest / graph.number_of_nodes()
+
+
+def component_ratio(graph):
+    ratio=[]
+    if graph.number_of_nodes() == 0:
+        return 0
+
+    comps = list(nx.connected_components(graph))
+
+    for comp in comps:
+       ratio.append(len(comp)/graph.number_of_nodes())
+
+    return ratio
+
+
+
+
+def nearest_nodes(
+        pt,
+        graph,
+        k=5,
+        max_distance=None):
+
+    p = Point(pt)
+
+    candidates = []
+
+    for node in graph.nodes:
+
+        d = p.distance(Point(node))
+
+        if (
+            max_distance is not None
+            and d > max_distance
+        ):
+            continue
+
+        candidates.append((d, node))
+
+    candidates.sort(key=lambda x: x[0])
+
+    return [node for d, node in candidates[:k]]
+
+
+def segmentize_to_target_density(
+        line,
+        min_points=3000,
+        max_points=12000,
+        initial_spacing=1.0):
+    n0=len(line.coords)
+    if min_points <= n0 <=max_points:
+        return line
+
+    if n0>max_points:
+        spacing=line.length/max_points
+    else:
+        spacing=line.length/min_points
+
+    return _segmentize(line, spacing)
+
+
+def node_to_xy(node,vor=None):
+    """
+    Accept either
+        -Voronoi vertex id(int)
+        -coordinate tuple (x,y)
+        -numpy coordinate array
+
+    Return:
+        (x,y) tuple of floats
+    """
+    if isinstance(node,(tuple,list,np.ndarray)):
+        if len(node)==2:
+            return float(node[0]),float(node[1])
+    if isinstance(node,(int,np.integer)):
+         if vor is None:
+             raise ValueError("vor is required for vertex ids")
+
+         xy=vor.vertices[node]
+         return float(xy[0]),float(xy[1])
+
+    raise TypeError(f"Unsupported node type: {type(node)}")

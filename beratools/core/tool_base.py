@@ -141,7 +141,8 @@ def execute_multiprocessing(
                         else:
                             pbar.update()
     except Exception as e:
-        print(e)
+        import traceback
+        traceback.print_exc()
         return None
 
     return out_result

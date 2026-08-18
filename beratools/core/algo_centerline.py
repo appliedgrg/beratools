@@ -20,7 +20,7 @@ from itertools import compress
 import geopandas as gpd
 import numpy as np
 import pandas as pd
-import rasterio
+import rasterio, math
 import shapely
 import shapely.geometry as sh_geom
 import shapely.ops as sh_ops
@@ -107,7 +107,7 @@ def centerline_is_valid(centerline, input_line):
 
 
 def snap_end_to_end(in_line, line_reference, max_snap_dist=None):
-    if type(in_line) is sh_geom.MultiLineString:
+    if isinstance(in_line,sh_geom.MultiLineString):
         in_line = sh_ops.linemerge(in_line)
         if type(in_line) is sh_geom.MultiLineString:
             algo_common.log_file_only(
@@ -171,7 +171,16 @@ def _is_endpoint_anchored(centerline, seed_line, tol=CenterlineParams.ENDPOINT_A
 
 
 def _trim_and_snap_centerline(centerline, input_line, max_snap_dist=None):
+    if centerline is None:
+        return None
+    try:
+        if centerline.is_empty:
+            return None
+    except Exception:
+        return None
     cl_coords = list(centerline.coords)
+    if len(cl_coords) < 2:
+        return None
 
     head_buffer = sh_geom.Point(cl_coords[0]).buffer(CenterlineParams.BUFFER_CLIP)
     centerline = centerline.difference(head_buffer)
@@ -179,7 +188,7 @@ def _trim_and_snap_centerline(centerline, input_line, max_snap_dist=None):
     end_buffer = sh_geom.Point(cl_coords[-1]).buffer(CenterlineParams.BUFFER_CLIP)
     centerline = centerline.difference(end_buffer)
 
-    if not centerline:
+    if centerline is None:
         return None
 
     try:
@@ -187,6 +196,7 @@ def _trim_and_snap_centerline(centerline, input_line, max_snap_dist=None):
             return None
     except Exception as e:
         print(f"find_centerline: {e}")
+        return None
 
     return snap_end_to_end(centerline, input_line, max_snap_dist=max_snap_dist)
 
@@ -196,6 +206,9 @@ def _extract_centerline_from_polygon(
     src_geom,
     dst_geom,
     guided_strategy,
+    endpoint_mode='strict',
+    endpoint_candidate_k=5,
+    cell_size=1.0,
 ):
     from beratools.external.polygon_centerline import get_centerline
 
@@ -209,135 +222,221 @@ def _extract_centerline_from_polygon(
         src_geom=src_geom,
         dst_geom=dst_geom,
         guided_strategy=guided_strategy,
+        endpoint_mode=endpoint_mode,
+        endpoint_candidate_k=endpoint_candidate_k,
+        cell_size=cell_size,
     )
 
-
-def find_centerline(poly, input_line, guided_strategy="main_route"):
+def find_centerline(poly,
+                    input_line,
+                    guided_strategy="main_route",
+                    endpoint_mode=None,
+                    endpoint_candidate_k=8,
+                    allow_regeneration=True,
+                    cell_size=1.0,
+                   ):
     """
     Find centerline from polygon and input line.
 
     Args:
         poly : sh_geom.Polygon
         input_line ( sh_geom.LineString): Least cost path or seed line
+        guided_strategy : "pairwise", "virtual_nodes", "direct_insert", or "main_route".(default: main_route)
+        endpoint_mode : {"strict", "soft", None} None (default) automatically determines the mode from endpoint coverage.
+        endpoint_candidate_k : Number of endpoint graph candidates.(default: 8)
 
     Returns:
     centerline (sh_geom.LineString): Centerline
     status (CenterlineStatus): Status of centerline generation
 
     """
-    default_return = input_line, CenterlineStatus.FAILED
-    valid_guided_strategies = {"main_route", "pairwise", "virtual_nodes", "direct_insert"}
-    if guided_strategy not in valid_guided_strategies:
-        raise ValueError("guided_strategy must be one of {}".format(sorted(valid_guided_strategies)))
-    effective_strategy = guided_strategy
-
-    if not poly:
-        algo_common.log_file_only("find_centerline: No polygon found")
-        return default_return
-
-    poly = shapely.segmentize(poly, max_segment_length=CenterlineParams.SEGMENTIZE_LENGTH)
-
-    # buffer to reduce MultiPolygons
-    poly = poly.buffer(bt_const.SMALL_BUFFER)
-    if type(poly) is sh_geom.MultiPolygon:
-        print("sh_geom.MultiPolygon encountered, skip.")
-        return default_return
-
-    exterior_pts = list(poly.exterior.coords)
-
-    if bt_const.CenterlineFlags.DELETE_HOLES:
-        poly = sh_geom.Polygon(exterior_pts)
-    if bt_const.CenterlineFlags.SIMPLIFY_POLYGON:
-        poly = poly.simplify(CenterlineParams.SIMPLIFY_LENGTH)
-
-    line_coords = list(input_line.coords)
-
-    src_geom = None
-    dst_geom = None
-    if guided_strategy in {"pairwise", "virtual_nodes", "direct_insert"}:
-        src_geom = sh_geom.Point(line_coords[0])
-        dst_geom = sh_geom.Point(line_coords[-1])
-
     try:
-        centerline = _extract_centerline_from_polygon(
-            poly,
-            src_geom,
-            dst_geom,
-            guided_strategy,
-        )
-    except Exception as e:
-        error_msg = str(e)
-        if error_msg == "endpoint-guided extraction failed for provided endpoints":
-            algo_common.log_file_only(f"find_centerline: {error_msg}")
-        else:
-            print(f"find_centerline: {e}")
-        centerline = None
+        default_return = input_line, CenterlineStatus.FAILED
+        valid_guided_strategies = {"main_route", "pairwise", "virtual_nodes", "direct_insert"}
+        ordered_valid_guided_strategies=["pairwise", "virtual_nodes", "direct_insert","main_route"]
+        if guided_strategy not in valid_guided_strategies:
+            raise ValueError("guided_strategy must be one of {}".format(sorted(valid_guided_strategies)))
+        effective_strategy = guided_strategy
 
-    if not centerline and guided_strategy in {"pairwise", "virtual_nodes", "direct_insert"}:
-        if guided_strategy == "pairwise":
-            algo_common.log_file_only("find_centerline: pairwise guidance failed, retrying main_route")
+        if not poly:
+            algo_common.log_file_only("find_centerline: No polygon found")
+            return default_return
+
+        poly = shapely.segmentize(poly, max_segment_length=CenterlineParams.SEGMENTIZE_LENGTH)
+
+        # buffer to reduce MultiPolygons
+        poly = poly.buffer(bt_const.SMALL_BUFFER)
+
+        try:
+            if isinstance(poly, sh_geom.MultiPolygon):
+                poly = sh_ops.unary_union(poly.geoms)
+                if isinstance(poly, sh_geom.MultiPolygon):
+                    bridge_width = max(CenterlineParams.SIMPLIFY_LENGTH.value, bt_const.SMALL_BUFFER * 10)
+                    part_polygons = [_prepare_polygon_for_extraction(part)
+                    for part in poly.geoms if not part.is_empty and part.area > CenterlineParams.CLEANUP_POLYGON_BY_AREA ]
+                    if not part_polygons:
+                        return default_return
+                    merged = part_polygons[0]
+                    for part in part_polygons[1:]:
+                        p1, p2 = sh_ops.nearest_points(merged, part)
+                        connector = sh_geom.LineString([p1, p2]).buffer(bridge_width)
+                        merged = merged.union(connector).union(part)
+                    if isinstance(merged, sh_geom.MultiPolygon):
+                        poly = max(merged.geoms, key=lambda p: p.area)
+                    else:
+                        poly=merged
+                    poly = poly.buffer(0.5).buffer(-0.5)
+            # poly = _prepare_polygon_for_extraction(poly)
+        except Exception as e:
+            print(f"find_centerline: _prepare_polygon_for_extraction: {e}")
+
+        line_coords = list(input_line.coords)
+        if guided_strategy in {"pairwise", "virtual_nodes", "direct_insert"}:
+            start = sh_geom.Point(line_coords[0])
+            end = sh_geom.Point(line_coords[-1])
+
+            start_covered = poly.covers(start)
+            end_covered = poly.covers(end)
+
+            src_geom = start if start_covered else sh_ops.nearest_points(start, poly)[1]
+            dst_geom = end if end_covered else sh_ops.nearest_points(end, poly)[1]
+
+            # if endpoint_mode is None:
+            endpoint_mode = ("strict" if start_covered and end_covered else "soft")
+
         else:
-            print(f"find_centerline: {guided_strategy} guidance failed, retrying main_route")
+            src_geom = None
+            dst_geom = None
+            if endpoint_mode is None:
+                endpoint_mode = "soft"
+
         try:
             centerline = _extract_centerline_from_polygon(
                 poly,
-                None,
-                None,
-                "main_route",
+                src_geom,
+                dst_geom,
+                guided_strategy,
+                endpoint_mode,
+                endpoint_candidate_k,
+                cell_size=cell_size,
             )
-            if centerline:
-                effective_strategy = "main_route"
         except Exception as e:
-            print(f"find_centerline: main_route retry failed: {e}")
+            error_msg = str(e)
+            if error_msg == "endpoint-guided extraction failed for provided endpoints":
+                algo_common.log_file_only(f"find_centerline: {error_msg}")
+            else:
+                print(f"find_centerline: {e}")
+            centerline = None
+
+        if not centerline and guided_strategy in {"pairwise", "virtual_nodes", "direct_insert"}:
+            if guided_strategy == "pairwise":
+                algo_common.log_file_only("find_centerline: pairwise guidance failed, trying fallback strategies",logger_name=__name__,)
+            else:
+                algo_common.log_file_only(
+                    f"find_centerline: {guided_strategy} guidance failed, trying fallback strategies",
+                    logger_name=__name__,
+                )
+            # Move selected strategy to the front
+            execution_order = [guided_strategy] + [s for s in ordered_valid_guided_strategies if s != guided_strategy]
+            i=1
+            while i<len(execution_order):
+                if  execution_order[i]== "main_route":
+                    in_src_geom = None
+                    in_dst_geom = None
+                else:
+                    in_src_geom = src_geom
+                    in_dst_geom = dst_geom
+
+                try:
+                    centerline = _extract_centerline_from_polygon(
+                        poly,
+                        in_src_geom,
+                        in_dst_geom,
+                        execution_order[i],
+                        endpoint_mode,
+                        endpoint_candidate_k,
+                        cell_size=cell_size,
+                    )
+                except Exception as e:
+                    centerline = None
+                    algo_common.log_file_only(
+                        f"find_centerline: fallback {execution_order[i]} failed: {e}",
+                        logger_name=__name__,)
+                if centerline is not None and not centerline.is_empty:
+                    effective_strategy = execution_order[i]
+                    break
+                i+=1
+
+        if centerline is None:
+            algo_common.log_file_only(f"find_centerline: All strategies failed",logger_name=__name__,)
+            return default_return
+        if  centerline.is_empty:
+            algo_common.log_file_only(f"find_centerline: All strategies failed",logger_name=__name__,)
             return default_return
 
-    if not centerline:
-        return default_return
+        if isinstance(centerline, sh_geom.MultiLineString):
+            if len(centerline.geoms) > 1:
+                print(" Multiple centerline segments detected, no further processing.")
+                return centerline, CenterlineStatus.SUCCESS  # TODO: inspect
+            elif len(centerline.geoms) == 1:
+                centerline = centerline.geoms[0]
+            else:
+                return default_return
 
-    if type(centerline) is sh_geom.MultiLineString:
-        if len(centerline.geoms) > 1:
-            print(" Multiple centerline segments detected, no further processing.")
-            return centerline, CenterlineStatus.SUCCESS  # TODO: inspect
-        elif len(centerline.geoms) == 1:
-            centerline = centerline.geoms[0]
-        else:
-            return default_return
-
-    needs_trim_snap = effective_strategy == "main_route"
-    if effective_strategy in {"pairwise", "virtual_nodes"}:
-        needs_trim_snap = not _is_endpoint_anchored(
-            centerline,
-            input_line,
-            tol=CenterlineParams.ENDPOINT_ANCHOR_TOL,
-        )
-
-    if needs_trim_snap:
-        max_snap_dist = None
+        needs_trim_snap = effective_strategy == "main_route"
         if effective_strategy in {"pairwise", "virtual_nodes"}:
-            max_snap_dist = CenterlineParams.GUIDED_FALLBACK_MAX_SNAP
-        centerline = _trim_and_snap_centerline(
-            centerline,
-            input_line,
-            max_snap_dist=max_snap_dist,
-        )
-        if not centerline:
-            return default_return
+            needs_trim_snap = not _is_endpoint_anchored(
+                centerline,
+                input_line,
+                tol=CenterlineParams.ENDPOINT_ANCHOR_TOL,
+            )
 
-    # Check centerline. If valid, regenerate by splitting polygon into two halves.
-    if not centerline_is_valid(centerline, input_line):
-        try:
-            algo_common.log_file_only("Regenerating line ...", logger_name=__name__)
-            centerline = regenerate_centerline(poly, input_line)
-            return centerline, CenterlineStatus.REGENERATE_SUCCESS
-        except Exception as e:
-            print(f"find_centerline: {e}")
-            return input_line, CenterlineStatus.REGENERATE_FAILED
+        if needs_trim_snap:
+            max_snap_dist = None
+            if effective_strategy in {"pairwise", "virtual_nodes"}:
+                max_snap_dist = CenterlineParams.GUIDED_FALLBACK_MAX_SNAP
+            centerline = _trim_and_snap_centerline(
+                centerline,
+                input_line,
+                max_snap_dist=max_snap_dist,
+            )
+            if not centerline:
+                return default_return
 
-    return centerline, CenterlineStatus.SUCCESS
+        # Check centerline. If valid, regenerate by splitting polygon into two halves.
+        if allow_regeneration and not centerline_is_valid(centerline, input_line):
+            try:
+                algo_common.log_file_only("Regenerating line ...",logger_name=__name__,)
+                centerline = regenerate_centerline(poly, input_line)
+
+                if centerline is None:
+                    return input_line, CenterlineStatus.REGENERATE_FAILED
+
+                return centerline, CenterlineStatus.REGENERATE_SUCCESS
+
+            except Exception as e:
+                print(f"find_centerline: {e}")
+                return input_line, CenterlineStatus.REGENERATE_FAILED
+
+        return centerline, CenterlineStatus.SUCCESS
+    except Exception:
+        import traceback
+        print(traceback.format_exc(),flush=True)
+        raise
 
 
-def find_corridor_polygon(corridor_thresh, in_transform, line_gpd, exp_shk_cell=0):
+
+
+
+
+
+
+def find_corridor_polygon(corridor_thresh,
+                          in_transform,
+                          line_gpd,
+                          exp_shk_cell=0):
     # Threshold corridor raster used for generating centerline
+    cells_size=(in_transform[0], -in_transform[4])
     corridor_thresh_cl = algo_common.corridor_threshold_to_mask(corridor_thresh)
     corridor_thresh_cl = algo_common.generalize_binary_mask(corridor_thresh_cl, exp_shk_cell)
     if corridor_thresh_cl.dtype == np.int64:
@@ -349,26 +448,35 @@ def find_corridor_polygon(corridor_thresh, in_transform, line_gpd, exp_shk_cell=
 
     try:
         for poly, value in poly_generator:
-            if sh_geom.shape(poly).area > 1:
+            if sh_geom.shape(poly).area > cells_size[1]*3*cells_size[0]*3: #3x3 pixels
                 corridor_polygon.append(sh_geom.shape(poly))
     except Exception as e:
-        print(f"find_corridor_polygon: {e}")
+        print(f"find_corridor_polygon: poly_generator:{e}")
+    try:
+        if corridor_polygon:
+            corridor_polygon = sh_ops.unary_union(corridor_polygon)
+            if isinstance(corridor_polygon,sh_geom.MultiPolygon):
+                poly_list = list(shapely.get_parts(corridor_polygon))
+                merge_poly = poly_list[0]
+                for i in range(1, len(poly_list)):
+                    if shapely.intersects(merge_poly, poly_list[i]):
+                        merge_poly = shapely.union(merge_poly, poly_list[i])
+                    else:
+                        buffer_dist = poly_list[i].distance(merge_poly) + 0.1
+                        buffer_poly = poly_list[i].buffer(buffer_dist)
+                        merge_poly = shapely.union(merge_poly, buffer_poly)
+                corridor_polygon = merge_poly
+            elif corridor_polygon is None:
+                print("corridor_polygon is None")
 
-    if corridor_polygon:
-        corridor_polygon = sh_ops.unary_union(corridor_polygon)
-        if type(corridor_polygon) is sh_geom.MultiPolygon:
-            poly_list = shapely.get_parts(corridor_polygon)
-            merge_poly = poly_list[0]
-            for i in range(1, len(poly_list)):
-                if shapely.intersects(merge_poly, poly_list[i]):
-                    merge_poly = shapely.union(merge_poly, poly_list[i])
-                else:
-                    buffer_dist = poly_list[i].distance(merge_poly) + 0.1
-                    buffer_poly = poly_list[i].buffer(buffer_dist)
-                    merge_poly = shapely.union(merge_poly, buffer_poly)
-            corridor_polygon = merge_poly
-    else:
-        corridor_polygon = None
+            elif corridor_polygon.is_empty:
+                    print("corridor_polygon is empty")
+
+
+        else:
+            corridor_polygon = None
+    except Exception as e:
+        print(f"find_corridor_polygon:unary_union {e}")
 
     # create GeoDataFrame for centerline
     corridor_poly_gpd = gpd.GeoDataFrame.copy(line_gpd)
@@ -410,6 +518,23 @@ def process_single_centerline(row_and_path):
 
     return row
 
+def _merge_centerline_segments(centerline):
+    if isinstance(centerline, sh_geom.MultiLineString):
+        merged = sh_ops.linemerge(centerline)
+        if merged.is_empty:
+            return None
+        if isinstance(merged, sh_geom.MultiLineString) and len(merged.geoms) == 1:
+            return merged.geoms[0]
+        return merged
+    return centerline
+
+
+def _prepare_polygon_for_extraction(poly):
+    if bt_const.CenterlineFlags.DELETE_HOLES:
+        poly = sh_geom.Polygon(list(poly.exterior.coords))
+    if bt_const.CenterlineFlags.SIMPLIFY_POLYGON:
+        poly = poly.simplify(CenterlineParams.SIMPLIFY_LENGTH)
+    return poly
 
 def find_centerlines(poly_gpd, line_seg, processes):
     centerline_gpd = []
@@ -472,10 +597,16 @@ def regenerate_centerline(poly, input_line):
                 poly_valid[i] = False
 
         poly_geoms = list(compress(poly_geoms, poly_valid))
-        if len(poly_geoms) != 1:  # still multi polygon
-            print("regenerate_centerline: Multi or none polygon found, pass.")
 
-        poly = sh_geom.Polygon(poly_geoms[0])
+        if len(poly_geoms)<1:
+            print("regenerate_centerline: none polygon found, pass.")
+            return None
+
+        if len(poly_geoms) != 1: # still multi polygon
+            algo_common.log_file_only(f"regenerate_centerline: MultiPolygon with {len(poly_geoms)} parts using largest component."
+                                      ,logger_name=__name__)
+            poly = max(poly_geoms, key=lambda p: p.area)
+            # poly = sh_geom.Polygon(poly_geoms[0])
 
     poly_exterior = sh_geom.Polygon(poly.buffer(bt_const.SMALL_BUFFER).exterior)
     poly_split = sh_ops.split(poly_exterior, perp)
@@ -499,8 +630,8 @@ def regenerate_centerline(poly, input_line):
         pair_line_1 = line_2
         pair_line_2 = line_1
 
-    center_line_1 = find_centerline(poly_1, pair_line_1)
-    center_line_2 = find_centerline(poly_2, pair_line_2)
+    center_line_1 = find_centerline(poly_1, pair_line_1,allow_regeneration=False)
+    center_line_2 = find_centerline(poly_2, pair_line_2,allow_regeneration=False)
 
     center_line_1 = center_line_1[0]
     center_line_2 = center_line_2[0]
@@ -576,6 +707,9 @@ class SeedLine:
         self.lc_path = None
         self.centerline = None
         self.corridor_poly_gpd = None
+        self.endpoint_mode="strict"
+        self.endpoint_candidate_k=5
+        self.cell_size=1.0
 
     def compute(self):
         line = self.line.geometry[0]
@@ -599,147 +733,271 @@ class SeedLine:
             else:# chm_mode in ["alt","full_alt"]:
                 ras_clip, out_meta, tree_gaps = self._alt_clip_chm(in_raster, seed_line, line_radius)
                 cost_clip, _ = algo_cost.alt_cost_raster(ras_clip, out_meta, tree_gaps)
-                if chm_mode in ["alt","full_alt"]:
-                    ##select lcp base on Buffer Overlap Score to seed line and
-                    candidate1=algo_astar.find_least_cost_path_astar_closest_line(cost_clip, out_meta, seed_line)
-                    candidate2=bt_dijkstra.find_least_cost_path(cost_clip, out_meta, seed_line)
-                    #candidate3=bt_dijkstra.alt_find_least_cost_path_skimage(self, cost_clip, out_meta, seed_line)
 
-                    lc_path = max([candidate1, candidate2],
-                                   key=lambda x: algo_common.line_match_score(seed_line, x, self.line_radius / 2))
+                # Generate 2 lcp from astar and dijkstra for best overlap and alignment score
+                candidate1=algo_astar.find_least_cost_path_astar_closest_line(cost_clip, out_meta, seed_line)
+                candidate2=bt_dijkstra.find_least_cost_path(cost_clip, out_meta, seed_line)
+                # candidate 3 will overload it too path is very long
+                # candidate3=bt_dijkstra.alt_find_least_cost_path_skimage(self, cost_clip, out_meta, seed_line)
 
-                    if algo_common._hausdorff_dist(lc_path, seed_line) > max(line_radius / 2,self.tree_radius):
-                        lc_path = line
+                candidates = [c for c in (candidate1, candidate2) if c is not None]
+
+                # select lcp base on Buffer Overlap Score to seed line
+                if not candidates:
+                    lc_path = seed_line
                 else:
-                    lc_path =  seed_line
-                # # search for lcp using centerline_method: A*
-                # if self.centerline_method == bt_const.CenterlineMethod.ASTAR.value:
-                #     lc_path = algo_astar.find_least_cost_path_astar_closest_line(cost_clip, out_meta, seed_line)
-                # # search for lcp using centerline_method: sk_graph.route_through_array with hausdorff_dist check
-                # elif bt_const.CenterlineFlags.USE_SKIMAGE_GRAPH:
-                #     lc_path = bt_dijkstra.alt_find_least_cost_path_skimage(self, cost_clip, out_meta, seed_line,
-                #                                                                        offset_test=True)
-                # # search for lcp using centerline_method: BERA or BERA_Along using
-                # # sk_graph.route_through_array with hausdorff_dist check
-                # elif  (self.centerline_method == bt_const.CenterlineMethod.BERA.value
-                #        or self.centerline_method == bt_const.CenterlineMethod.BERA_ALONG.value):
-                #     lc_path = bt_dijkstra.alt_find_least_cost_path_skimage(self, cost_clip, out_meta, seed_line,
-                #                                                            offset_test=True)
-                # # search for lcp using centerline_method: dijkstra
-                # else:
-                #     lc_path = bt_dijkstra.find_least_cost_path(cost_clip, out_meta, seed_line)
+                    lc_path = max(
+                        candidates,
+                        key=lambda x: algo_common.line_match_score(
+                            seed_line,
+                            x,
+                            self.line_radius / 2,
+                        ),
+                    )
 
-                # search for lcp using centerline_method: A*
+            # robust hausdorff test the best selected lcp similarity to seed line
+            # if hausdorff distance above the maximum of half of search line radius or search tree radius,
+            # fall back to seed line as lcp for generate the least cost corridor
+            if lc_path is not None:
+                if algo_common._hausdorff_dist(
+                        lc_path,
+                        seed_line,
+                ) > max(line_radius / 2, self.tree_radius):
+                    lc_path = seed_line
 
-                # option
-                # search for lcp using centerline_method: BERA or BERA_Along using
-                # sk_graph.route_through_array with hausdorff_dist check
-                # elif bt_const.CenterlineFlags.USE_SKIMAGE_GRAPH:
-                #   lc_path = bt_dijkstra.alt_find_least_cost_path_skimage(self,
-                #                 cost_clip, out_meta, seed_line,offset_test=True)
+            if lc_path:
+                lc_path_coords = lc_path.coords
+            else:
+                lc_path_coords = []
 
-                # if algo_common._hausdorff_dist(lc_path, seed_line) > max(line_radius / 2,self.tree_radius):
-                #     lc_path = line
+            # search for centerline
+            if len(lc_path_coords) < 2:
+                algo_common.log_file_only("No least cost path detected, skip.", logger_name=__name__)
+                self.line["cl_status"] = CenterlineStatus.FAILED.value
+                return
 
-        except Exception as e:
-            print(e)
-            return
+            if lc_path.length < math.hypot(out_meta['transform'][0]*3, out_meta['transform'][4]*3):
+                algo_common.log_file_only("Too short segment detected, skip", logger_name=__name__)
+                self.line["cl_status"] = CenterlineStatus.FAILED.value
+                return
 
-        if lc_path:
-            lc_path_coords = lc_path.coords
-        else:
-            lc_path_coords = []
+            # get corridor raster
+            lc_path = sh_geom.LineString(lc_path_coords)
+            if len(lc_path.coords)>=2:
+                lc_path = self._postprocess_lcp(lc_path, out_meta.get("crs"))
+            lc_path_coords = list(lc_path.coords)
 
-        # search for centerline
-        if len(lc_path_coords) < 2:
-            algo_common.log_file_only("No least cost path detected, use input line.", logger_name=__name__)
-            self.line["cl_status"] = CenterlineStatus.FAILED.value
-            return
+            if chm_mode in ["current","alt"]:
+                ras_clip, out_meta = self._clip_chm(in_raster, lc_path, line_radius)
+                cost_clip, _ = algo_cost.cost_raster(ras_clip, out_meta)
 
-        # get corridor raster
-        lc_path = sh_geom.LineString(lc_path_coords)
-        lc_path = self._postprocess_lcp(lc_path, out_meta.get("crs"))
-        lc_path_coords = list(lc_path.coords)
-
-        if chm_mode in ["current","alt"]:
-            ras_clip, out_meta = self._clip_chm(in_raster, lc_path, line_radius)
-            cost_clip, _ = algo_cost.cost_raster(ras_clip, out_meta)
-
-        else:  # chm_mode in ["full_alt"]:
-            ras_clip, out_meta, tree_gaps = self._alt_clip_chm(in_raster, lc_path, line_radius)
-            cost_clip, _ = algo_cost.alt_cost_raster(ras_clip, out_meta, tree_gaps)
+            else:  # chm_mode in ["full_alt"]:
+                ras_clip, out_meta, tree_gaps = self._alt_clip_chm(in_raster, lc_path, line_radius)
+                cost_clip, _ = algo_cost.alt_cost_raster(ras_clip, out_meta, tree_gaps)
 
 
-        out_transform = out_meta["transform"]
-        transformer = rasterio.transform.AffineTransformer(out_transform)
-        cell_size = (out_transform[0], -out_transform[4])
-        if self.centerline_method == bt_const.CenterlineMethod.BERA.value:
-            x1, y1 = lc_path_coords[0]
-            x2, y2 = lc_path_coords[-1]
-            source = [transformer.rowcol(x1, y1)]
-            destination = [transformer.rowcol(x2, y2)]
-            corridor_thresh_cl = algo_common.corridor_raster(
-                cost_clip,
-                out_meta,
-                source,
-                destination,
-                cell_size,
-                bt_const.FP_CORRIDOR_THRESHOLD,
-            )
-        elif self.centerline_method == bt_const.CenterlineMethod.BERA_ALONG.value:
-            corridor_thresh_cl = algo_common.alt_MCP_along_corridor_raster(
-                cost_clip,
-                out_meta,
-                lc_path,
-                cell_size,
-                corridor_threshold=bt_const.FP_CORRIDOR_THRESHOLD,
-            )
+            out_transform = out_meta["transform"]
+            transformer = rasterio.transform.AffineTransformer(out_transform)
+            cell_size = (out_transform[0], -out_transform[4])
+            self.cell_size=cell_size[0]
+            if self.centerline_method == bt_const.CenterlineMethod.BERA.value:
+                x1, y1 = lc_path_coords[0]
+                x2, y2 = lc_path_coords[-1]
+                source = [transformer.rowcol(x1, y1)]
+                destination = [transformer.rowcol(x2, y2)]
+                corridor_thresh_cl = algo_common.corridor_raster(
+                    cost_clip,
+                    out_meta,
+                    source,
+                    destination,
+                    cell_size,
+                    bt_const.FP_CORRIDOR_THRESHOLD,
+                )
+            elif self.centerline_method == bt_const.CenterlineMethod.BERA_ALONG.value:
+                corridor_thresh_cl = algo_common.alt_MCP_along_corridor_raster(
+                    cost_clip,
+                    out_meta,
+                    lc_path,
+                    cell_size,
+                    corridor_threshold=bt_const.FP_CORRIDOR_THRESHOLD,
+                )
 
-        elif self.centerline_method == bt_const.CenterlineMethod.ASTAR_ALONG.value:
-            corridor_thresh_cl,_ = algo_astar.alt_astar_accumulation_corridor_raster(
-                cost_clip,
-                out_meta,
-                lc_path,
-                corridor_threshold=bt_const.FP_CORRIDOR_THRESHOLD,
-                line_bias_weight=self.astar_corridor_line_bias_weight,
-                distance_penalty_weight=self.astar_corridor_distance_penalty_weight,
-            )
+            elif self.centerline_method == bt_const.CenterlineMethod.ASTAR_ALONG.value:
+                corridor_thresh_cl,_ = algo_astar.alt_astar_accumulation_corridor_raster(
+                    cost_clip,
+                    out_meta,
+                    lc_path,
+                    corridor_threshold=bt_const.FP_CORRIDOR_THRESHOLD,
+                    line_bias_weight=self.astar_corridor_line_bias_weight,
+                    distance_penalty_weight=self.astar_corridor_distance_penalty_weight,
+                )
 
 
-        elif self.centerline_method == bt_const.CenterlineMethod.ASTAR.value:
-            corridor_thresh_cl, _details = algo_astar.astar_accumulation_corridor_raster(
-                cost_clip,
-                out_meta,
-                lc_path,
-                corridor_threshold=bt_const.FP_CORRIDOR_THRESHOLD,
-                line_bias_weight=self.astar_corridor_line_bias_weight,
-                distance_penalty_weight=self.astar_corridor_distance_penalty_weight,
-            )
+            else:# self.centerline_method == bt_const.CenterlineMethod.ASTAR.value:
+                if chm_mode in ["current"]:
+                    corridor_thresh_cl, _details = algo_astar.astar_accumulation_corridor_raster(
+                        cost_clip,
+                        out_meta,
+                        lc_path,
+                        corridor_threshold=bt_const.FP_CORRIDOR_THRESHOLD,
+                        line_bias_weight=self.astar_corridor_line_bias_weight,
+                        distance_penalty_weight=self.astar_corridor_distance_penalty_weight,
+                    )
+                else:
+                    corridor_thresh_cl, _details = algo_astar.astar_accumulation_corridor_raster_v2(
+                        cost_clip,
+                        out_meta,
+                        lc_path,
+                        corridor_threshold=bt_const.FP_CORRIDOR_THRESHOLD,
+                        line_bias_weight=self.astar_corridor_line_bias_weight,
+                        distance_penalty_weight=self.astar_corridor_distance_penalty_weight,
+                    )
+            valid_cells = np.count_nonzero(np.nan_to_num(corridor_thresh_cl))
 
-        # find contiguous corridor polygon and extract centerline
-        df = gpd.GeoDataFrame(geometry=[seed_line], crs=out_meta["crs"])
-        corridor_poly_gpd = find_corridor_polygon(corridor_thresh_cl, out_transform, df)
-        corridor_poly_gpd = self._postprocess_corridor_polygon(corridor_poly_gpd)
-        center_line, status = find_centerline(
-            corridor_poly_gpd.geometry.iloc[0],
-            lc_path,
-            guided_strategy=self.guided_strategy,
-        )
-        self.line["cl_status"] = status.value
+            if valid_cells == 0:
+                print("corridor is empty")
+                self.line["cl_status"] = CenterlineStatus.FAILED.value
+                return
 
-        self.lc_path = self.line.copy()
-        self.lc_path.geometry = [lc_path]
-        self.lc_path["centerline_method"] = self.centerline_method
-        self.lc_path["lcp_simplified"] = bool(self.lcp_simplify_enabled and self.lcp_simplify_diameter > 0)
-        self.lc_path["lcp_smoothed"] = bool(self.lcp_smooth_enabled and self.lcp_smooth_iterations > 0)
+            if (not np.any(corridor_thresh_cl>=0)
+                    or  np.count_nonzero(np.nan_to_num(corridor_thresh_cl)) == 0 ):
+                print("corridor is empty")
+                self.line["cl_status"] = CenterlineStatus.FAILED.value
+                return
 
-        self.centerline = self.line.copy()
-        self.centerline.geometry = [center_line]
-        self.centerline["centerline_method"] = self.centerline_method
 
-        self.corridor_poly_gpd = corridor_poly_gpd
-        self.corridor_poly_gpd["centerline_method"] = self.centerline_method
+            # find contiguous corridor polygon and extract centerline
+            df = gpd.GeoDataFrame(geometry=[seed_line], crs=out_meta["crs"])
+            corridor_poly_gpd = find_corridor_polygon(corridor_thresh_cl, out_transform, df)
+            poly = corridor_poly_gpd.geometry.iloc[0]
 
+            if poly is None:
+                print("find_corridor_polygon returned None")
+                self.line["cl_status"] = CenterlineStatus.FAILED.value
+                return
+            if isinstance(poly, sh_geom.MultiPolygon):
+                poly = sh_ops.unary_union(poly.geoms)
+                if isinstance(poly, sh_geom.MultiPolygon):
+                    part_polygons = [_prepare_polygon_for_extraction(part)
+                    for part in poly.geoms if not part.is_empty and part.area > CenterlineParams.CLEANUP_POLYGON_BY_AREA ]
+                    if part_polygons==[]:
+                        self.line["cl_status"] = CenterlineStatus.FAILED.value
+                        return
+                    else:
+                        merged = part_polygons[0]
+                        for part in part_polygons[1:]:
+                            bridge_width = max(self.chm_buffer_width,self.cell_size*3 )
+                            p1, p2 = sh_ops.nearest_points(merged, part)
+                            connector = sh_geom.LineString([p1, p2]).buffer(bridge_width)
+                            merged = merged.union(connector).union(part)
+                    if isinstance(merged.buffer(0), sh_geom.MultiPolygon):
+                        poly = max(merged.geoms, key=lambda p: p.area)
+                    else:
+                        poly=merged.buffer(0)
+
+            # poly = _prepare_polygon_for_extraction(poly)
+            o_corridor_poly=corridor_poly_gpd.at[corridor_poly_gpd.index[0], "geometry"] = poly
+            corridor_poly_gpd = self._postprocess_corridor_polygon(corridor_poly_gpd)
+            poly = corridor_poly_gpd.geometry.iloc[0]
+
+            if poly is None:
+                #fallback to corridor_poly
+                print("postprocess_corridor_polygon returned None, fallback to original corridor_polygon")
+                poly=o_corridor_poly
+                corridor_poly_gpd.at[corridor_poly_gpd.index[0], "geometry"] = poly
+                # self.line["cl_status"] = CenterlineStatus.FAILED.value
+                # return
+            if isinstance(poly, sh_geom.MultiPolygon):
+                print("postprocess_corridor_polygon returned multipolygon, simplifying...")
+                poly = sh_ops.unary_union(poly.geoms)
+                if isinstance(poly, sh_geom.MultiPolygon):
+                    part_polygons = [_prepare_polygon_for_extraction(part)
+                                     for part in poly.geoms if
+                                     not part.is_empty and part.area > CenterlineParams.CLEANUP_POLYGON_BY_AREA]
+                    if part_polygons == []:
+                        self.line["cl_status"] = CenterlineStatus.FAILED.value
+                        return
+                    else:
+                        merged = part_polygons[0]
+                        for part in part_polygons[1:]:
+                            bridge_width = max(self.chm_buffer_width, cell_size * 3)
+                            p1, p2 = sh_ops.nearest_points(merged, part)
+                            connector = sh_geom.LineString([p1, p2]).buffer(bridge_width)
+                            merged = merged.union(connector).union(part)
+                    if isinstance(merged.buffer(0), sh_geom.MultiPolygon):
+                        poly = max(merged.geoms, key=lambda p: p.area)
+                    else:
+                        poly = merged.buffer(0)
+
+                result, status = find_centerline(
+                        poly,
+                        lc_path,
+                        guided_strategy=self.guided_strategy,
+                        endpoint_mode=self.endpoint_mode,
+                        endpoint_candidate_k=self.endpoint_candidate_k,
+                        cell_size=self.cell_size,
+                    )
+
+                if isinstance(result,sh_geom.MultiLineString):
+                    merged = sh_ops.unary_union(result)
+                    center_line = _merge_centerline_segments(merged)
+                    status = CenterlineStatus.SUCCESS
+                elif isinstance(result,sh_geom.LineString):
+                    center_line=result
+                    status = CenterlineStatus.SUCCESS
+                else:
+                    print("centerline extraction from multipolygon fail.")
+                    self.line["cl_status"] = CenterlineStatus.FAILED.value
+                    return
+            else:
+                center_line, status = find_centerline(
+                    poly,
+                    lc_path,
+                    guided_strategy=self.guided_strategy,
+                    endpoint_mode=self.endpoint_mode,
+                    endpoint_candidate_k=self.endpoint_candidate_k,
+                    cell_size=self.cell_size
+                )
+
+
+            self.line["cl_status"] = status.value
+            self.lc_path = self.line.copy()
+            self.lc_path.geometry = [lc_path]
+            self.lc_path["centerline_method"] = self.centerline_method
+            self.lc_path["lcp_simplified"] = bool(self.lcp_simplify_enabled and self.lcp_simplify_diameter > 0)
+            self.lc_path["lcp_smoothed"] = bool(self.lcp_smooth_enabled and self.lcp_smooth_iterations > 0)
+
+            self.centerline = self.line.copy()
+            self.centerline.geometry = [center_line]
+            self.centerline["centerline_method"] = self.centerline_method
+
+            self.corridor_poly_gpd = corridor_poly_gpd
+            self.corridor_poly_gpd["centerline_method"] = self.centerline_method
+            self.corridor_poly_gpd["OLnFID"] = self.lc_path["OLnFID"]
+            self.corridor_poly_gpd["OLnSEG"] = self.lc_path["OLnSEG"]
+
+        except Exception:
+            import traceback
+            traceback.print_exc()
+
+            import sys
+            tb = sys.exc_info()[2]
+
+            while tb:
+                frame = tb.tb_frame
+                lineno = tb.tb_lineno
+
+                print(f"\n--- Frame line {lineno} ---")
+
+                for k, v in frame.f_locals.items():
+                    if isinstance(v, tuple):
+                        print(
+                            f"TUPLE: {k} = {repr(v)[:200]}"
+                        )
+
+                tb = tb.tb_next
+
+            raise
     def _clip_chm(self, in_raster, clip_geometry, buffer):
         return sp_common.clip_raster(in_raster, clip_geometry, buffer)
 

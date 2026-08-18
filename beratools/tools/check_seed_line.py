@@ -261,7 +261,7 @@ def check_seed_line(
         snap_tolerance=float(snap_tolerance),
         group_lines=_to_bool(group_lines),
         densify_long_lines=_to_bool(densify_long_lines),
-        max_segment_length=float(max_segment_length),
+        max_segment_length=max(float(max_segment_length),bt_const.LP_SEGMENT_LENGTH),
         use_angle_grouping=_to_bool(use_angle_grouping),
         apply_seed_line_correction=_to_bool(apply_seed_line_correction),
         slc_search_distance=float(slc_search_distance),

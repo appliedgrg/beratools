@@ -334,8 +334,7 @@ def split_lines_to_segments(gdf):
     if gdf is None:
         return []
 
-    if has_multilinestring(gdf):
-        gdf = gdf.explode(index_parts=False)
+    gdf,_=chk_df_multipart(gdf,'LineString')
 
     split_gdf_list = []
     for row in gdf.itertuples(index=False):
@@ -346,9 +345,10 @@ def split_lines_to_segments(gdf):
             segment = sh_geom.LineString([coords[i], coords[i + 1]])
             attributes = {col: getattr(row, col) for col in gdf.columns if col != "geometry"}
             single_row_gdf = gpd.GeoDataFrame([attributes], geometry=[segment], crs=gdf.crs)
+            single_row_gdf['OLnSEG'] = i
             split_gdf_list.append(single_row_gdf)
 
-    return split_gdf_list
+    return split_gdf_list,gdf
 
 
 def lines_gdf_to_list(gdf):
@@ -356,8 +356,7 @@ def lines_gdf_to_list(gdf):
     if gdf is None:
         return []
 
-    if has_multilinestring(gdf):
-        gdf = gdf.explode(index_parts=False)
+    gdf,_ = chk_df_multipart(gdf,'LineString')
 
     out_list = []
     for row in gdf.itertuples(index=False):
@@ -366,23 +365,24 @@ def lines_gdf_to_list(gdf):
         single_row_gdf = gpd.GeoDataFrame([attributes], geometry=[line], crs=gdf.crs)
         out_list.append(single_row_gdf)
 
-    return out_list
+    return out_list,gdf
 
 
 def prepare_lines_gdf(file_path, layer=None, proc_segments=True):
     """
-    Split lines at vertices or return original rows.
+    if proc_segments == True:
+        Split lines at vertices or return original rows.
 
     It handles for MultiLineString.
 
     """
     gdf = read_geospatial_file(file_path, layer=layer)
     if gdf is None:
-        return []
-
+        return [],gdf
     if proc_segments:
-        return split_lines_to_segments(gdf)
-
+        result,gdf=split_lines_to_segments(gdf)
+        print(f'Split original {len(gdf)} into {len(result)} segments')
+        return result,gdf
     return lines_gdf_to_list(gdf)
 
 
@@ -746,11 +746,24 @@ def alt_MCP_along_corridor_raster(raster_clip, out_meta, lc_path, cell_size, cor
         for coord in lc_path.coords:
             segment_list.append(coord)
 
-        distance_delta = 1
-        distances = np.arange(0, lc_path.length, distance_delta)
-        multipoint_along_line = [lc_path.interpolate(distance) for distance in distances]
-        multipoint_along_line.append(sh_geom.Point(segment_list[-1]))
-
+        # Generate multipoint along lcp for multi-corridors
+        target_spacing = 5.0
+        min_tail = 2.0
+        if lc_path.length <= target_spacing:
+            multipoint_along_line = [
+                sh_geom.Point(lc_path.coords[0]),
+                sh_geom.Point(lc_path.coords[-1]),
+            ]
+        else:
+            distances = np.arange(0, lc_path.length, target_spacing)
+            tail = lc_path.length - distances[-1]
+            if tail < min_tail:
+                distances[-1] = lc_path.length
+            else:
+                distances = np.append(distances, lc_path.length)
+            multipoint_along_line = [
+                lc_path.interpolate(d)
+                for d in distances]
 
         rasterized_points_Alongln = features.rasterize(
             multipoint_along_line,
@@ -871,3 +884,174 @@ def line_match_score(ref_line, candidate, tolerance=5):
     )
 
     return score
+
+def chk_df_multipart(df:gpd.GeoDataFrame,
+                     chk_shp_in_string:str)-> tuple[gpd.GeoDataFrame , bool]:
+    """
+    This function is check the input geopandas.GeoDataFrame object contains multipart geometry.
+    If multipart geometry is found, function will try to explode and return single geometry and
+    a boolean of multipart is found or not.
+    Args:
+        df: Any geopandas.GeoDataFrame like
+        chk_shp_in_string: String that the input GeoDataFrame geometry type expected to contain, i.e. 'Point', 'Polygon', 'LineString'
+
+    Returns: Expected geometry type and boolean of multipart geometry
+
+    """
+
+    try:
+        found = False
+        # Check the OLnFID column in data. If it is not, column will be created
+        if "OLnFID" not in df.columns.array:
+            print("New column created: {}".format("OLnFID"))
+            df["OLnFID"] = df.index
+
+        # Check the OLnSEG column in data. If it is not, column will be created
+        if "OLnSEG" not in df.columns.array:
+            print("New column created: {}".format("OLnSEG"))
+            df["OLnSEG"] = 0
+
+        if has_multilinestring(df):
+            found = True
+            df = df.explode()
+            if type(df) is gpd.geodataframe.GeoDataFrame:
+                df["OLnSEG"] = df.groupby("OLnFID").cumcount()
+                df = df.sort_values(by=["OLnFID", "OLnSEG"])
+                df = df.reset_index(drop=True)
+        else:
+            found = False
+
+        return df, found
+    except Exception as e:
+        print(e)
+        return df, True
+
+def equal_len_cut_line(line, length=250):
+    target_spacing = float(length)
+    min_tail = max(1.0, target_spacing / 10.0)
+    if isinstance(sh_ops.unary_union(line), sh_geom.LineString):
+        clean_line=sh_ops.unary_union(line)
+    elif isinstance(sh_ops.unary_union(line), sh_geom.MultiLineString):
+        clean_line = sh_ops.linemerge(sh_ops.unary_union(line))
+    else:
+        clean_line = sh_ops.unary_union(line)
+
+    if clean_line.length <= target_spacing:
+        return sh_geom.MultiLineString([clean_line])
+
+    distances = np.arange(0, clean_line.length, target_spacing)
+
+    tail = clean_line.length - distances[-1]
+
+    if tail < min_tail:
+        distances[-1] = clean_line.length
+    else:
+        distances = np.append(distances, clean_line.length)
+
+    segments = []
+
+    for i in range(len(distances) - 1):
+        seg = sh_ops.substring(
+            clean_line,
+            distances[i],
+            distances[i + 1],
+        )
+
+        if seg.length > 0:
+            segments.append(seg)
+
+    return sh_geom.MultiLineString(segments)
+
+
+def has_shot_seg(line,min_length=2.0):
+    coords=list(line.coords)
+    for i in range(len(coords)-1):
+        segment=sh_geom.LineString([coords[i],coords[i+1]])
+        if segment.length>min_length:
+            return True
+    return False
+
+def remove_short_vertices(line,min_length=2.0):
+    coords=list(line.coords)
+    if len(coords)<=2:
+        return line
+    cleaned=[coords[0]]
+    for i in range(1,len(coords)-1):
+        prev=sh_geom.Point(cleaned[-1])
+        curr=sh_geom.Point(coords[i])
+        if prev.distance(curr)>=min_length:
+            cleaned.append(coords[i])
+    cleaned.append(coords[-1])
+    return sh_geom.LineString(cleaned)
+
+def remove_retrace(line, tol=0.01):
+    merged = sh_ops.unary_union(line)
+
+    if isinstance(merged, sh_geom.LineString):
+        return merged
+
+    if isinstance(merged, sh_geom.MultiLineString):
+        if len(merged.geoms) == 1:
+            return merged.geoms[0]
+
+    return line
+
+def remove_duplicate_seedlines(gdf: gpd.GeoDataFrame, overlap_threshold=0.9):
+    """ Remove duplicate / overlapping geometry"""
+
+    sindex = gdf.sindex
+    remove_ids = set()
+
+    for idx, geom in gdf.geometry.items():
+        if idx in remove_ids:
+            continue
+        candidates = sindex.intersection(geom.bounds)
+        for other in candidates:
+            if other <= idx:
+                continue
+            other_geom = gdf.geometry.iloc[other]
+            inter = geom.intersection(other_geom)
+            if inter.is_empty:
+                continue
+            overlap = inter.length / min(
+                geom.length,
+                other_geom.length
+            )
+            if overlap > overlap_threshold:
+
+                if geom.length >= other_geom.length:
+                    remove_ids.add(other)
+                else:
+                    remove_ids.add(idx)
+    if remove_ids:
+        return gdf.drop(remove_ids)
+    else:
+        return gdf
+
+def split_lines_to_segments_list(gdf):
+    """Split input lines to single-segment rows while preserving attributes."""
+    if gdf is None:
+        return []
+
+    gdf,_=chk_df_multipart(gdf,'LineString')
+
+    gdf = gdf.assign(geometry=gdf.apply(lambda x: equal_len_cut_line(x.geometry, 50), axis=1))
+    gdf = gdf.explode(index_parts=False)
+    gdf = gdf[gdf.geometry.is_valid]
+    gdf["OLnSEG"] = gdf.groupby("OLnFID").cumcount()
+    gdf= gdf.sort_values(by=["OLnFID", "OLnSEG"])
+    gdf = gdf.reset_index(drop=True)
+
+    split_gdf_list = []
+    for row in gdf.itertuples(index=False):
+        line = row.geometry
+        coords = list(line.coords)
+        for i in range(len(coords) - 1):
+            segment = sh_geom.LineString([coords[i], coords[i + 1]])
+            attributes = {col: getattr(row, col) for col in gdf.columns if col != "geometry"}
+            single_row_gdf = gpd.GeoDataFrame([attributes], geometry=[segment], crs=gdf.crs)
+            single_row_gdf['OLnSEG'] = i
+            split_gdf_list.append(single_row_gdf)
+
+
+    return split_gdf_list,gdf

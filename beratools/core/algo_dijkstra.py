@@ -360,7 +360,7 @@ def dijkstra_np(start_tuple, end_tuple, matrix):
         matrix[start_node[0], start_node[1]] = 0
         matrix[end_node[0], end_node[1]] = 0
 
-        path, cost = sk_graph.route_through_array(matrix, start_node, end_node)
+        path, cost = sk_graph.route_through_array(matrix, start_node, end_node ,fully_connected=True,geometric=False)
         costs = [0.0 for i in range(len(path))]
     except Exception as e:
         print(f"dijkstra_np: {e}")
@@ -481,7 +481,8 @@ def find_least_cost_path_skimage(cost_clip, in_meta, seed_line):
     row2, col2 = transformer.rowcol(x2, y2)
 
     try:
-        path_new = sk_graph.route_through_array(cost_clip[0], [row1, col1], [row2, col2])
+        path_new = sk_graph.route_through_array(cost_clip[0], [row1, col1], [row2, col2],
+                                                fully_connected= True,geometric = False)
     except Exception as e:
         print(f"find_least_cost_path_skimage: {e}")
         return None
@@ -519,7 +520,7 @@ def alt_find_least_cost_path_skimage(seedline_class,
     row2, col2 = transformer.rowcol(x2, y2)
 
     try:
-        path_new = sk_graph.route_through_array(costs, [row1, col1], [row2, col2])
+        path_new = sk_graph.route_through_array(costs, [row1, col1], [row2, col2], geometric=False, fully_connected=True)
     except Exception as e:
         print(f"find_least_cost_path_skimage: {e}")
         return None

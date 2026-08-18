@@ -49,14 +49,16 @@ def alt_clip_and_filter_regional_maxima_wgap(
 
     with rasterio.open(in_raster_file) as src:
 
-        clip_geo_buffer = [shp.simplify(clip_geom,2).buffer(buffer)]
+        clip_geo_buffer = [shp.simplify(clip_geom,0.25).buffer(buffer)]
         out_image, out_transform = rasterio.mask.mask(src, clip_geo_buffer, crop=True)
-        shapes = [(shp.simplify(clip_geom,2).buffer(buffer), 1)]  # Burn value '1' into the raster
+        shapes = [(shp.simplify(clip_geom,0.25).buffer(buffer), 1)]  # Burn value '1' into the raster
         raster_array = features.rasterize(shapes,
             out_shape=out_image.shape[1:],
             transform=out_transform,
             fill=0,
-            dtype=np.uint8
+            dtype=np.uint8,
+            all_touched=True,
+
         )
         valid_area=raster_array==1
         valid_area=valid_area[np.newaxis,...]
@@ -69,9 +71,12 @@ def alt_clip_and_filter_regional_maxima_wgap(
             ras_nodata = default_nodata
 
         #generate mask for valid raster data
-        data_mask = ~(np.ma.masked_equal(out_image, ras_nodata).mask)
+        # data_mask = ~(np.ma.masked_equal(out_image, ras_nodata).mask)
+        data_mask = valid_area
         #fill unmasked data with 0, otherwise keep the original value
         data_filled = np.where(data_mask, out_image, 0)
+        data_filled = np.where(data_filled==ras_nodata,0, data_filled)
+
 
         #calulate the gaussian_filter's sigma to remove sharp noise without removing small crowns.
         sigma = math.ceil(seedline_class.tree_radius) * 0.5

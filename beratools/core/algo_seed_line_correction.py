@@ -460,9 +460,9 @@ class SeedLineCorrection:
         ).remove_close_vertices(lines_gdf)
 
         if self.optimize_internal_vertices:
-            self.line_list = algo_common.split_lines_to_segments(lines_gdf)
+            self.line_list,_ = algo_common.split_lines_to_segments_list(lines_gdf)
         else:
-            self.line_list = algo_common.lines_gdf_to_list(lines_gdf)
+            self.line_list,_ = algo_common.lines_gdf_to_list(lines_gdf)
 
         if not self.line_list:
             print("No lines available for seed line correction.")

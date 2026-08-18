@@ -66,6 +66,7 @@ def clip_raster(
             transform=out_transform,
             fill=0,
             dtype=np.uint8,
+            all_touched=True,
 
         )
         # valid_area=raster_array==1

@@ -190,7 +190,7 @@ def test_generate_line_class_list_forwards_astar_options(monkeypatch):
     monkeypatch.setattr(centerline_tool.algo_common, "prepare_lines_gdf", lambda *_args, **_kwargs: [line_gdf])
     monkeypatch.setattr(centerline_tool.algo_centerline, "SeedLine", FakeSeedLine)
 
-    line_classes = centerline_tool.generate_line_class_list(
+    line_classes,seedline_gdf = centerline_tool.generate_line_class_list(
         "input.gpkg",
         "input.tif",
         line_radius=15,

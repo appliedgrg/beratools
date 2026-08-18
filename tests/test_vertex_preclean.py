@@ -39,7 +39,7 @@ def test_split_lines_to_segments_preserves_bt_uid():
         crs="EPSG:3857",
     )
 
-    split_rows = algo_common.split_lines_to_segments(lines)
+    split_rows,_ = algo_common.split_lines_to_segments_list(lines)
     split_gdf = gpd.GeoDataFrame(pd.concat(split_rows, ignore_index=True), crs=lines.crs)
 
     assert len(split_gdf) == 3

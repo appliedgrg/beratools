@@ -442,7 +442,7 @@ class VertexGrouping:
                 self.min_segment_length,
                 self.angle_tol,
             )
-            self.line_list = algo_common.split_lines_to_segments(lines_gdf)
+            self.line_list,_ = algo_common.split_lines_to_segments_list(lines_gdf)
         else:
             lines_gdf = algo_common.read_geospatial_file(self.in_line, layer=self.in_layer)
             lines_gdf = algo_vertex_preclean.preclean_vertices(
@@ -451,7 +451,7 @@ class VertexGrouping:
                 self.min_segment_length,
                 self.angle_tol,
             )
-            self.line_list = algo_common.lines_gdf_to_list(lines_gdf)
+            self.line_list,_ = algo_common.lines_gdf_to_list(lines_gdf)
 
         if not self.line_list:
             print("No lines available for vertex optimization.")
