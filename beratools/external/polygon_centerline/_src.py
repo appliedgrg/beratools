@@ -5,7 +5,7 @@ import scipy.ndimage
 from networkx.exception import NetworkXNoPath
 import numpy as np
 import operator
-from scipy.spatial import Voronoi, cKDTree
+from scipy.spatial import Voronoi, QhullError
 from scipy.ndimage import gaussian_filter1d, distance_transform_edt
 from shapely.geometry import LineString, MultiLineString, Point, MultiPoint
 from skimage.morphology import skeletonize
@@ -20,6 +20,18 @@ logger = logging.getLogger(__name__)
 
 ANGLE_PENALTY_WEIGHT = 0.02
 GUIDED_PATH_CANDIDATE_LIMIT = 40
+QHULL_STABILIZED_OPTIONS = "Qbb Qc Qz Q12"
+THIN_POLYGON_RATIO = 0.02
+_LAST_CENTERLINE_INFO = {}
+
+
+def get_last_centerline_info():
+    return dict(_LAST_CENTERLINE_INFO)
+
+
+def _set_last_centerline_info(**kwargs):
+    _LAST_CENTERLINE_INFO.clear()
+    _LAST_CENTERLINE_INFO.update(kwargs)
 
 
 def filter_nodes(geom, graph, vor, end_nodes):
@@ -104,6 +116,12 @@ def get_centerline(
     TypeError : if input geometry is not Polygon or MultiPolygon
 
     """
+    logger.debug("geometry type %s", geom.geom_type)
+    _set_last_centerline_info(
+        qhull_retry="none",
+        polygon_stabilized=False,
+        thin_polygon_ratio=None,
+    )
     try:
         logger.debug("geometry type %s", geom.geom_type)
 
@@ -111,14 +129,6 @@ def get_centerline(
         if endpoint_mode not in valid_endpoint_modes:
             raise ValueError("endpoint_mode must be one of %s" % sorted(valid_endpoint_modes))
 
-    valid_guided_strategies = {"pairwise", "virtual_nodes", "direct_insert", "main_route"}
-    if guided_strategy not in valid_guided_strategies:
-        raise ValueError("guided_strategy must be one of %s" % sorted(valid_guided_strategies))
-
-    if geom.geom_type == "Polygon":
-        # segmentized Polygon outline
-        outline = _segmentize(geom.exterior, segmentize_maxlen)
-        logger.debug("outline: %s", outline)
         valid_guided_strategies = {"pairwise", "virtual_nodes", "direct_insert", "main_route"}
         if guided_strategy not in valid_guided_strategies:
             raise ValueError("guided_strategy must be one of %s" % sorted(valid_guided_strategies))
@@ -129,33 +139,52 @@ def get_centerline(
             #until the Voronoi skeleton becomes essentially connected.
             BOTTLENECK_CELLS = 3
             MIN_NARROW_LENGTH = 5.0
+            # print('G1 rasterize',flush=True)
             poly_mask = shp_rasterize(geom, cell_size)
+            # print('G2 skeleton', flush=True)
             dist = distance_transform_edt(poly_mask)
+            # print('G3 bottleneck', flush=True)
             skel = skeletonize(poly_mask)
             width_cells = 2 * dist[skel]  #cells
+            # print('G3.1 widths',len(width_cells),flush=True)
             try:
                 narrow = skel & (2 * dist <= BOTTLENECK_CELLS)
+                # print('G3.2 narrow', flush=True)
                 labels, n = scipy.ndimage.label(narrow)
+                # print('G3.3 labels',n, flush=True)
                 max_narrow_pixels = 0
                 for i in range(1, n + 1):
                     max_narrow_pixels = max(
                         max_narrow_pixels,
                         np.count_nonzero(labels == i))
                 max_narrow_length = (max_narrow_pixels* cell_size)
+                # print('G3.4 max narrow ', flush=True)
             except Exception as e:
                 import traceback
+                # print(f'Test bottleneck fail: {e} @ {traceback.format_exc()}')
+            # p5=np.percentile(width_cells,5)
+            # print('G3.5 percentile', p5, flush=True)
             long_skinny_risk = (
                     np.percentile(width_cells, 5) <= BOTTLENECK_CELLS
                     and
                     max_narrow_length >= MIN_NARROW_LENGTH
             )
+            # print('long_skinny_risk:',long_skinny_risk,flush=True)
             c_geom=geom
             if long_skinny_risk:
+                # print('G4a voronoi repair', flush=True)
                 for factor in [1.5,2.0]:
+                    # print("repair factor:",factor,flush=True)
+                    # print('G4a.1 buffer', flush=True)
                     vor_geom = (geom.buffer(cell_size * factor))
+                    # print('G4a.2 segmentize', flush=True)
                     outline_test = _segmentize(vor_geom.exterior,cell_size)
+                    # print('segmentize points',len(outline_test.coords), flush=True)
+                    # print('G4a.3 voronoi', flush=True)
                     vor_test = Voronoi(outline_test.coords)
+                    # print('G4a.4 graph', flush=True)
                     graph_test = _graph_from_voronoi(vor_test,vor_geom)
+                    # print("test nodes:", graph_test.number_of_nodes(), flush=True)
                     try:
                         largest_ratio = largest_component_ratio(graph_test)
                         if largest_ratio> 0.98:
@@ -163,6 +192,7 @@ def get_centerline(
                             break
                     except Exception as e:
                         print(f"Test voronoi fail: {e}")
+            # print('G4b cleanup', flush=True)
             coords = list(c_geom.exterior.coords)
             cleaned = [coords[0]]
             for pt in coords[1:]:
@@ -170,33 +200,35 @@ def get_centerline(
                     cleaned.append(pt)
             c_geom=shp_geom.Polygon(cleaned).buffer(cell_size).buffer(-cell_size)
             # segmentized Polygon outline
+            # print('G4c segmentize','perimeter',c_geom.length,flush=True)
             outline = _segmentize(c_geom.exterior, segmentize_maxlen)
+            # print("4b.1 segmentized point:",len(outline.coords),flush=True)
+            # print("segmentized points:", len(outline.coords))
             logger.debug("outline: %s", outline)
 
-        # simplify segmentized geometry if necessary and get points
-        outline_points = outline.coords
-        simplification_updated = simplification
-        while len(outline_points) > max_points:
-            # if geometry is too large, apply simplification until geometry
-            # is simplified enough (indicated by the "max_points" value)
-            simplification_updated += simplification
-            outline_points = outline.simplify(simplification_updated).coords
-        logger.debug("simplification used: %s", simplification_updated)
-        logger.debug("simplified points: %s", MultiPoint(outline_points))
             # simplify segmentized geometry if necessary and get points
+            # print('before segmentize_to_range', flush=True)
             outline=segmentize_to_target_density(outline, min_points=3000, max_points=12000)
+            # print('after segmentize_to_range',len(outline.coords), flush=True)
             outline_points = outline.coords
 
-        # calculate Voronoi diagram and convert to graph but only use points
-        # from within the original polygon
-        vor = Voronoi(outline_points)
-        graph = _graph_from_voronoi(vor, geom)
-        logger.debug("voronoi diagram: %s", _multilinestring_from_voronoi(vor, geom))
+            # simplification_updated = simplification
+            # while len(outline_points) > max_points:
+            #     # if geometry is too large, apply simplification until geometry
+            #     # is simplified enough (indicated by the "max_points" value)
+            #     simplification_updated += simplification
+            #     outline_points = outline.simplify(simplification_updated).coords
+            # logger.debug("simplification used: %s", simplification_updated)
+            # logger.debug("simplified points: %s", MultiPoint(outline_points))
+
             # calculate Voronoi diagram and convert to graph but only use points
             # from within the original polygon, graph nodes are store in coordinates
+            # print('G5 build voronoi', flush=True)
             vor = Voronoi(outline_points)
+            # print('G6 graph', flush=True)
             graph = _graph_from_voronoi(vor, shp_geom.Polygon(outline))
             components = list(nx.connected_components(graph))
+            # print('G7 merge', flush=True)
             try:
                 if len(components)>1:
                     MIN_MAJOR_SIZE = 50
@@ -236,6 +268,13 @@ def get_centerline(
                             bridge = shp_geom.LineString([a,b])
                             if bridge.length == 0:
                                 continue
+                            # inside_len = bridge.intersection(c_geom).length
+                            # ratio = inside_len / bridge.length
+                            #
+                            # print(
+                            #         "gap=", dist,
+                            #         "ratio=", ratio
+                            #     )
                             if (    dist <= MAX_SMALL_GAP and
                                     bridge.covered_by(c_geom)):
                                 before=nx.number_connected_components(graph)
@@ -286,6 +325,11 @@ def get_centerline(
                                     or (dist <= MAX_RECOVERABLE_GAP and outside_len <= MAX_OUTSIDE_LENGTH
                                         and inside_ratio>=MIN_RECOVERABEL_RATIO))):
                                     graph.add_edge(a, b, weight=dist)
+                                    print(
+                                        f"Merged major components "
+                                        f"{i} ↔ {j}, "
+                                        f"gap={dist:.3f}"
+                                    )
                                     merged = True
                                     break
                             if merged:
@@ -313,44 +357,13 @@ def get_centerline(
             if snap_tolerance is None:
                 snap_tolerance = 2 * segmentize_maxlen
 
-        guided_attempted = False
-        if (
-            guided_strategy == "direct_insert"
-            and src_point is not None
-            and dst_point is not None
-        ):
-            guided_attempted = True
-            guided = _get_guided_path_direct_insert(
-                graph, vor, geom, src_point, dst_point,
-                max_terminal_angle, alpha,
-                enforce_angle=(endpoint_mode == "strict"),
-                snap_clearance_weight=snap_clearance_weight,
-            )
-            if guided is None and endpoint_mode == "strict":
-                logger.debug("direct_insert strict mode failed, retrying without angle guard")
-                guided = _get_guided_path_direct_insert(
-                    graph, vor, geom, src_point, dst_point,
-                    max_terminal_angle, alpha,
-                    enforce_angle=False,
-                    snap_clearance_weight=snap_clearance_weight,
-                )
-            if guided is not None:
-                ext = guided.get("extended_coords", {})
-                coords = [src_point.coords[0]]
-                for n in guided["path"]:
-                    coords.append(tuple(_get_vertex_coords(n, vor, ext)))
-                coords.append(dst_point.coords[0])
-                deduped = [coords[0]]
-                for c in coords[1:]:
-                    if c != deduped[-1]:
-                        deduped.append(c)
-                centerline = _smooth_linestring_fixed_ends(LineString(deduped), smooth_sigma)
             guided_attempted = False
             if (
                 guided_strategy == "direct_insert"
                 and src_point is not None
                 and dst_point is not None
             ):
+                print("trying 1", guided_strategy,flush=True)
                 guided_attempted = True
                 guided = _get_guided_path_direct_insert(
                     graph, vor, c_geom, src_point, dst_point,
@@ -411,33 +424,8 @@ def get_centerline(
 
                     dst_candidates = nearest_nodes(dst_point,graph,k=8)
 
-            if guided_strategy == "virtual_nodes":
-                guided = _get_guided_path_virtual(
-                    graph,
-                    vor,
-                    geom,
-                    src_point,
-                    dst_point,
-                    src_candidates,
-                    dst_candidates,
-                    max_terminal_angle,
-                    alpha,
-                    enforce_angle=(endpoint_mode == "strict"),
-                )
-            else:
-                guided = _get_guided_path(
-                    graph,
-                    vor,
-                    geom,
-                    src_point,
-                    dst_point,
-                    src_candidates,
-                    dst_candidates,
-                    max_terminal_angle,
-                    alpha,
-                    enforce_angle=(endpoint_mode == "strict"),
-                )
                 if guided_strategy == "virtual_nodes":
+                    print("trying 2", guided_strategy,flush=True)
                     guided = _get_guided_path_virtual(
                         graph,
                         vor,
@@ -451,6 +439,7 @@ def get_centerline(
                         enforce_angle=(endpoint_mode == "strict"),
                     )
                 else:
+                    print("trying 3", guided_strategy,flush=True)
                     guided = _get_guided_path(
                         graph,
                         c_geom,
@@ -463,37 +452,10 @@ def get_centerline(
                         enforce_angle=(endpoint_mode == "strict"),
                     )
 
-            if guided is None and endpoint_mode == "strict":
-                logger.debug("strict endpoint guidance exceeded angle guard, retrying without guard")
-                if guided_strategy == "virtual_nodes":
-                    guided = _get_guided_path_virtual(
-                        graph,
-                        vor,
-                        geom,
-                        src_point,
-                        dst_point,
-                        src_candidates,
-                        dst_candidates,
-                        max_terminal_angle,
-                        alpha,
-                        enforce_angle=False,
-                    )
-                else:
-                    guided = _get_guided_path(
-                        graph,
-                        vor,
-                        geom,
-                        src_point,
-                        dst_point,
-                        src_candidates,
-                        dst_candidates,
-                        max_terminal_angle,
-                        alpha,
-                        enforce_angle=False,
-                    )
                 if guided is None and endpoint_mode == "strict":
                     logger.debug("strict endpoint guidance exceeded angle guard, retrying without guard")
                     if guided_strategy == "virtual_nodes":
+                        print("trying 4", guided_strategy,flush=True)
                         guided = _get_guided_path_virtual(
                             graph,
                             vor,
@@ -507,6 +469,7 @@ def get_centerline(
                             enforce_angle=False,
                         )
                     else:
+                        print("trying 5", guided_strategy,flush=True)
                         guided = _get_guided_path(
                             graph,
                             c_geom,
@@ -549,23 +512,6 @@ def get_centerline(
                     "falling back to main-route longest-path extraction"
                 )
 
-        if centerline is None:
-            graph_nk = _graph_from_voronoi_nk(vor, geom)
-            longest_paths = _get_main_route_longest_paths(graph_nk)
-            if not longest_paths:
-                logger.debug("no paths found between end nodes")
-                raise CenterlineError("no paths found between end nodes")
-            if logger.getEffectiveLevel() <= 10:
-                logger.debug("longest paths:")
-                for path in longest_paths:
-                    logger.debug(LineString(vor.vertices[path]))
-
-            centerline = _smooth_linestring(
-                LineString(vor.vertices[_get_least_curved_path(longest_paths, vor.vertices)]),
-                smooth_sigma,
-            )
-        logger.debug("centerline: %s", centerline)
-        logger.debug("return linestring")
             if centerline is None:
                 graph_nk = _graph_from_voronoi_nk(vor, c_geom)
                 longest_paths = _get_main_route_longest_paths(graph_nk)
@@ -584,7 +530,11 @@ def get_centerline(
                     best_longest_paths_xy = min(longest_paths_xy, key=path_curvature)
                 if logger.getEffectiveLevel() <= 10:
                     logger.debug("longest paths:")
+                    # for path in longest_paths:
                     logger.debug(LineString(best_longest_paths_xy))
+                # centerline = _smooth_linestring(
+                #     LineString(vor.vertices[_get_least_curved_path(longest_paths, vor.vertices)]),
+                #     smooth_sigma,   )
                 centerline = _smooth_linestring(LineString(best_longest_paths_xy),smooth_sigma)
             logger.debug("centerline: %s", centerline)
             logger.debug("return linestring")
@@ -866,6 +816,22 @@ def get_centerline_fr_dissolved_corrider(
 ####################
 
 
+# def _segmentize(geom, max_len):
+#     """Interpolate points on segments if they exceed maximum length."""
+#     points = []
+#     for previous, current in zip(geom.coords, geom.coords[1:]):
+#         line_segment = LineString([previous, current])
+#         # add points on line segment if necessary
+#         points.extend(
+#             [
+#                 line_segment.interpolate(max_len * i).coords[0]
+#                 for i in range(int(line_segment.length / max_len))
+#             ]
+#         )
+#         # finally, add end point
+#         points.append(current)
+#     return LineString(points)
+
 def _segmentize(geom, max_len):
     """Interpolate points on segments if they exceed maximum length."""
     points = [geom.coords[0]]
@@ -883,6 +849,110 @@ def _segmentize(geom, max_len):
 
         points.append(current)
     return LineString(points)
+
+
+def _safe_voronoi_for_polygon(geom, segmentize_maxlen, max_points, simplification, outline_points):
+    """Build Voronoi while suppressing noisy Qhull precision dumps."""
+    thin_ratio = _polygon_thin_ratio(geom)
+    is_thin_polygon = thin_ratio is not None and thin_ratio < THIN_POLYGON_RATIO
+    info = {
+        "qhull_retry": "none",
+        "polygon_stabilized": False,
+        "thin_polygon_ratio": thin_ratio,
+    }
+
+    q12_failed = False
+    if is_thin_polygon:
+        try:
+            info["qhull_retry"] = "q12_thin_precheck"
+            return Voronoi(outline_points, qhull_options=QHULL_STABILIZED_OPTIONS), geom, info
+        except QhullError as e:
+            q12_failed = True
+            logger.info(
+                "Thin polygon precheck Q12 retry failed; retrying with a tiny stabilized footprint. %s",
+                _qhull_error_summary(e),
+            )
+
+    if not q12_failed:
+        try:
+            return Voronoi(outline_points), geom, info
+        except QhullError as e:
+            logger.info(
+                "Voronoi failed for likely thin/degenerate polygon; retrying with Q12. %s",
+                _qhull_error_summary(e),
+            )
+
+        try:
+            info["qhull_retry"] = "q12"
+            return Voronoi(outline_points, qhull_options=QHULL_STABILIZED_OPTIONS), geom, info
+        except QhullError as e:
+            logger.info(
+                "Voronoi Q12 retry failed; retrying with a tiny stabilized footprint. %s",
+                _qhull_error_summary(e),
+            )
+
+    stabilized = _stabilize_polygon_for_voronoi(geom, segmentize_maxlen, thin_ratio)
+    stabilized_outline = _segmentize(stabilized.exterior, segmentize_maxlen)
+    stabilized_points = stabilized_outline.coords
+    simplification_updated = simplification
+    while len(stabilized_points) > max_points:
+        simplification_updated += simplification
+        stabilized_points = stabilized_outline.simplify(simplification_updated).coords
+
+    try:
+        info["qhull_retry"] = "q12_buffered_polygon"
+        info["polygon_stabilized"] = True
+        return Voronoi(stabilized_points, qhull_options=QHULL_STABILIZED_OPTIONS), geom, info
+    except QhullError as e:
+        raise CenterlineError(
+            "Voronoi failed for thin/degenerate polygon after stabilized retry"
+        ) from e
+
+
+def _polygon_thin_ratio(geom):
+    try:
+        rect = geom.minimum_rotated_rectangle
+        coords = list(rect.exterior.coords)
+    except Exception:
+        return None
+
+    if len(coords) < 4:
+        return None
+
+    side_lengths = [Point(coords[i]).distance(Point(coords[i + 1])) for i in range(4)]
+    positive_lengths = [length for length in side_lengths if length > 0]
+    if len(positive_lengths) < 2:
+        return None
+
+    short_side = min(positive_lengths)
+    long_side = max(positive_lengths)
+    if long_side <= 0:
+        return None
+    return short_side / long_side
+
+
+def _stabilize_polygon_for_voronoi(geom, segmentize_maxlen, thin_ratio):
+    bounds_width = max(geom.bounds[2] - geom.bounds[0], geom.bounds[3] - geom.bounds[1])
+    if bounds_width <= 0:
+        bounds_width = segmentize_maxlen
+    buffer_distance = min(segmentize_maxlen * 0.1, bounds_width * 0.001)
+    if thin_ratio is not None and thin_ratio < THIN_POLYGON_RATIO:
+        buffer_distance = min(segmentize_maxlen * 0.25, max(buffer_distance, bounds_width * 0.0005))
+    buffer_distance = max(buffer_distance, 1e-9)
+
+    stabilized = geom.buffer(buffer_distance)
+    if not stabilized or stabilized.is_empty:
+        return geom
+    return stabilized
+
+
+def _qhull_error_summary(error):
+    message = str(error).splitlines()
+    for line in message:
+        stripped = line.strip()
+        if stripped:
+            return stripped
+    return error.__class__.__name__
 
 
 def _smooth_linestring(linestring, smooth_sigma):
@@ -1098,8 +1168,24 @@ def _build_medial_weighted_graph(graph, vor, geometry, alpha):
     return weighted
 
 
-def _build_medial_weighted_graph_nk(graph, vor, geometry, alpha):
-    """Build NetworKit graph with edge costs biased to medial regions."""
+# def _build_medial_weighted_graph_nk(graph, vor, geometry, alpha):
+#     """Build NetworKit graph with edge costs biased to medial regions."""
+#     nodes = list(graph.nodes())
+#     if not nodes:
+#         return nk.graph.Graph(0, weighted=True)
+#
+#     max_node_id = max(nodes)
+#     weighted_nk = nk.graph.Graph(max_node_id + 1, weighted=True)
+#     for u, v in graph.edges():
+#         p1 = Point(vor.vertices[u])
+#         p2 = Point(vor.vertices[v])
+#         length = p1.distance(p2)
+#         clearance = min(geometry.boundary.distance(p1), geometry.boundary.distance(p2))
+#         weight = length / max(clearance, 1e-6) ** alpha
+#         weighted_nk.addEdge(u, v, weight)
+#     return weighted_nk
+
+
 def _build_medial_weighted_graph_nk(
     graph,
     geometry,
@@ -1213,7 +1299,16 @@ def _nk_shortest_path_and_cost(graph_nk, src_node, dst_node):
     return path_nodes, distance
 
 
-def _line_from_nodes_with_anchors(path_nodes, vor, src_point, dst_point):
+# def _line_from_nodes_with_anchors(path_nodes, vor, src_point, dst_point):
+#     coords = [src_point.coords[0]]
+#     coords.extend([tuple(vor.vertices[node]) for node in path_nodes])
+#     coords.append(dst_point.coords[0])
+#     deduped = [coords[0]]
+#     for coord in coords[1:]:
+#         if coord != deduped[-1]:
+#             deduped.append(coord)
+#     return LineString(deduped)
+
 def _line_from_nodes_with_anchors(path_nodes, src_point, dst_point,vor=None):
 
     if not path_nodes:
@@ -1242,6 +1337,22 @@ def _soft_snap_centerline_to_endpoints(linestring, src_point, dst_point, toleran
         coords[-1] = dst_point.coords[0]
     return LineString(coords)
 
+#
+# def _terminal_deflection_angle(path, vertices, src_point, dst_point):
+#     """Get worst terminal deflection angle in degrees."""
+#     if len(path) < 2:
+#         return 0.0
+#
+#     src_xy = np.array(src_point.coords[0])
+#     dst_xy = np.array(dst_point.coords[0])
+#     start_xy = np.array(vertices[path[0]])
+#     start_next_xy = np.array(vertices[path[1]])
+#     end_xy = np.array(vertices[path[-1]])
+#     end_prev_xy = np.array(vertices[path[-2]])
+#
+#     start_angle = _angle_between_vectors(start_xy - src_xy, start_next_xy - start_xy)
+#     end_angle = _angle_between_vectors(end_prev_xy - end_xy, dst_xy - end_xy)
+#     return max(start_angle, end_angle)
 
 def _terminal_deflection_angle(path,src_point, dst_point):
     """Get worst terminal deflection angle in degrees."""
@@ -1388,6 +1499,10 @@ def _get_guided_path_virtual(
     src_virtual = "__SRC__"
     dst_virtual = "__DST__"
     augmented = _build_medial_weighted_graph(graph, vor, geometry, alpha)
+    # weighted_nk,node_to_id, id_to_node= _build_medial_weighted_graph_nk(graph,geometry, alpha)
+    # augmented= nx.Graph()
+    # for u,v,data in weighted_nk.edges(data=True):
+    #     augmented.add_edge(u, v, node_to_id[u], node_to_id[v],**data)
     augmented.add_node(src_virtual)
     augmented.add_node(dst_virtual)
 
@@ -1703,7 +1818,6 @@ def _graph_from_voronoi_v2(vor, geometry):
         graph.add_nodes_from([x, y])
         graph.add_edge(x, y, weight=dist)
     return graph
-
 
 
 def _graph_from_voronoi_nk(vor, geometry):
