@@ -103,7 +103,38 @@ def centerline_is_valid(centerline, input_line):
     ):
         return False
 
+    if _looks_like_shortcut(centerline, input_line):
+        return False
+
     return True
+
+
+def _looks_like_shortcut(centerline, input_line):
+    """Reject centerlines that connect the endpoints but shortcut the guide path."""
+    if not centerline or not input_line or input_line.length <= 0:
+        return False
+
+    length_ratio = centerline.length / input_line.length
+    if length_ratio >= CenterlineParams.MIN_GUIDE_LENGTH_RATIO:
+        return False
+
+    distances = _sampled_line_distances(input_line, centerline, CenterlineParams.GUIDE_SAMPLE_INTERVAL)
+    if not distances:
+        return False
+
+    median_distance = float(np.median(distances))
+    return median_distance > CenterlineParams.MAX_SHORTCUT_MEDIAN_DISTANCE
+
+
+def _sampled_line_distances(source_line, target_line, interval):
+    if interval <= 0:
+        interval = 10.0
+    sample_count = max(int(np.ceil(source_line.length / interval)), 1)
+    distances = []
+    for i in range(sample_count + 1):
+        distance_along = min(i * interval, source_line.length)
+        distances.append(source_line.interpolate(distance_along).distance(target_line))
+    return distances
 
 
 def snap_end_to_end(in_line, line_reference, max_snap_dist=None):
@@ -211,8 +242,10 @@ def _extract_centerline_from_polygon(
     cell_size=1.0,
 ):
     from beratools.external.polygon_centerline import get_centerline
+    from beratools.external.polygon_centerline._src import get_last_centerline_info
 
-    return get_centerline(
+    _extract_centerline_from_polygon.last_info = {}
+    centerline = get_centerline(
         poly,
         segmentize_maxlen=1,
         max_points=3000,
@@ -226,10 +259,21 @@ def _extract_centerline_from_polygon(
         endpoint_candidate_k=endpoint_candidate_k,
         cell_size=cell_size,
     )
+    _extract_centerline_from_polygon.last_info = get_last_centerline_info()
+    return centerline
 
-def find_centerline(poly,
-                    input_line,
-                    guided_strategy="main_route",
+
+_extract_centerline_from_polygon.last_info = {}
+
+
+def _last_extraction_used_stabilized_voronoi():
+    info = getattr(_extract_centerline_from_polygon, "last_info", {}) or {}
+    return info.get("qhull_retry") not in {None, "none"} or bool(info.get("polygon_stabilized"))
+
+
+
+
+def find_centerline(poly, input_line, guided_strategy="main_route",
                     endpoint_mode=None,
                     endpoint_candidate_k=8,
                     allow_regeneration=True,
@@ -408,12 +452,9 @@ def find_centerline(poly,
             try:
                 algo_common.log_file_only("Regenerating line ...",logger_name=__name__,)
                 centerline = regenerate_centerline(poly, input_line)
-
-                if centerline is None:
+                if centerline is None or centerline.is_empty:
                     return input_line, CenterlineStatus.REGENERATE_FAILED
-
                 return centerline, CenterlineStatus.REGENERATE_SUCCESS
-
             except Exception as e:
                 print(f"find_centerline: {e}")
                 return input_line, CenterlineStatus.REGENERATE_FAILED
@@ -425,9 +466,199 @@ def find_centerline(poly,
         raise
 
 
-
-
-
+# def find_centerline_fr_dissolve_corridor(poly,
+#                     input_line,
+#                     guided_strategy="main_route",
+#                     endpoint_mode=None,
+#                     endpoint_candidate_k=8,
+#                     allow_regeneration=True,
+#                    ):
+#     """
+#     Find centerline from polygon and input line.
+#
+#     Args:
+#         poly : sh_geom.Polygon
+#         input_line ( sh_geom.LineString): Least cost path or seed line
+#         guided_strategy : "pairwise", "virtual_nodes", "direct_insert", or "main_route".(default: main_route)
+#         endpoint_mode : {"strict", "soft", None} None (default) automatically determines the mode from endpoint coverage.
+#         endpoint_candidate_k : Number of endpoint graph candidates.(default: 8)
+#
+#     Returns:
+#     centerline (sh_geom.LineString): Centerline
+#     status (CenterlineStatus): Status of centerline generation
+#
+#     """
+#     default_return = input_line, CenterlineStatus.FAILED
+#     valid_guided_strategies = {"main_route", "pairwise", "virtual_nodes", "direct_insert"}
+#     ordered_valid_guided_strategies=["pairwise", "virtual_nodes", "direct_insert","main_route"]
+#     if guided_strategy not in valid_guided_strategies:
+#         raise ValueError("guided_strategy must be one of {}".format(sorted(valid_guided_strategies)))
+#     effective_strategy = guided_strategy
+#
+#     if not poly:
+#         algo_common.log_file_only("find_centerline: No polygon found")
+#         return default_return
+#
+#     poly = shapely.segmentize(poly, max_segment_length=CenterlineParams.SEGMENTIZE_LENGTH)
+#
+#     # buffer to reduce MultiPolygons
+#     poly = poly.buffer(bt_const.SMALL_BUFFER)
+#
+#     try:
+#         if isinstance(poly, sh_geom.MultiPolygon):
+#             poly = sh_ops.unary_union(poly.geoms)
+#             if isinstance(poly, sh_geom.MultiPolygon):
+#                 bridge_width = max(CenterlineParams.SIMPLIFY_LENGTH.value, bt_const.SMALL_BUFFER * 10)
+#                 part_polygons = [_prepare_polygon_for_extraction(part)
+#                 for part in poly.geoms if not part.is_empty and part.area > CenterlineParams.CLEANUP_POLYGON_BY_AREA ]
+#                 if not part_polygons:
+#                     return default_return
+#                 merged = part_polygons[0]
+#                 for part in part_polygons[1:]:
+#                     p1, p2 = sh_ops.nearest_points(merged, part)
+#                     connector = sh_geom.LineString([p1, p2]).buffer(bridge_width)
+#                     merged = merged.union(connector).union(part)
+#                 if isinstance(merged, sh_geom.MultiPolygon):
+#                     poly = max(merged.geoms, key=lambda p: p.area)
+#                 else:
+#                     poly=merged
+#                 poly = poly.buffer(0.5).buffer(-0.5)
+#         # poly = _prepare_polygon_for_extraction(poly)
+#     except Exception as e:
+#         print(f"find_centerline: _prepare_polygon_for_extraction: {e}")
+#
+#     line_coords = list(input_line.coords)
+#     if guided_strategy in {"pairwise", "virtual_nodes", "direct_insert"}:
+#         start = sh_geom.Point(line_coords[0])
+#         end = sh_geom.Point(line_coords[-1])
+#
+#         start_covered = poly.covers(start)
+#         end_covered = poly.covers(end)
+#
+#         src_geom = start if start_covered else sh_ops.nearest_points(start, poly)[1]
+#         dst_geom = end if end_covered else sh_ops.nearest_points(end, poly)[1]
+#
+#         # if endpoint_mode is None:
+#         endpoint_mode = ("strict" if start_covered and end_covered else "soft")
+#
+#     else:
+#         src_geom = None
+#         dst_geom = None
+#         if endpoint_mode is None:
+#             endpoint_mode = "soft"
+#
+#     try:
+#         centerline = _extract_centerline_from_corrdior(
+#             poly,
+#             src_geom,
+#             dst_geom,
+#             guided_strategy,
+#             endpoint_mode,
+#             endpoint_candidate_k,
+#         )
+#     except Exception as e:
+#         error_msg = str(e)
+#         if error_msg == "endpoint-guided extraction failed for provided endpoints":
+#             algo_common.log_file_only(f"find_centerline: {error_msg}")
+#         else:
+#             print(f"find_centerline: {e}")
+#         centerline = None
+#
+#     if not centerline and guided_strategy in {"pairwise", "virtual_nodes", "direct_insert"}:
+#         if guided_strategy == "pairwise":
+#             algo_common.log_file_only("find_centerline: pairwise guidance failed, trying fallback strategies",logger_name=__name__,)
+#         else:
+#             algo_common.log_file_only(
+#                 f"find_centerline: {guided_strategy} guidance failed, trying fallback strategies",
+#                 logger_name=__name__,
+#             )
+#         # Move selected strategy to the front
+#         execution_order = [guided_strategy] + [s for s in ordered_valid_guided_strategies if s != guided_strategy]
+#         i=1
+#         while i<len(execution_order):
+#             if  execution_order[i]== "main_route":
+#                 in_src_geom = None
+#                 in_dst_geom = None
+#             else:
+#                 in_src_geom = src_geom
+#                 in_dst_geom = dst_geom
+#
+#             try:
+#                 centerline = _extract_centerline_from_corrdior(
+#                     poly,
+#                     in_src_geom,
+#                     in_dst_geom,
+#                     execution_order[i],
+#                     endpoint_mode,
+#                     endpoint_candidate_k,
+#                 )
+#             except Exception as e:
+#                 centerline = None
+#                 algo_common.log_file_only(
+#                     f"find_centerline: fallback {execution_order[i]} failed: {e}",
+#                     logger_name=__name__,)
+#             if centerline is not None and not centerline.is_empty:
+#                 effective_strategy = execution_order[i]
+#                 break
+#             i+=1
+#
+#     if centerline is None:
+#         algo_common.log_file_only(f"find_centerline: All strategies failed",logger_name=__name__,)
+#         return default_return
+#     if  centerline.is_empty:
+#         algo_common.log_file_only(f"find_centerline: All strategies failed",logger_name=__name__,)
+#         return default_return
+#
+#     try:
+#         if isinstance(centerline, sh_geom.MultiLineString):
+#             if len(centerline.geoms) > 1:
+#                 print(" Multiple centerline segments detected, no further processing.")
+#                 return centerline, CenterlineStatus.SUCCESS  # TODO: inspect
+#             elif len(centerline.geoms) == 1:
+#                 centerline = centerline.geoms[0]
+#             else:
+#                 return default_return
+#     except Exception:
+#         import traceback
+#         print(traceback.format_exc(), flush=True)
+#         raise
+#
+#     needs_trim_snap = effective_strategy == "main_route"
+#     if effective_strategy in {"pairwise", "virtual_nodes"}:
+#         needs_trim_snap = not _is_endpoint_anchored(
+#             centerline,
+#             input_line,
+#             tol=CenterlineParams.ENDPOINT_ANCHOR_TOL,
+#         )
+#
+#     if needs_trim_snap:
+#         max_snap_dist = None
+#         if effective_strategy in {"pairwise", "virtual_nodes"}:
+#             max_snap_dist = CenterlineParams.GUIDED_FALLBACK_MAX_SNAP
+#         centerline = _trim_and_snap_centerline(
+#             centerline,
+#             input_line,
+#             max_snap_dist=max_snap_dist,
+#         )
+#         if not centerline:
+#             return default_return
+#
+#     # Check centerline. If valid, regenerate by splitting polygon into two halves.
+#     if allow_regeneration and not centerline_is_valid(centerline, input_line):
+#         try:
+#             algo_common.log_file_only("Regenerating line ...",logger_name=__name__,)
+#             centerline = regenerate_centerline(poly, input_line)
+#
+#             if centerline is None:
+#                 return input_line, CenterlineStatus.REGENERATE_FAILED
+#
+#             return centerline, CenterlineStatus.REGENERATE_SUCCESS
+#
+#         except Exception as e:
+#             print(f"find_centerline: {e}")
+#             return input_line, CenterlineStatus.REGENERATE_FAILED
+#
+#     return centerline, CenterlineStatus.SUCCESS
 
 
 
