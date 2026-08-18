@@ -17,18 +17,19 @@ Description:
 import math
 import tempfile
 import logging
+import json
 from pathlib import Path
 
 import geopandas as gpd
 import numpy as np
 import pyproj
+from osgeo import gdal, ogr
 import rasterio
 import shapely
 import shapely.affinity as sh_aff
 import shapely.geometry as sh_geom
 import shapely.ops as sh_ops
 import skimage.graph as sk_graph
-from osgeo import gdal, ogr
 from scipy import ndimage
 from rasterio import features
 
@@ -548,9 +549,9 @@ def generate_raster_footprint(in_raster, latlon=True):
             inter_img = Path(tmp_folder).joinpath(inter_img).as_posix()
             gdal.Translate(inter_img, src_ds, options=options)
 
-        shapes = gdal.Footprint(None, inter_img, dstSRS=src_crs, format="GeoJSON")
-        target_feat = shapes["features"][0]
-        geom = sh_geom.shape(target_feat["geometry"])
+        shapes = gdal.Footprint("", inter_img, dstSRS=src_crs, format="MEM")
+        target_feat = shapes.GetLayer(0).GetNextFeature()
+        geom = sh_geom.shape(json.loads(target_feat.GetGeometryRef().ExportToJson()))
 
     if geom is not None and latlon:
         out_crs = pyproj.CRS("EPSG:4326")
@@ -1055,3 +1056,146 @@ def split_lines_to_segments_list(gdf):
 
 
     return split_gdf_list,gdf
+
+
+def prepare_lines_gdf_v2(file_path, layer=None, proc_segments=True):
+    """
+    if proc_segments == True:
+        Split lines into equal length part or return original rows.
+    It handles for MultiLineString.
+    """
+    gdf = read_geospatial_file(file_path, layer=layer)
+    if gdf is None:
+        return [],gdf
+
+    gdf = remove_duplicate_seedlines(gdf)
+    gdf['geometry'] = gdf['geometry'].apply(lambda x: remove_retrace(x, tol=0.01))
+    gdf['geometry']=gdf['geometry'].apply(lambda x: x.simplify(tolerance=1, preserve_topology=False))
+    gdf['geometry'] = gdf['geometry'].apply(lambda x: remove_short_vertices(x) if has_shot_seg(x) else x)
+
+    if proc_segments:
+        result,gdf=split_lines_to_segments_list(gdf)
+        print(f'Split original {len(gdf)} into {len(result)} segments')
+        return result,gdf
+
+    return lines_gdf_to_list(gdf)
+
+
+def split_into_equal_Nth_segments(df, seg_length):
+    odf = df
+    crs = odf.crs
+    if "OLnSEG" not in odf.columns.array:
+        df["OLnSEG"] = np.nan
+    df = odf.assign(geometry=odf.apply(lambda x: equal_len_cut_line(x.geometry, seg_length), axis=1))
+    df = df.explode()
+
+
+    df["OLnSEG"] = df.groupby("OLnFID").cumcount()
+    gdf = gpd.GeoDataFrame(df, geometry=df.geometry, crs=crs)
+    gdf = gdf[gdf.geometry.is_valid]
+    gdf = gdf.sort_values(by=["OLnFID", "OLnSEG"])
+    gdf = gdf.reset_index(drop=True)
+
+    if "shape_leng" in gdf.columns.array:
+        gdf["shape_leng"] = gdf.geometry.length
+    elif "LENGTH" in gdf.columns.array:
+        gdf["LENGTH"] = gdf.geometry.length
+    else:
+        gdf["shape_leng"] = gdf.geometry.length
+
+    split_gdf_list = []
+    for row in gdf.itertuples(index=False):
+        line = row.geometry
+        coords = list(line.coords)
+
+        for i in range(len(coords) - 1):
+            segment = sh_geom.LineString([coords[i], coords[i + 1]])
+            attributes = {col: getattr(row, col) for col in gdf.columns if col != "geometry"}
+            single_row_gdf = gpd.GeoDataFrame([attributes], geometry=[segment], crs=gdf.crs)
+            split_gdf_list.append(single_row_gdf)
+
+    return split_gdf_list
+
+def cut_line_by_length(line, length, merge_threshold=0.5):
+    """
+    Split line into segments of equal length.
+
+    Merge the last segment with the second-to-last if its length
+    is smaller than the given threshold.
+
+    Args:
+        line : LineString
+            Line to be split by distance along the line.
+        length : float
+            Length of each segment to cut.
+        merge_threshold : float, optional
+            Threshold below which the last segment is merged with the previous one. Default is 0.5.
+
+    Returns:
+        MulitLineString
+            A list containing the resulting line segments.
+
+    Example:
+        ">>> from shapely.geometry import LineString
+        ">>> line = LineString([(0, 0), (10, 0)])
+        ">>> segments = cut_line_by_length(line, 3, merge_threshold=1)
+        ">>> for segment in segments:
+        ">>>     print(f"Segment: {segment}, Length: {segment.length}")
+
+        Output:
+        Segment: LINESTRING (0 0, 3 0), Length: 3.0
+        Segment: LINESTRING (3 0, 6 0), Length: 3.0
+        Segment: LINESTRING (6 0, 9 0), Length: 3.0
+        Segment: LINESTRING (9 0, 10 0), Length: 1.0
+
+        After merging the last segment with the second-to-last segment:
+
+        Output:
+        Segment: LINESTRING (0 0, 3 0), Length: 3.0
+        Segment: LINESTRING (3 0, 6 0), Length: 3.0
+        Segment: LINESTRING (6 0, 10 0), Length: 4.0
+
+    """
+    if line.has_z:
+        # Remove the Z component of the line if it exists
+        line = sh_ops.transform(lambda x, y, z=None: (x, y), line)
+
+    if shapely.is_empty(line):
+        return []
+
+    # Segment the line based on the specified distance
+    line = shapely.segmentize(line, length)
+    lines = []
+    end_pt = None
+
+    while line.length > length:
+        coords = list(line.coords)
+
+        for i, p in enumerate(coords):
+            p_dist = line.project(sh_geom.Point(p))
+
+            # Check if the distance matches closely and split the line
+            if abs(p_dist - length) < 1e-9:  # Use a small epsilon value
+                lines.append(sh_geom.LineString(coords[: i + 1]))
+                line = sh_geom.LineString(coords[i:])
+                end_pt = None
+                break
+            elif p_dist > length:
+                end_pt = line.interpolate(length)
+                lines.append(sh_geom.LineString(coords[:i] + list(end_pt.coords)))
+                line = sh_geom.LineString(list(end_pt.coords) + coords[i:])
+                break
+
+    if end_pt:
+        lines.append(line)
+    else:
+        lines=[line]
+
+    # Handle the threshold condition: merge the last segment if its length is below the threshold
+    if len(lines) > 1:
+        if lines[-1].length < merge_threshold:
+            # Merge the last segment with the second-to-last one
+            lines[-2] = sh_geom.LineString(list(lines[-2].coords) + list(lines[-1].coords))
+            lines.pop()  # Remove the last segment after merging
+
+    return sh_geom.MultiLineString(lines)
