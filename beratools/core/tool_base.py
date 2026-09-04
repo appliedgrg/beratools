@@ -16,6 +16,7 @@ Description:
 import concurrent.futures as con_futures
 import warnings
 from multiprocessing.pool import Pool
+import psutil
 
 import geopandas as gpd
 import pandas as pd
@@ -69,6 +70,17 @@ def parallel_mode(processes):
     else:
         return bt_const.ParallelMode.MULTIPROCESSING, min(processes,determine_cpu_core_limit())
 
+def worker_init(logger_name):
+    try:
+        if logger_name:
+            from beratools.core.logger import Logger
+
+            log = Logger(logger_name)
+
+    except Exception:
+        import traceback
+        traceback.print_exc()
+
 
 def execute_multiprocessing(
     in_func,
@@ -76,12 +88,20 @@ def execute_multiprocessing(
     app_name,
     processes=0,
     call_mode=CallMode.CLI,
+    logger_name=None,
 ):
     out_result = []
     step = 0
     total_steps = len(in_data)
     mode, processes = parallel_mode(processes)
     verbose = True if call_mode == CallMode.GUI else False
+    TOTAL_RAM_GB = psutil.virtual_memory().total / 1024 ** 3
+    MAX_Memory_used = 0.95*TOTAL_RAM_GB
+    MAX_WORKERS = determine_cpu_core_limit()
+    MAX_RAM_PER_WORKER_GB = MAX_Memory_used / MAX_WORKERS
+    TARGET_UTILIZATION = 0.85
+    workers = int(TOTAL_RAM_GB * TARGET_UTILIZATION / MAX_RAM_PER_WORKER_GB)
+    processes = min(processes, workers)
 
     try:
         print("Multiprocessing mode: {}".format(mode.name), flush=True)
@@ -90,7 +110,7 @@ def execute_multiprocessing(
             print("Multiprocessing started...", flush=True)
             print("Using {} CPU cores".format(processes), flush=True)
 
-            with Pool(processes) as pool:
+            with Pool(processes,maxtasksperchild=100,initializer=worker_init,initargs=(logger_name,)) as pool:
                 with tqdm(total=total_steps, disable=verbose) as pbar:
                     for result in pool.imap_unordered(in_func, in_data):
                         if result_is_valid(result):
@@ -120,7 +140,12 @@ def execute_multiprocessing(
         elif mode == bt_const.ParallelMode.CONCURRENT:
             print("Concurrent processing started...", flush=True)
             print("Using {} CPU cores".format(processes), flush=True)
-            with con_futures.ProcessPoolExecutor(max_workers=processes) as executor:
+            with con_futures.ProcessPoolExecutor(
+                    max_workers=processes,
+                    max_tasks_per_child=100,
+                    initializer=worker_init,
+                    initargs=(logger_name,)
+            ) as executor:
                 futures = [executor.submit(in_func, line) for line in in_data]
                 with tqdm(total=total_steps, disable=verbose) as pbar:
                     for future in con_futures.as_completed(futures):
