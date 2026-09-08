@@ -7,15 +7,21 @@ import operator
 from scipy.spatial import QhullError, Voronoi
 from scipy.ndimage import gaussian_filter1d
 from shapely.geometry import LineString, MultiLineString, Point, MultiPoint
-
+import shapely.geometry as sh_geom
 from .exceptions import CenterlineError
 from shapely import STRtree
+import igraph as ig
 
 import networkit as nk
 
-logger = logging.getLogger(__name__)
+import beratools.core.constants as bt_const
+from beratools.core.logger import Logger
+LOGGER_NAME = "centerline"
+log = Logger(LOGGER_NAME, file_level=logging.DEBUG,console_level=logging.INFO)
+logger = log.get_logger()
+log_print = log.print
 
-ANGLE_PENALTY_WEIGHT = 0.02
+ANGLE_PENALTY_WEIGHT = 5.0
 GUIDED_PATH_CANDIDATE_LIMIT = 40
 QHULL_STABILIZED_OPTIONS = "Qbb Qc Qz Q12"
 THIN_POLYGON_RATIO = 0.02
@@ -35,7 +41,7 @@ def filter_nodes(geom, graph, vor, end_nodes):
     if not geom:
         return end_nodes
 
-    pts = [Point(vor.vertices[i]) for i in end_nodes]  # points in graph
+    pts = [_node_point(graph, i) for i in end_nodes]  # points in graph
     idx = STRtree(pts)
     indices = idx.query(geom)
 
@@ -63,6 +69,10 @@ def get_centerline(
     max_terminal_angle=40,
     alpha=0.5,
     snap_clearance_weight=5.0,
+    cell_size=1.0,
+    corridor_id=None,
+    input_line=None,
+
 ):
     """
     Return centerline from geometry.
@@ -101,7 +111,10 @@ def get_centerline(
     TypeError : if input geometry is not Polygon or MultiPolygon
 
     """
-    logger.debug("geometry type %s", geom.geom_type)
+    cid = f"[CID={corridor_id}] " if corridor_id else "[CID=UNKNOWN] "
+    if cid=="[CID=232_0] " and guided_strategy=="main_route":
+        print("debug start")
+    # logger.debug_file_only(cid+"geometry type %s", geom.geom_type)
     _set_last_centerline_info(
         qhull_retry="none",
         polygon_stabilized=False,
@@ -118,32 +131,54 @@ def get_centerline(
 
     if geom.geom_type == "Polygon":
         # segmentized Polygon outline
-        outline = _segmentize(geom.exterior, segmentize_maxlen)
-        logger.debug("outline: %s", outline)
+        # outline = _segmentize(geom.exterior, segmentize_maxlen)
+        outline=_densify_boundary(geom.exterior,step=0.25)
+        # logger.debug("Number of outline points: %s", len(outline.coords))
+        # logger.debug("outline: %s", outline)
 
         # simplify segmentized geometry if necessary and get points
         outline_points = outline.coords
-        simplification_updated = simplification
-        while len(outline_points) > max_points:
-            # if geometry is too large, apply simplification until geometry
-            # is simplified enough (indicated by the "max_points" value)
-            simplification_updated += simplification
-            outline_points = outline.simplify(simplification_updated).coords
-        logger.debug("simplification used: %s", simplification_updated)
-        logger.debug("simplified points: %s", MultiPoint(outline_points))
-
+        # simplification_updated = simplification
+        # while len(outline_points) > max_points:
+        #     # if geometry is too large, apply simplification until geometry
+        #     # is simplified enough (indicated by the "max_points" value)
+        #     simplification_updated += simplification
+        #     outline_points = outline.simplify(simplification_updated).coords
+        # logger.debug("simplification used: %s", simplification_updated)
+        # logger.debug("Number of simplified points: %s", len(outline_points))
+        s_geom = sh_geom.Polygon(outline_points)
         # calculate Voronoi diagram and convert to graph but only use points
         # from within the original polygon
         vor, vor_geom, vor_info = _safe_voronoi_for_polygon(
-            geom,
+            s_geom,
             segmentize_maxlen,
             max_points,
             simplification,
             outline_points,
         )
         _set_last_centerline_info(**vor_info)
-        graph = _graph_from_voronoi(vor, vor_geom)
-        logger.debug("voronoi diagram: %s", _multilinestring_from_voronoi(vor, geom))
+        graph = _graph_from_voronoi_coord(vor, vor_geom)
+        _prepare_node_spatial_index(graph)
+        # graph = reconnect_nearby_nodes(graph)
+        # graph = _prune_cycles(graph,vor,s_geom,src_geom,dst_geom,corridor_id,)
+        # graph = bridge_major_components_coord(
+        #     graph,
+        #     min_component_size=50,
+        #     bridge_distance=5.0,
+        #     cid=cid,
+        # )
+
+        # largest_cc = max(
+        #     nx.connected_components(backbone_graph),
+        #     key=len
+        # )
+        #
+        # backbone_graph = backbone_graph.subgraph(
+        #     largest_cc
+        # ).copy()
+
+        graph_nk = _build_medial_weighted_graph_nk(graph, s_geom, alpha)
+        # logger.debug("voronoi diagram: %s", _multilinestring_from_voronoi(vor, geom))
 
         # determine longest path between all end nodes from graph
         end_nodes = _get_end_nodes(graph)
@@ -183,7 +218,7 @@ def get_centerline(
                 ext = guided.get("extended_coords", {})
                 coords = [src_point.coords[0]]
                 for n in guided["path"]:
-                    coords.append(tuple(_get_vertex_coords(n, vor, ext)))
+                    coords.append(tuple(_get_vertex_coords(n, vor,ext,graph=graph)))
                 coords.append(dst_point.coords[0])
                 deduped = [coords[0]]
                 for c in coords[1:]:
@@ -199,18 +234,16 @@ def get_centerline(
             guided_attempted = True
             src_nodes = filter_nodes(src_geom, graph, vor, end_nodes)
             dst_nodes = filter_nodes(dst_geom, graph, vor, end_nodes)
-            src_candidates = _pick_endpoint_candidates(
+            src_candidates = _pick_endpoint_candidates_v2(
                 src_point,
                 graph,
-                vor,
                 geom,
                 endpoint_candidate_k,
                 preferred_nodes=src_nodes,
             )
-            dst_candidates = _pick_endpoint_candidates(
+            dst_candidates = _pick_endpoint_candidates_v2(
                 dst_point,
                 graph,
-                vor,
                 geom,
                 endpoint_candidate_k,
                 preferred_nodes=dst_nodes,
@@ -219,7 +252,6 @@ def get_centerline(
             if guided_strategy == "virtual_nodes":
                 guided = _get_guided_path_virtual(
                     graph,
-                    vor,
                     geom,
                     src_point,
                     dst_point,
@@ -231,15 +263,14 @@ def get_centerline(
                 )
             else:
                 guided = _get_guided_path(
-                    graph,
-                    vor,
+                    graph,  # NetworkX graph with coord_lookup
+                    graph_nk,  # NetworKit graph
                     geom,
                     src_point,
                     dst_point,
                     src_candidates,
                     dst_candidates,
                     max_terminal_angle,
-                    alpha,
                     enforce_angle=(endpoint_mode == "strict"),
                 )
 
@@ -248,7 +279,6 @@ def get_centerline(
                 if guided_strategy == "virtual_nodes":
                     guided = _get_guided_path_virtual(
                         graph,
-                        vor,
                         geom,
                         src_point,
                         dst_point,
@@ -261,24 +291,25 @@ def get_centerline(
                 else:
                     guided = _get_guided_path(
                         graph,
-                        vor,
+                        graph_nk,
                         geom,
                         src_point,
                         dst_point,
                         src_candidates,
                         dst_candidates,
                         max_terminal_angle,
-                        alpha,
                         enforce_angle=False,
                     )
 
             if guided is not None:
                 path_nodes = guided["path"]
                 if endpoint_mode == "strict":
-                    centerline = _line_from_nodes_with_anchors(path_nodes, vor, src_point, dst_point)
+                    centerline = _line_from_nodes_with_anchors_v2(path_nodes,
+                                                                  src_point,
+                                                                  dst_point,graph)
                     centerline = _smooth_linestring_fixed_ends(centerline, smooth_sigma)
                 else:
-                    centerline = LineString(vor.vertices[path_nodes])
+                    centerline = LineString([_node_coords(graph, n) for n in path_nodes])
                     centerline = _smooth_linestring(centerline, smooth_sigma)
                     centerline = _soft_snap_centerline_to_endpoints(
                         centerline, src_point, dst_point, snap_tolerance
@@ -294,22 +325,105 @@ def get_centerline(
             )
 
         if centerline is None:
-            graph_nk = _graph_from_voronoi_nk(vor, geom)
-            longest_paths = _get_main_route_longest_paths(graph_nk)
+            igraph_graph = ig.Graph.from_networkx(graph)
+            igraph_betweenness = igraph_graph.betweenness(directed=False)
+            n = graph.number_of_nodes()
+            norm = ((n - 1) * (n - 2)) / 2
+            centrality = {
+                node: val / norm
+                for node, val in zip(
+                    graph.nodes(),
+                    igraph_betweenness)}
+            cutoff = np.percentile(
+                list(centrality.values()),
+                75
+            )
+            backbone_nodes = {
+                n
+                for n, c in centrality.items()
+                if c >= cutoff}
+
+            backbone_graph = graph.subgraph(
+                backbone_nodes).copy()
+
+            # largest_cc = max(
+            #     nx.connected_components(backbone_graph),
+            #     key=len
+            # )
+
+            # logger.info(
+            #     f"backbone_graph largest_cc={len(largest_cc)} "
+            #     f"of {backbone_graph.number_of_nodes()}"
+            # )
+
+            backbone_graph = reconnect_nearby_nodes(backbone_graph,geometry=s_geom)
+            backbone_graph = bridge_major_components_coord(
+                backbone_graph,
+                geometry=s_geom,
+                min_component_size=50,
+                bridge_distance=5.0,
+                cid=cid,
+            )
+
+            backbone_graph_nk = nx_to_networkit(backbone_graph)
+            longest_paths = _get_main_route_longest_paths(backbone_graph_nk)
             if not longest_paths:
                 logger.debug("no paths found between end nodes")
                 raise CenterlineError("no paths found between end nodes")
             if logger.getEffectiveLevel() <= 10:
                 logger.debug("longest paths:")
-                for path in longest_paths:
-                    logger.debug(LineString(vor.vertices[path]))
+            best_path = max(
+                longest_paths,
+                key=lambda p: _path_score(
+                    backbone_graph,p))
+            # logger.file_only(
+            #     f"{cid} BEST SCORE="
+            #     f"{_path_score(backbone_graph, best_path):.2f}\n "
+            #     f"{cid} BEST_PATH_NODES="
+            #     f"{len(best_path)}\n"
+            #     f"{cid} BRANCH_COUNT="
+            #     f"{sum(1 for n in best_path if backbone_graph.degree(n) > 2)}"
+            # )
+            coords = []
+            for u, v in zip(best_path[:-1],best_path[1:]):
+                edge_data = backbone_graph[u][v]
+                seg_geom = edge_data.get("geometry")
+                if seg_geom is None:
+                    seg_geom = LineString([
+                        _node_coords(backbone_graph, u),
+                        _node_coords(backbone_graph, v),
+                    ])
+                if isinstance(seg_geom, sh_geom.LineString):
+                    seg_coords = list(seg_geom.coords)
+                    if not coords:
+                        coords.extend(seg_coords)
+                    else:
+                        coords.extend(seg_coords[1:])
 
-            centerline = _smooth_linestring(
-                LineString(vor.vertices[_get_least_curved_path(longest_paths, vor.vertices)]),
-                smooth_sigma,
-            )
-        logger.debug("centerline: %s", centerline)
-        logger.debug("return linestring")
+                elif isinstance(seg_geom, sh_geom.MultiLineString):
+                    for seg in seg_geom.geoms:
+                        seg_coords = list(seg.coords)
+                        if not coords:
+                            coords.extend(seg_coords)
+                        else:
+                            coords.extend(seg_coords[1:])
+            centerline = _smooth_linestring(LineString(coords),smooth_sigma,)
+
+        #     logger.file_only(
+        #         f"{cid} FINAL_LEN={centerline.length:.2f}"
+        #     )
+        #
+        #     coords = list(centerline.coords)
+        #
+        #     logger.file_only(
+        #         f"{cid} FINAL_START={coords[0]}"
+        #     )
+        #
+        #     logger.file_only(
+        #             f"{cid} FINAL_END={coords[-1]}"
+        #         )
+        # logger.debug("centerline: %s", centerline)
+        # logger.debug("return linestring")
         return centerline
 
     elif geom.geom_type == "MultiPolygon":
@@ -504,8 +618,52 @@ def _as_endpoint_point(geom):
         return geom.representative_point()
     return None
 
+def _pick_endpoint_candidates_v2(
+    point,
+    graph,
+    geometry,
+    candidate_k,
+    preferred_nodes=None,
+):
+    width_est = max(1.0,2.0 * geometry.area / geometry.length)
+    search_radius = np.clip(1.5*width_est,5.0,25.0,)
+    preferred_nodes=preferred_nodes or []
+    filtered_preferred = {node for node in preferred_nodes if node in graph}
+    tree = graph.graph["node_tree"]
+    node_ids = graph.graph["node_ids"]
+    node_points = graph.graph["node_points"]
 
-def _pick_endpoint_candidates(point, graph, vor, geometry, candidate_k, preferred_nodes=None):
+    raw_idx = tree.query(point.buffer(search_radius))
+
+    if len(raw_idx) == 0:
+        raw_idx = np.atleast_1d(tree.query_nearest(point))
+
+    scored = []
+
+    for idx in raw_idx:
+
+        node = node_ids[idx]
+        node_pt = node_points[idx]
+
+        dist = point.distance(node_pt)
+        boundary_dist = geometry.boundary.distance(node_pt)
+
+        score = dist + (
+            0.2 / max(boundary_dist, 1e-6)
+        )
+        if node in filtered_preferred:
+            score *= 0.6
+
+        scored.append((score, node))
+
+    scored.sort(key=operator.itemgetter(0))
+
+    return [
+        node
+        for _, node in scored[:candidate_k]
+    ]
+def _pick_endpoint_candidates(point, graph,
+                              geometry, candidate_k, preferred_nodes=None):
     """Pick endpoint candidate graph nodes with distance/clearance score."""
     available_nodes = list(graph.nodes())
     if not available_nodes:
@@ -515,7 +673,7 @@ def _pick_endpoint_candidates(point, graph, vor, geometry, candidate_k, preferre
     filtered_preferred = [node for node in preferred_nodes if node in graph]
     scored = []
     for node in available_nodes:
-        node_pt = Point(vor.vertices[node])
+        node_pt = _node_point(graph, node)
         dist = point.distance(node_pt)
         boundary_dist = geometry.boundary.distance(node_pt)
         score = dist + (0.2 / max(boundary_dist, 1e-6))
@@ -543,20 +701,34 @@ def _pick_endpoint_candidates(point, graph, vor, geometry, candidate_k, preferre
     return chosen
 
 
-def _build_medial_weighted_graph(graph, vor, geometry, alpha):
+def _build_medial_weighted_graph(graph,  geometry, alpha):
     """Build graph with edge costs biased to medial regions."""
     weighted = nx.Graph()
-    for u, v in graph.edges():
-        p1 = Point(vor.vertices[u])
-        p2 = Point(vor.vertices[v])
+    if "coord_lookup" in graph.graph:
+        weighted.graph["coord_lookup"] = (
+            graph.graph["coord_lookup"]
+        )
+    else:
+        weighted.graph["coord_lookup"] = {}
+    for u, v ,data in graph.edges(data=True):
+        p1 = _node_point(graph,u)
+        p2 = _node_point(graph,v)
         length = p1.distance(p2)
         clearance = min(geometry.boundary.distance(p1), geometry.boundary.distance(p2))
         weight = length / max(clearance, 1e-6) ** alpha
-        weighted.add_edge(u, v, weight=weight)
+        weighted.add_edge(
+            u,
+            v,
+            weight=weight,
+            length=data.get("length", length),
+            geometry=data.get("geometry"),
+            bridge=data.get("bridge", False),
+        )
+
     return weighted
 
 
-def _build_medial_weighted_graph_nk(graph, vor, geometry, alpha):
+def _build_medial_weighted_graph_nk(graph,  geometry, alpha):
     """Build NetworKit graph with edge costs biased to medial regions."""
     nodes = list(graph.nodes())
     if not nodes:
@@ -564,13 +736,16 @@ def _build_medial_weighted_graph_nk(graph, vor, geometry, alpha):
 
     max_node_id = max(nodes)
     weighted_nk = nk.graph.Graph(max_node_id + 1, weighted=True)
-    for u, v in graph.edges():
-        p1 = Point(vor.vertices[u])
-        p2 = Point(vor.vertices[v])
-        length = p1.distance(p2)
+
+
+    for u, v,data in graph.edges(data=True):
+
+        p1 = _node_point(graph,u)
+        p2 = _node_point(graph,v)
+        length = data.get("length",p1.distance(p2))
         clearance = min(geometry.boundary.distance(p1), geometry.boundary.distance(p2))
         weight = length / max(clearance, 1e-6) ** alpha
-        weighted_nk.addEdge(u, v, weight)
+        weighted_nk.addEdge(u, v, weight,)
     return weighted_nk
 
 
@@ -631,9 +806,9 @@ def _nk_shortest_path_and_cost(graph_nk, src_node, dst_node):
     return path_nodes, distance
 
 
-def _line_from_nodes_with_anchors(path_nodes, vor, src_point, dst_point):
+def _line_from_nodes_with_anchors(path_nodes, vor, src_point, dst_point,graph):
     coords = [src_point.coords[0]]
-    coords.extend([tuple(vor.vertices[node]) for node in path_nodes])
+    coords.extend([_node_coords(graph, node) for node in path_nodes])
     coords.append(dst_point.coords[0])
     deduped = [coords[0]]
     for coord in coords[1:]:
@@ -641,6 +816,34 @@ def _line_from_nodes_with_anchors(path_nodes, vor, src_point, dst_point):
             deduped.append(coord)
     return LineString(deduped)
 
+def _line_from_nodes_with_anchors_v2(
+    path_nodes,
+    src_point,
+    dst_point,
+    graph,
+):
+    coords = [src_point.coords[0]]
+
+    for u, v in zip(path_nodes[:-1], path_nodes[1:]):
+
+        seg_geom = graph[u][v].get("geometry")
+
+        if seg_geom is None:
+            seg_coords = [
+                _node_coords(graph, u),
+                _node_coords(graph, v)
+            ]
+        else:
+            seg_coords = list(seg_geom.coords)
+
+        if len(coords) == 1:
+            coords.extend(seg_coords)
+        else:
+            coords.extend(seg_coords[1:])
+
+    coords.append(dst_point.coords[0])
+
+    return LineString(coords)
 
 def _soft_snap_centerline_to_endpoints(linestring, src_point, dst_point, tolerance):
     """Snap line ends only when endpoint is close enough."""
@@ -655,7 +858,9 @@ def _soft_snap_centerline_to_endpoints(linestring, src_point, dst_point, toleran
     return LineString(coords)
 
 
-def _terminal_deflection_angle(path, vertices, src_point, dst_point):
+def _terminal_deflection_angle(path,
+                               vertices,
+                               src_point, dst_point):
     """Get worst terminal deflection angle in degrees."""
     if len(path) < 2:
         return 0.0
@@ -672,6 +877,25 @@ def _terminal_deflection_angle(path, vertices, src_point, dst_point):
     return max(start_angle, end_angle)
 
 
+def _terminal_deflection_angle_coord(path, graph,
+                                     src_point, dst_point):
+    """Get worst terminal deflection angle in degrees."""
+    if len(path) < 2:
+        return 0.0
+
+    src_xy = np.array(src_point.coords[0])
+    dst_xy = np.array(dst_point.coords[0])
+    start_xy = np.array(_node_coords(graph,path[0]))
+    start_next_xy = np.array(_node_coords(graph,path[1]))
+    end_xy = np.array(_node_coords(graph,path[-1]))
+    end_prev_xy = np.array(_node_coords(graph,path[-2]))
+
+    start_angle = _angle_between_vectors(start_xy - src_xy, start_next_xy - start_xy)
+    end_angle = _angle_between_vectors(end_prev_xy - end_xy, dst_xy - end_xy)
+    return max(start_angle, end_angle)
+
+
+
 def _angle_between_vectors(v1, v2):
     n1 = np.linalg.norm(v1)
     n2 = np.linalg.norm(v2)
@@ -683,42 +907,67 @@ def _angle_between_vectors(v1, v2):
 
 
 def _get_guided_path(
-    graph,
-    vor,
+    graph,# geometry lookup
+    graph_nk,
     geometry,
     src_point,
     dst_point,
     src_candidates,
     dst_candidates,
     max_terminal_angle,
-    alpha,
     enforce_angle=True,
 ):
     """Get best endpoint-guided path between candidate node sets."""
     if not src_candidates or not dst_candidates:
         return None
 
-    weighted_nk = _build_medial_weighted_graph_nk(graph, vor, geometry, alpha)
     best = None
 
     for src_node in src_candidates:
         for dst_node in dst_candidates:
             if src_node == dst_node:
                 continue
-            solved = _nk_shortest_path_and_cost(weighted_nk, src_node, dst_node)
+            solved = _nk_shortest_path_and_cost(graph_nk, src_node, dst_node)
+
             if solved is None:
                 continue
+
             path, score = solved
 
-            src_connector_cost = _endpoint_connector_cost(src_point, src_node, vor, geometry)
-            dst_connector_cost = _endpoint_connector_cost(dst_point, dst_node, vor, geometry)
-            terminal_angle = _terminal_deflection_angle(path, vor.vertices, src_point, dst_point)
+            terminal_angle = _terminal_deflection_angle_coord(path,graph,src_point,dst_point)
+
+            src_connector_cost = _endpoint_connector_cost(src_point, src_node, geometry,graph)
+            dst_connector_cost = _endpoint_connector_cost(dst_point, dst_node, geometry,graph)
+
+            path_length = sum(
+                graph[u][v]["length"]
+                for u, v in zip(path[:-1], path[1:])
+            )
+
+            # straight_length = (
+            #     src_point.distance(dst_point)
+            # )
+            # logger.info(
+            #     f"path_len={path_length:.1f} "
+            #     f"straight_len={straight_length:.1f} "
+            #     f"ratio={path_length / max(straight_length, 1):.2f} "
+            #     f"src={src_node} "
+            #     f"dst={dst_node} "
+            #     f"path_nodes={len(path)} "
+            #     f"score={score:.2f} "
+            #     f"angle={terminal_angle:.2f} "
+            #     f"src connector cost={src_connector_cost:.2f} "
+            #     f"dst connector cost={dst_connector_cost:.2f} "
+            # )
+
             if enforce_angle and terminal_angle > max_terminal_angle:
                 continue
-
+            tortuosity = (path_length /
+                max(src_point.distance(dst_point), 1.0))
             total_score = (
-                score + src_connector_cost + dst_connector_cost + ANGLE_PENALTY_WEIGHT * terminal_angle
+                score*tortuosity + src_connector_cost + dst_connector_cost + ANGLE_PENALTY_WEIGHT * terminal_angle
             )
+
             candidate = {
                 "path": path,
                 "score": total_score,
@@ -729,9 +978,9 @@ def _get_guided_path(
     return best
 
 
-def _endpoint_connector_cost(endpoint_point, node, vor, geometry):
+def _endpoint_connector_cost(endpoint_point, node, geometry,graph):
     """Cost for connecting endpoint anchor to real graph node."""
-    node_point = Point(vor.vertices[node])
+    node_point =_node_point(graph, node)
     distance_cost = endpoint_point.distance(node_point)
     boundary_penalty = 0.2 / max(geometry.boundary.distance(node_point), 1e-6)
     return distance_cost + boundary_penalty
@@ -739,7 +988,6 @@ def _endpoint_connector_cost(endpoint_point, node, vor, geometry):
 
 def _get_guided_path_virtual(
     graph,
-    vor,
     geometry,
     src_point,
     dst_point,
@@ -755,7 +1003,7 @@ def _get_guided_path_virtual(
 
     src_virtual = "__SRC__"
     dst_virtual = "__DST__"
-    augmented = _build_medial_weighted_graph(graph, vor, geometry, alpha)
+    augmented = _build_medial_weighted_graph(graph,  geometry, alpha)
     augmented.add_node(src_virtual)
     augmented.add_node(dst_virtual)
 
@@ -766,7 +1014,7 @@ def _get_guided_path_virtual(
         augmented.add_edge(
             src_virtual,
             node,
-            weight=_endpoint_connector_cost(src_point, node, vor, geometry),
+            weight=_endpoint_connector_cost(src_point, node, geometry,graph),
         )
         src_added += 1
 
@@ -777,7 +1025,7 @@ def _get_guided_path_virtual(
         augmented.add_edge(
             dst_virtual,
             node,
-            weight=_endpoint_connector_cost(dst_point, node, vor, geometry),
+            weight=_endpoint_connector_cost(dst_point, node, geometry,graph),
         )
         dst_added += 1
 
@@ -799,7 +1047,7 @@ def _get_guided_path_virtual(
             if len(path) < 2:
                 continue
 
-            terminal_angle = _terminal_deflection_angle(path, vor.vertices, src_point, dst_point)
+            terminal_angle = _terminal_deflection_angle_coord(path, graph, src_point, dst_point)
             if enforce_angle and terminal_angle > max_terminal_angle:
                 continue
 
@@ -820,11 +1068,11 @@ def _get_guided_path_virtual(
     return best
 
 
-def _get_vertex_coords(node, vor, extended_coords):
+def _get_vertex_coords(node, vor, extended_coords,graph):
     """Get coordinates for a graph node, checking extended coords first."""
     if extended_coords and node in extended_coords:
         return extended_coords[node]
-    return vor.vertices[node]
+    return _node_coords(graph,node)
 
 
 def _insert_endpoint_node(
@@ -846,8 +1094,8 @@ def _insert_endpoint_node(
     best_projected = None
 
     for u, v in list(weighted_graph.edges()):
-        p1 = np.array(_get_vertex_coords(u, vor, extended_coords))
-        p2 = np.array(_get_vertex_coords(v, vor, extended_coords))
+        p1 = np.array(_get_vertex_coords(u, vor, extended_coords,weighted_graph))
+        p2 = np.array(_get_vertex_coords(v, vor, extended_coords,weighted_graph))
         seg = p2 - p1
         seg_len_sq = float(np.dot(seg, seg))
         if seg_len_sq < 1e-12:
@@ -877,7 +1125,7 @@ def _insert_endpoint_node(
     clearance_new = geometry.boundary.distance(p_new)
 
     for nbr in (u, v):
-        nbr_coords = _get_vertex_coords(nbr, vor, extended_coords)
+        nbr_coords = _get_vertex_coords(nbr, vor, extended_coords,weighted_graph)
         p_nbr = Point(nbr_coords)
         length = p_nbr.distance(p_new)
         clearance = geometry.boundary.distance(p_nbr)
@@ -908,7 +1156,7 @@ def _get_guided_path_direct_insert(
     when choosing the insertion point.  ``0`` = pure nearest distance;
     higher values bias toward more medial (interior) edges.
     """
-    weighted = _build_medial_weighted_graph(graph, vor, geometry, alpha)
+    weighted = _build_medial_weighted_graph(graph,  geometry, alpha)
     extended_coords = {}
 
     src_node = _insert_endpoint_node(
@@ -931,10 +1179,10 @@ def _get_guided_path_direct_insert(
         return None
 
     # Terminal angle check using extended coords
-    start_xy = np.array(_get_vertex_coords(path[0], vor, extended_coords))
-    next_xy = np.array(_get_vertex_coords(path[1], vor, extended_coords))
-    end_xy = np.array(_get_vertex_coords(path[-1], vor, extended_coords))
-    prev_xy = np.array(_get_vertex_coords(path[-2], vor, extended_coords))
+    start_xy = np.array(_get_vertex_coords(path[0], vor, extended_coords,weighted))
+    next_xy = np.array(_get_vertex_coords(path[1], vor, extended_coords,weighted))
+    end_xy = np.array(_get_vertex_coords(path[-1], vor, extended_coords,weighted))
+    prev_xy = np.array(_get_vertex_coords(path[-2], vor, extended_coords,weighted))
     src_xy = np.array(src_point.coords[0])
     dst_xy = np.array(dst_point.coords[0])
 
@@ -971,88 +1219,848 @@ def _get_main_route_longest_paths(graph_nk):
     ]
     if not distance:
         return []
-    distance.sort(key=operator.itemgetter(2), reverse=True)
-    longest = distance[0]
-    dijkstra = nk.distance.Dijkstra(graph_nk, longest[0], True, False, longest[1])
-    dijkstra.run()
-    longest_path = dijkstra.getPath(longest[1])
-    if not longest_path:
-        return []
-    return [[int(i) for i in longest_path]]
+    distance.sort(key=operator.itemgetter(2),reverse=True,)
+    top_pairs = distance[:10]
+    paths = []
+
+    for src, dst, _ in top_pairs:
+        dijkstra = nk.distance.Dijkstra(
+            graph_nk,
+            src,
+            True,
+            False,
+            dst,
+        )
+        dijkstra.run()
+        path = dijkstra.getPath(dst)
+        if path:
+            paths.append(
+                [int(i) for i in path]
+            )
+    return paths
+    # dijkstra = nk.distance.Dijkstra(graph_nk, longest[0], True, False, longest[1])
+    # dijkstra.run()
+    # longest_path = dijkstra.getPath(longest[1])
+    # if not longest_path:
+    #     return []
+    # return [[int(i) for i in longest_path]]
 
 
-def _get_least_curved_path(paths, vertices):
-    """Return path with smallest angles."""
-    return min(
-        zip([_get_path_angles_sum(path, vertices) for path in paths], paths),
-        key=operator.itemgetter(0),
-    )[1]
+# def _get_least_curved_path(paths, vertices):
+#     """Return path with smallest angles."""
+#     return min(
+#         zip([_get_path_angles_sum(path, vertices) for path in paths], paths),
+#         key=operator.itemgetter(0),
+#     )[1]
+
+#
+# def _get_path_angles_sum(path, vertices):
+#     """Return all angles between edges from path."""
+#     return sum(
+#         [
+#             _get_absolute_angle((vertices[pre], vertices[cur]), (vertices[cur], vertices[nex]))
+#             for pre, cur, nex in zip(path[:-1], path[1:], path[2:])
+#         ]
+#     )
 
 
-def _get_path_angles_sum(path, vertices):
-    """Return all angles between edges from path."""
-    return sum(
-        [
-            _get_absolute_angle((vertices[pre], vertices[cur]), (vertices[cur], vertices[nex]))
-            for pre, cur, nex in zip(path[:-1], path[1:], path[2:])
-        ]
-    )
-
-
-def _get_absolute_angle(edge1, edge2):
-    """Return absolute angle between edges."""
-    v1 = edge1[0] - edge1[1]
-    v2 = edge2[0] - edge2[1]
-    return abs(np.degrees(np.arctan2(np.linalg.det([v1, v2]), np.dot(v1, v2))))
-
+# def _get_absolute_angle(edge1, edge2):
+#     """Return absolute angle between edges."""
+#     v1 = edge1[0] - edge1[1]
+#     v2 = edge2[0] - edge2[1]
+#     return abs(np.degrees(np.arctan2(np.linalg.det([v1, v2]), np.dot(v1, v2))))
+#
 
 def _get_end_nodes(graph):
     """Return list of nodes with just one neighbor node."""
     return [i for i in graph.nodes() if len(list(graph.neighbors(i))) == 1]
 
 
-def _graph_from_voronoi(vor, geometry):
-    """Return networkx.Graph from Voronoi diagram within geometry."""
-    graph = nx.Graph()
-    for x, y, dist in _yield_ridge_vertices(vor, geometry, dist=True):
-        graph.add_nodes_from([x, y])
-        graph.add_edge(x, y, weight=dist)
-    return graph
+# def _graph_from_voronoi(vor, geometry):
+#     """Return networkx.Graph from Voronoi diagram within geometry."""
+#     graph = nx.Graph()
+#     for x, y, dist in _yield_ridge_vertices(vor, geometry,graph, dist=True):
+#         graph.add_nodes_from([x, y])
+#         graph.add_edge(x, y, weight=dist)
+#     return graph
 
 
-def _graph_from_voronoi_nk(vor, geometry):
-    """Return networkit.Graph from Voronoi diagram within geometry."""
-    edges = list(_yield_ridge_vertices(vor, geometry, dist=True))
-    if not edges:
-        return nk.graph.Graph(0, weighted=True)
+# def _graph_from_voronoi_nk(vor, geometry):
+#     """Return networkit.Graph from Voronoi diagram within geometry."""
+#     edges = list(_yield_ridge_vertices(vor, geometry, dist=True))
+#     if not edges:
+#         return nk.graph.Graph(0, weighted=True)
+#
+#     max_node_id = max(max(x, y) for x, y, _ in edges)
+#     graph = nk.graph.Graph(max_node_id + 1, weighted=True)
+#     for x, y, dist in edges:
+#         graph.addEdge(x, y, dist)
+#     return graph
 
-    max_node_id = max(max(x, y) for x, y, _ in edges)
-    graph = nk.graph.Graph(max_node_id + 1, weighted=True)
-    for x, y, dist in edges:
-        graph.addEdge(x, y, dist)
-    return graph
+
+# def _multilinestring_from_voronoi(vor,
+#                                   geometry, graph):
+#     """Return MultiLineString geometry from Voronoi ridges."""
+#     return MultiLineString(
+#         [
+#             LineString([start_xy, end_xy])
+#             for start_xy, end_xy,*_ in _yield_ridge_segments(vor, geometry)
+#         ]
+#     )
+
+# def _multilinestring_from_voronoi_v2(vor, geometry, graph=None):
+#     """
+#     Return MultiLineString geometry from clipped Voronoi ridges.
+#     """
+#     segments = [seg_geom
+#         for _, _, seg_geom, _
+#         in _yield_ridge_segments(vor, geometry)]
+#
+#     return MultiLineString(segments)
+
+# def _prune_cycles(
+#     graph,
+#     vor,
+#     geom,
+#     src_geom,
+#     dst_geom,
+#     corridor_id=None,
+# ):
+#     cid = (
+#         f"[CID={corridor_id}] "
+#         if corridor_id else ""
+#     )
+#
+#     cycles = nx.cycle_basis(graph)
+#
+#     logger.info(
+#         cid +
+#         f"Before prune: "
+#         f"cycles={len(cycles)}, "
+#         f"components="
+#         f"{nx.number_connected_components(graph)}"
+#     )
+#
+#     for cycle in cycles:
+#
+#         # skip large structural cycles
+#         if len(cycle) > 10:
+#             continue
+#
+#         cycle_edges = []
+#
+#         for u, v in zip(
+#             cycle,
+#             cycle[1:] + [cycle[0]]
+#         ):
+#
+#             p1 = _node_point(graph, u)
+#             p2 = _node_point(graph, v)
+#
+#             length = p1.distance(p2)
+#
+#             cycle_edges.append(
+#                 (
+#                     length,
+#                     u,
+#                     v,
+#                 )
+#             )
+#
+#         cycle_edges.sort()
+#
+#         removed = False
+#
+#         for length, u, v in cycle_edges:
+#
+#             trial = graph.copy()
+#
+#             try:
+#                 trial.remove_edge(u, v)
+#             except Exception:
+#                 continue
+#
+#             # keep graph connected
+#             if (
+#                 nx.number_connected_components(trial)
+#                 ==
+#                 nx.number_connected_components(graph)
+#             ):
+#
+#                 graph.remove_edge(u, v)
+#
+#                 # logger.file_only(
+#                 #     cid +
+#                 #     f" removed cycle edge "
+#                 #     f"({u}, {v}) "
+#                 #     f"len={length:.3f}"
+#                 # )
+#
+#                 removed = True
+#                 break
+#
+#         if not removed:
+#
+#             logger.info(
+#                 cid +
+#                 " cycle retained "
+#                 "(all removals disconnect graph)"
+#             )
+#
+#     logger.info(
+#         cid +
+#         f"After prune: "
+#         f"components="
+#         f"{nx.number_connected_components(graph)}"
+#     )
+#
+#     return graph
+
+# def _component_metadata(components, graph, min_size=50):
+#     """Works on coordinate-graph version
+#        Converts raw connected components into something can reason about spatially"""
+#     metadata = []
+#
+#     for cc_id, comp in enumerate(components):
+#
+#         if len(comp) < min_size:
+#             continue
+#
+#         pts = [_node_coords(graph, n) for n in comp]
+#
+#         cx = sum(p[0] for p in pts) / len(pts)
+#         cy = sum(p[1] for p in pts) / len(pts)
+#
+#         metadata.append({
+#             "id": cc_id,
+#             "nodes": set(comp),
+#             "size": len(comp),
+#             "centroid": Point(cx, cy),
+#         })
+#
+#     return metadata
 
 
-def _multilinestring_from_voronoi(vor, geometry):
-    """Return MultiLineString geometry from Voronoi diagram."""
-    return MultiLineString(
-        [
-            LineString([Point(vor.vertices[[x, y]][0]), Point(vor.vertices[[x, y]][1])])
-            for x, y in _yield_ridge_vertices(vor, geometry)
-        ]
+# def _nearest_node_pair(comp_a, comp_b,graph):
+#
+#     best_dist = float("inf")
+#     best_pair = None
+#
+#     for na in comp_a:
+#
+#         pa = _node_point(graph, na)
+#
+#         for nb in comp_b:
+#
+#             pb = _node_point(graph, nb)
+#
+#             d = pa.distance(pb)
+#
+#             if d < best_dist:
+#                 best_dist = d
+#                 best_pair = (na, nb)
+#
+#     return best_pair, best_dist
+
+
+# def bridge_major_components(
+#     graph,
+#     vor,
+#     min_component_size=50,
+#     bridge_distance=10.0,
+#     cid=None,
+# ):
+#
+#     components = list(nx.connected_components(graph))
+#
+#     meta = _component_metadata(
+#         components,
+#         graph,
+#         min_size=min_component_size,
+#     )
+#
+#     if len(meta) <= 1:
+#         return graph
+#
+#     #
+#     # Build component graph
+#     #
+#     component_graph = nx.Graph()
+#
+#     for comp in meta:
+#         component_graph.add_node(
+#             comp["id"]
+#         )
+#
+#     bridge_candidates = {}
+#
+#     for comp_a, comp_b in combinations(meta, 2):
+#
+#         pair, node_dist = _nearest_node_pair(
+#             comp_a["nodes"],
+#             comp_b["nodes"],
+#             graph,)
+#
+#         if node_dist > bridge_distance:
+#             continue
+#
+#         component_graph.add_edge(
+#             comp_a["id"],
+#             comp_b["id"],
+#             weight=node_dist,
+#         )
+#
+#         bridge_candidates[
+#             (comp_a["id"], comp_b["id"])
+#         ] = (
+#             pair,
+#             node_dist,
+#         )
+#
+#     #
+#     # Connect components using MST
+#     #
+#     if component_graph.number_of_edges() == 0:
+#         return graph
+#
+#     mst = nx.minimum_spanning_tree(
+#         component_graph,
+#         weight="weight",
+#     )
+#
+#     for cc_a, cc_b in mst.edges():
+#
+#         pair, node_dist = bridge_candidates[
+#             (cc_a, cc_b)
+#         ]
+#
+#         na, nb = pair
+#
+#         graph.add_edge(
+#             na,
+#             nb,
+#             weight=node_dist,
+#         )
+#
+#         # logger.file_only(
+#         #     f"{cid} BRIDGE "
+#         #     f"cc{cc_a} -> cc{cc_b} "
+#         #     f"dist={node_dist:.2f} "
+#         #     f"nodeA={na} "
+#         #     f"nodeB={nb}"
+#         # )
+#
+#     return graph
+
+def nx_to_networkit(nx_graph):
+    """
+    Convert NetworkX graph to NetworKit graph.
+    Assumes integer node ids.
+    """
+
+    max_node = max(nx_graph.nodes())
+
+    nk_graph = nk.graph.Graph(
+        max_node + 1,
+        weighted=True
     )
 
+    for u, v, data in nx_graph.edges(data=True):
+        weight = data.get("weight", 1.0)
 
-def _yield_ridge_vertices(vor, geometry, dist=False):
-    """Yield Voronoi ridge vertices within geometry."""
+        nk_graph.addEdge(
+            int(u),
+            int(v),
+            float(weight))
+
+    return nk_graph
+
+def _yield_ridge_segments(vor, geometry):
+
+    def snap_coord(coord, precision=3):
+        return (
+            round(coord[0], precision),
+            round(coord[1], precision),
+        )
+
+    line_count = 0
+    mls_count = 0
     for x, y in vor.ridge_vertices:
+
         if x < 0 or y < 0:
             continue
-        point1 = Point(vor.vertices[[x, y]][0])
-        point2 = Point(vor.vertices[[x, y]][1])
-        # Eliminate all points outside our geometry.
-        if point1.within(geometry) and point2.within(geometry):
-            if dist:
-                yield x, y, point1.distance(point2)
+
+        ridge = LineString([
+            vor.vertices[x],
+            vor.vertices[y]
+        ])
+
+        clipped = ridge.intersection(geometry)
+
+        if clipped.is_empty:
+            continue
+
+        if clipped.geom_type == "LineString":
+            line_count += 1
+            coords = list(clipped.coords)
+
+            if len(coords) < 2:
+                continue
+
+            yield (
+                snap_coord(coords[0]),
+                snap_coord(coords[-1]),
+                clipped,
+                clipped.length,
+            )
+
+        elif clipped.geom_type == "MultiLineString":
+            mls_count += 1
+            for seg in clipped.geoms:
+
+                if seg.length <= 0:
+                    continue
+
+                coords = list(seg.coords)
+
+                if len(coords) < 2:
+                    continue
+
+                yield (
+                    snap_coord(coords[0]),
+                    snap_coord(coords[-1]),
+                    seg,
+                    seg.length,
+                )
+    # logger.file_only(
+    #     f"lines={line_count} "
+    #     f"multilines={mls_count}"
+    # )
+def _graph_from_voronoi_coord(vor, geometry):
+    """
+    Build a graph from Voronoi ridges clipped to the corridor.
+
+    Topology is based on the clipped segment endpoints, not the
+    original Voronoi vertex ids. This makes LineString and
+    MultiLineString handling consistent.
+    """
+
+    graph = nx.Graph()
+
+    line_count = 0
+    mls_count = 0
+    segment_count = 0
+    subseg_count = 0
+
+    coord_to_node = {}
+    node_to_coord = {}
+    next_node_id = 0
+
+    def get_node_id(coord):
+        nonlocal next_node_id
+
+        key = (round(float(coord[0]), 6),
+            round(float(coord[1]), 6),)
+
+        if key not in coord_to_node:
+            coord_to_node[key] = next_node_id
+            node_to_coord[next_node_id] = key
+            next_node_id += 1
+
+        return coord_to_node[key]
+
+    for x, y in vor.ridge_vertices:
+
+        if x < 0 or y < 0:
+            continue
+
+        ridge = LineString([
+            vor.vertices[x],
+            vor.vertices[y],
+        ])
+
+        clipped = ridge.intersection(geometry)
+
+        if clipped.is_empty:
+            continue
+
+        segment_count += 1
+
+        #
+        # LineString
+        #
+        if clipped.geom_type == "LineString":
+            if clipped.length <= 0:
+                continue
+            coords = list(clipped.coords)
+            if len(coords) < 2:
+                continue
+            u = get_node_id(coords[0])
+            v = get_node_id(coords[-1])
+            graph.add_edge(
+                u,
+                v,
+                geometry=clipped,
+                length=float(clipped.length),
+                weight=float(clipped.length),)
+
+            line_count += 1
+        #
+        # MultiLineString
+        #
+        elif clipped.geom_type == "MultiLineString":
+            mls_count += 1
+            for seg in clipped.geoms:
+                if seg.length <= 0:
+                    continue
+                coords = list(seg.coords)
+                if len(coords) < 2:
+                    continue
+                u = get_node_id(coords[0])
+                v = get_node_id(coords[-1])
+                graph.add_edge(
+                    u,
+                    v,
+                    geometry=seg,
+                    length=float(seg.length),
+                    weight=float(seg.length),
+                )
+                subseg_count += 1
+
+    graph.graph["coord_lookup"] = node_to_coord
+
+    # logger.file_only(
+    #     f"lines={line_count} "
+    #     f"multilines={mls_count} "
+    #     f"multiline_segments={subseg_count}"
+    # )
+    #
+    # logger.file_only(
+    #     f"node_count={graph.number_of_nodes()} "
+    #     f"edge_count={graph.number_of_edges()} "
+    #     f"coord_lookup={len(node_to_coord)}"
+    # )
+    #
+    # sanity check
+    #
+    missing = [
+        n
+        for n in graph.nodes()
+        if n not in node_to_coord
+    ]
+
+    if missing:
+        logger.error(
+            f"coord_lookup missing {len(missing)} nodes. "
+            f"First few: {missing[:10]}"
+        )
+
+    return graph
+
+# def _graph_from_voronoi_nk_coord(vor, geometry):
+#
+#     edges = list(
+#         _yield_ridge_segments(
+#             vor,
+#             geometry,
+#         )
+#     )
+#
+#     if not edges:
+#         return nk.graph.Graph(
+#             0,
+#             weighted=True
+#         )
+#
+#     node_lookup = {}
+#     next_id = 0
+#
+#     def get_node_id(coord):
+#
+#         nonlocal next_id
+#
+#         if coord not in node_lookup:
+#             node_lookup[coord] = next_id
+#             next_id += 1
+#
+#         return node_lookup[coord]
+#
+#     for u_xy, v_xy, *_ in edges:
+#         get_node_id(u_xy)
+#         get_node_id(v_xy)
+#
+#     graph = nk.graph.Graph(
+#         len(node_lookup),
+#         weighted=True
+#     )
+#
+#     for u_xy, v_xy,clipped_geom,dist in edges:
+#
+#         u = node_lookup[u_xy]
+#         v = node_lookup[v_xy]
+#
+#         graph.addEdge(
+#             u,
+#             v,
+#             float(dist),
+#         )
+#
+#     return graph
+
+
+
+def bridge_major_components_coord(
+        graph,
+        geometry,
+        min_component_size=50,
+        bridge_distance=5.0,
+        cid=None):
+
+    coord_lookup = graph.graph["coord_lookup"]
+
+    components = list(
+        nx.connected_components(graph)
+    )
+
+    major_components = [
+        comp
+        for comp in components
+        if len(comp) >= min_component_size
+    ]
+
+    for comp_a, comp_b in combinations(
+            major_components, 2):
+
+        best_dist = float("inf")
+        best_pair = None
+
+        for na in comp_a:
+
+            pa = Point(
+                coord_lookup[na]
+            )
+
+            for nb in comp_b:
+
+                pb = Point(
+                    coord_lookup[nb]
+                )
+
+                d = pa.distance(pb)
+
+                if d < best_dist:
+
+                    best_dist = d
+                    best_pair = (
+                        na,
+                        nb,
+                    )
+
+        if (
+            best_pair is None
+            or best_dist > bridge_distance
+        ):
+            continue
+
+        na, nb = best_pair
+
+        bridge_geom = LineString([
+            _node_coords(graph, na),
+            _node_coords(graph, nb),
+        ])
+
+        if not geometry.covers(bridge_geom):
+            continue
+
+        graph.add_edge(
+            na,
+            nb,
+            weight=float(best_dist),
+            length=float(best_dist),
+            geometry=bridge_geom,
+            bridge=True,
+        )
+
+        # logger.file_only(
+        #     f"{cid} BRIDGE "
+        #     f"{na}->{nb} "
+        #     f"dist={best_dist:.2f}"
+        # )
+
+    return graph
+
+# def _nxgraph_to_nkgraph(nx_graph):
+#
+#     node_count = max(nx_graph.nodes()) + 1
+#
+#     nk_graph = nk.graph.Graph(
+#         node_count,
+#         weighted=True,
+#     )
+#
+#     for u, v, data in nx_graph.edges(data=True):
+#
+#         nk_graph.addEdge(
+#             int(u),
+#             int(v),
+#             float(data.get("weight", 1.0)),
+#         )
+#
+#     return nk_graph
+
+def _node_point(graph, node):
+    """ Return point geometry for node id. """
+    if "coord_lookup" in graph.graph:
+        x, y = graph.graph["coord_lookup"][node]
+
+        return Point(x, y)
+    raise ValueError("Cannot resolve node coordinates")
+
+def _node_coords(graph, node, vor=None):
+    """ Return tuple of coordinates for node id. """
+    if "coord_lookup" in graph.graph:
+        return graph.graph["coord_lookup"][node]
+
+    if vor is not None:
+        return tuple(vor.vertices[node])
+
+    raise ValueError("Cannot resolve node coordinates lookup")
+
+def reconnect_nearby_nodes(
+    graph,
+    geometry,
+    tolerance=0.50,
+
+):
+
+    coord_lookup = graph.graph["coord_lookup"]
+
+    end_nodes = [
+        n
+        for n, d in graph.degree()
+        if d == 1
+    ]
+
+    added = 0
+
+    for a, b in combinations(end_nodes, 2):
+        candidate = LineString([
+            coord_lookup[a],
+            coord_lookup[b]
+        ])
+
+        if not geometry.covers(candidate):
+            continue
+        pa = Point(coord_lookup[a])
+        pb = Point(coord_lookup[b])
+
+        d = pa.distance(pb)
+
+        if d > tolerance:
+            continue
+
+        if graph.has_edge(a, b):
+            continue
+
+        bridge_geom = LineString([
+            _node_coords(graph, a),
+            _node_coords(graph, b),
+        ])
+
+        graph.add_edge(
+            a,
+            b,
+            weight=d,
+            length=d,
+            geometry=bridge_geom,
+            bridge=True,
+        )
+
+        added += 1
+
+    # logger.info(
+    #     f"reconnected_edges={added}"
+    # )
+
+    return graph
+
+
+def _path_score(graph, path):
+
+    if len(path) < 2:
+        return -float("inf")
+
+    coords = []
+
+    branch_count = 0
+    path_len = 0.0
+
+    for u, v in zip(path[:-1], path[1:]):
+
+        edge_data = graph[u][v]
+
+        seg_geom = edge_data.get("geometry")
+
+        if seg_geom is None:
+            seg_geom = LineString([
+                _node_coords(graph, u),
+                _node_coords(graph, v),
+            ])
+
+
+        if graph.degree(u) > 2:
+            branch_count += 1
+
+        if seg_geom.geom_type == "LineString":
+
+            seg_coords = list(seg_geom.coords)
+
+            if not coords:
+                coords.extend(seg_coords)
             else:
                 yield x, y
+                coords.extend(seg_coords[1:])
+
+        elif seg_geom.geom_type == "MultiLineString":
+
+            for seg in seg_geom.geoms:
+
+                seg_coords = list(seg.coords)
+
+                if not coords:
+                    coords.extend(seg_coords)
+                else:
+                    coords.extend(seg_coords[1:])
+    if len(coords) < 2:
+        return -float("inf")
+
+    path_len = LineString(coords).length
+
+    endpoint_dist = Point(
+        coords[0]
+    ).distance(
+        Point(coords[-1])
+    )
+
+    tortuosity = (
+        path_len /
+        max(endpoint_dist, 1e-9)
+    )
+
+    ys = [c[1] for c in coords]
+
+    span = max(ys) - min(ys)
+
+    score = (
+            span /
+            max(tortuosity, 1e-9)
+    )
+    # logger.file_only(
+    #     f"span={span:.2f} "
+    #     f"tort={tortuosity:.2f} "
+    #     f"branches={branch_count} "
+    #     f"score={score:.2f}"
+    # )
+
+    return score
+

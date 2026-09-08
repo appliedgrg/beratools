@@ -258,8 +258,6 @@ def centerline(
         centerline_gdf,
         stage="output",
         out_file=out_file,
-        layer="rejected_output_centerlines",
-    )
         layer="rejected_output_centerlines",)
 
     lc_path_gdf = algo_common.clean_geometries(
@@ -298,6 +296,19 @@ def centerline(
                 ),
             )
         )
+        # for fid in [232]:
+        #
+        #     rows = dissolved_cl[
+        #         dissolved_cl["OLnFID"] == fid
+        #         ]
+        #
+        #     if len(rows):
+        #         logger.file_only(
+        #             f"POST_MERGE {fid}: "
+        #             f"merge_status={rows.iloc[0]['merge_status']} "
+        #             f"type={rows.geometry.iloc[0].geom_type} "
+        #             f"length={rows.geometry.iloc[0].length:.2f}"
+        #         )
 
 
         dissolved_cl = algo_common.clean_geometries(
@@ -306,6 +317,21 @@ def centerline(
             out_file=out_file,
             layer="rejected_merged_centerline_geometry",
         )
+        # for fid in [232]:
+        #
+        #     rows = dissolved_cl[
+        #         dissolved_cl["OLnFID"] == fid
+        #         ]
+        #
+        #     if len(rows):
+        #         geom = rows.geometry.iloc[0]
+        #
+        #         logger.file_only(
+        #             f"PRE_QC {fid}: "
+        #             f"type={geom.geom_type} "
+        #             f"length={geom.length:.2f}"
+        #         )
+
         dissolved_lcp = (
             algo_common.merge_lines_by_original_id(
                 line_gdf=dissolved_lcp_orig,
@@ -334,6 +360,20 @@ def centerline(
             print("No centerlines remained after merging.")
             return 1
 
+        # for fid in [232]:
+        #
+        #     rows = dissolved_cl[
+        #         dissolved_cl["OLnFID"] == fid
+        #         ]
+        #
+        #     if len(rows):
+        #         geom = rows.geometry.iloc[0]
+        #
+        #         logger.file_only(
+        #             f"PRE_QC {fid}: "
+        #             f"type={geom.geom_type} "
+        #             f"length={geom.length:.2f}"
+        #         )
 
         valid_mask = dissolved_cl.geometry.apply(
             lambda geom: not algo_common._is_degenerate_line(
@@ -352,6 +392,14 @@ def centerline(
 
         dissolved_cl = dissolved_cl.loc[valid_mask].copy()
 
+        # for fid in [232]:
+        #
+        #     if (
+        #             rejected_final["OLnFID"] == fid
+        #     ).any():
+        #         logger.file_only(
+        #             f"FINAL_QC_REJECTED {fid}"
+        #         )
 
         if not rejected_final.empty:
             rejected_final["BT_REJECT_REASON"] = (
@@ -370,6 +418,15 @@ def centerline(
             return 1
 
         logger.info("Dissolving segments...Done")
+
+    # for fid in [232]:
+    #     rows = dissolved_cl[
+    #         dissolved_cl["OLnFID"] == fid
+    #         ]
+    #
+    #     logger.file_only(
+    #         f"PRE_SAVE {fid}: count={len(rows)}"
+    #     )
 
     if simplify_enabled and diameter > 0:
         temp_file = tool_geo_simplify.build_temp_output_same_folder(
