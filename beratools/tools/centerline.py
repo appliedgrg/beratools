@@ -18,7 +18,7 @@ from pathlib import Path
 
 import geopandas as gpd
 import pandas as pd
-
+import rasterio
 import beratools.core.algo_centerline as algo_centerline
 import beratools.core.algo_common as algo_common
 import beratools.core.constants as bt_const
@@ -29,7 +29,8 @@ from beratools.core.logger import Logger
 from beratools.core.tool_base import execute_multiprocessing
 from beratools.utility.tool_args import CallMode
 
-log = Logger("centerline", file_level=logging.INFO)
+LOGGER_NAME="centerline"
+log = Logger(LOGGER_NAME, file_level=logging.DEBUG,console_level=logging.INFO)
 logger = log.get_logger()
 print = log.print
 
@@ -152,6 +153,7 @@ def centerline(
     guided_strategy_value = guided_strategy.value
     centerline_method_value = centerline_method.value
     chm_mode_value = chm_mode.value
+    proc_segments = _to_bool(proc_segments)
 
     in_file, in_layer = sp_common.decode_file_layer(in_line)
     out_file, out_layer = sp_common.decode_file_layer(out_line)
@@ -174,6 +176,9 @@ def centerline(
     if not sp_common.compare_crs(vec_crs_osr, sp_common.raster_crs(in_raster)):
         print("Line and CHM have different spatial references, please check.")
         return
+
+    with rasterio.open(in_raster) as src:
+        cell_size = max(abs(float(src.transform.a)), abs(float(src.transform.e)), )
 
     if not sp_common.check_vector_raster_extent_overlap(in_file, in_layer, in_raster):
         print("Input line extent does not overlap input raster extent.")
@@ -218,7 +223,7 @@ def centerline(
         "Centerline",
         processes,
         call_mode,
-    )
+        logger_name = LOGGER_NAME)
     if not result:
         print("No centerlines found.")
         return 1
@@ -237,13 +242,135 @@ def centerline(
     centerline_list = pd.concat(centerline_list, ignore_index=True)
     corridor_polys = pd.concat(corridor_poly_list, ignore_index=True)
 
+    # Make sure they remain GeoDataFrames:
+    lc_path_gdf = gpd.GeoDataFrame(lc_path_list,
+        geometry="geometry",crs=line_gdf.crs,)
+
+    centerline_gdf = gpd.GeoDataFrame(centerline_list,
+        geometry="geometry",crs=line_gdf.crs,)
+
+    corridor_gdf = gpd.GeoDataFrame(corridor_polys,
+        geometry="geometry",crs=line_gdf.crs,)
+
     # Save the concatenated GeoDataFrames to the shapefile/gpkg
-    centerline_list = algo_common.clean_geometries(
-        centerline_list,
+    logger.info("Clean geometries....")
+    centerline_gdf = algo_common.clean_geometries(
+        centerline_gdf,
         stage="output",
         out_file=out_file,
         layer="rejected_output_centerlines",
     )
+        layer="rejected_output_centerlines",)
+
+    lc_path_gdf = algo_common.clean_geometries(
+        lc_path_gdf,
+        stage="lcp_segments",
+        out_file=out_file,
+        layer="rejected_lcp_segments",
+    )
+
+    corridor_gdf = algo_common.clean_geometries(
+        corridor_gdf,
+        stage="corridor_segments",
+        out_file=out_file,
+        layer="rejected_corridor_segments",
+    )
+    logger.info("Clean geometries....Done")
+
+    dissolved_cl_orig=centerline_gdf
+    dissolved_lcp_orig=lc_path_gdf
+    dissolved_corridor_orig=corridor_gdf
+    aux_file = algo_common.get_aux_path(out_file)
+    if proc_segments:
+        logger.info("Dissolving segments...")
+
+        dissolved_cl = (
+            algo_common.merge_lines_by_original_id(
+                line_gdf=dissolved_cl_orig,
+                group_field="OLnFID",
+                order_field="OLnSEG",
+                max_bridge_gap=max(
+                    cell_size * 1.5,
+                    0.5,
+                ),
+                geometry_count_field=(
+                    "merged_centerline_part_count"
+                ),
+            )
+        )
+
+
+        dissolved_cl = algo_common.clean_geometries(
+            dissolved_cl,
+            stage="merged_centerlines",
+            out_file=out_file,
+            layer="rejected_merged_centerline_geometry",
+        )
+        dissolved_lcp = (
+            algo_common.merge_lines_by_original_id(
+                line_gdf=dissolved_lcp_orig,
+                group_field="OLnFID",
+                order_field="OLnSEG",
+                max_bridge_gap=max(
+                    cell_size * 0.75,
+                    0.05,
+                ),
+                geometry_count_field=(
+                    "merged_lcp_part_count"
+                ),
+            )
+        )
+
+        dissolved_corridor = (
+            algo_common.merge_corridors_by_original_id(
+                dissolved_corridor_orig,
+                group_field="OLnFID",
+                order_field="OLnSEG",
+            )
+        )
+
+
+        if dissolved_cl is None or dissolved_cl.empty:
+            print("No centerlines remained after merging.")
+            return 1
+
+
+        valid_mask = dissolved_cl.geometry.apply(
+            lambda geom: not algo_common._is_degenerate_line(
+                geom,
+                min_length=max(cell_size, 1.0),
+                endpoint_tolerance=max(
+                    cell_size * 0.01,
+                    1e-6,
+                ),
+                min_straightness=0.10,
+                stage="final",
+            )
+        )
+
+        rejected_final = dissolved_cl.loc[~valid_mask].copy()
+
+        dissolved_cl = dissolved_cl.loc[valid_mask].copy()
+
+
+        if not rejected_final.empty:
+            rejected_final["BT_REJECT_REASON"] = (
+                "degenerate_after_merge"
+            )
+
+            rejected_final.to_file(
+                aux_file,
+                layer="rejected_merged_centerlines",
+            )
+
+        if dissolved_cl.empty:
+            print(
+                "All merged centerlines failed final QC."
+            )
+            return 1
+
+        logger.info("Dissolving segments...Done")
+
     if simplify_enabled and diameter > 0:
         temp_file = tool_geo_simplify.build_temp_output_same_folder(
             out_file,
@@ -251,7 +378,7 @@ def centerline(
         )
         temp_layer = "centerline_temp"
         try:
-            centerline_list.to_file(temp_file.as_posix(), layer=temp_layer)
+            dissolved_cl.to_file(temp_file.as_posix(), layer=temp_layer)
             tool_geo_simplify.run_reduce_bend(
                 input_file=temp_file,
                 in_layer=temp_layer,
@@ -266,7 +393,7 @@ def centerline(
     else:
         if simplify_enabled and diameter == 0:
             print("Centerline simplify enabled with diameter 0; skipping simplify step.")
-        centerline_list.to_file(out_file, layer=out_layer)
+        dissolved_cl.to_file(out_file, layer=out_layer)
 
     print(f"Saved centerlines to: {out_file}")
 
@@ -274,8 +401,13 @@ def centerline(
     print(f"Saved auxiliary data to: {aux_file}")
 
     # Save lc_path_list and corridor_polys to the new GeoPackage with '_aux' suffix
-    lc_path_list.to_file(aux_file, layer="least_cost_path")
-    corridor_polys.to_file(aux_file, layer="corridor_polygon")
+    if proc_segments:
+        centerline_gdf.to_file(aux_file,layer="centerline_segments",)
+        lc_path_gdf.to_file(aux_file,layer="least_cost_path_segments",)
+        corridor_gdf.to_file(aux_file,layer="corridor_polygon_segments",)
+
+    dissolved_lcp.to_file(aux_file, layer="dissolved_lcp")
+    dissolved_corridor.to_file(aux_file, layer="dissolved_corridor")
 
     return 0
 
