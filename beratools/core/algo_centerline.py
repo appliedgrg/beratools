@@ -111,12 +111,6 @@ def centerline_is_valid(centerline, input_line,cid=None):
             logger.info(f"{cid} validation failed: centerline is None")
         return False
 
-    # centerline length less the half of least cost path
-    if (
-        centerline.length < input_line.length / 2
-        or centerline.distance(sh_geom.Point(input_line.coords[0])) > bt_const.BT_EPSILON
-        or centerline.distance(sh_geom.Point(input_line.coords[-1])) > bt_const.BT_EPSILON
-    ):
     length_check = centerline.length < input_line.length / 2
     anchor_result = _is_endpoint_anchored(
         centerline,
@@ -126,6 +120,12 @@ def centerline_is_valid(centerline, input_line,cid=None):
     endpoint_check = not anchor_result.anchored
 
     if length_check or endpoint_check:
+        # logger.info(
+        #         f"{cid} validation failed:"
+        #         f" anchored={anchor_result.anchored}, "
+        #         f" reversed={anchor_result.reversed_match}, "
+        #         f" start_dist={anchor_result.start_dist:.6f}, "
+        #         f" end_dist={anchor_result.end_dist:.6f}")
         return False
 
     if _looks_like_shortcut(centerline, input_line, cid=cid):
@@ -159,6 +159,16 @@ def _looks_like_shortcut(centerline, input_line, cid=None):
         CenterlineParams.MAX_SHORTCUT_MEDIAN_DISTANCE
     )
 
+    # if cid:
+    #     logger.file_only(
+    #         f"{cid} shortcut check:"
+    #         f" ratio={length_ratio:.3f}, "
+    #         f" median_dist={median_distance:.3f}, "
+    #         f" threshold_ratio={CenterlineParams.MIN_GUIDE_LENGTH_RATIO.value}, "
+    #         f" threshold_dist={CenterlineParams.MAX_SHORTCUT_MEDIAN_DISTANCE.value}, "
+    #         f" shortcut={shortcut}"
+    #     )
+
     return shortcut
 
 def _sampled_line_distances(source_line, target_line, interval):
@@ -172,15 +182,44 @@ def _sampled_line_distances(source_line, target_line, interval):
     return distances
 
 
-def snap_end_to_end(in_line, line_reference, max_snap_dist=None):
-    if type(in_line) is sh_geom.MultiLineString:
-        in_line = sh_ops.linemerge(in_line)
-        if type(in_line) is sh_geom.MultiLineString:
-            algo_common.log_file_only(
-                f"algo_centerline: MultiLineString found {in_line.centroid}, pass.",
-                logger_name=__name__,
-            )
-            return None
+# def snap_end_to_end(in_line, line_reference, max_snap_dist=None,cid=None):
+#     if type(in_line) is sh_geom.MultiLineString:
+#         in_line = algo_common._safe_linemerge(in_line)
+#         if type(in_line) is sh_geom.MultiLineString:
+#             logger.file_only(cid+
+#                 f"algo_centerline: MultiLineString found {in_line.centroid}, pass.",
+#
+#             )
+#             return None
+#
+#     pts = list(in_line.coords)
+#     if len(pts) < 2:
+#         log_print("snap_end_to_end: input line invalid.")
+#         return in_line
+#
+#     line_start = sh_geom.Point(pts[0])
+#     line_end = sh_geom.Point(pts[-1])
+#     ref_ends = sh_geom.MultiPoint([line_reference.coords[0], line_reference.coords[-1]])
+#
+#     _, snap_start = sh_ops.nearest_points(line_start, ref_ends)
+#     _, snap_end = sh_ops.nearest_points(line_end, ref_ends)
+#
+#     start_dist = line_start.distance(snap_start)
+#     end_dist = line_end.distance(snap_end)
+#
+#     if in_line.has_z:
+#         snap_start = shapely.force_3d(snap_start)
+#         snap_end = shapely.force_3d(snap_end)
+#     else:
+#         snap_start = shapely.force_2d(snap_start)
+#         snap_end = shapely.force_2d(snap_end)
+#
+#     if max_snap_dist is None or start_dist <= max_snap_dist:
+#         pts[0] = snap_start.coords[0]
+#     if max_snap_dist is None or end_dist <= max_snap_dist:
+#         pts[-1] = snap_end.coords[0]
+#
+#     return sh_geom.LineString(pts)
 
 def snap_end_to_end(in_line, line_reference, max_snap_dist=None,cid=None):
     """
@@ -627,16 +666,6 @@ def find_corridor_polygon(corridor_thresh, in_transform, line_gpd,cid, exp_shk_c
     if corridor_polygon:
         corridor_polygon = sh_ops.unary_union(corridor_polygon)
         if type(corridor_polygon) is sh_geom.MultiPolygon:
-            poly_list = shapely.get_parts(corridor_polygon)
-            merge_poly = poly_list[0]
-            for i in range(1, len(poly_list)):
-                if shapely.intersects(merge_poly, poly_list[i]):
-                    merge_poly = shapely.union(merge_poly, poly_list[i])
-                else:
-                    buffer_dist = poly_list[i].distance(merge_poly) + 0.1
-                    buffer_poly = poly_list[i].buffer(buffer_dist)
-                    merge_poly = shapely.union(merge_poly, buffer_poly)
-            corridor_polygon = merge_poly
             largest_area=max([geom.area for geom in corridor_polygon.geoms])
             parts = [
                 p for p in corridor_polygon.geoms
@@ -657,6 +686,21 @@ def find_corridor_polygon(corridor_thresh, in_transform, line_gpd,cid, exp_shk_c
                 corridor_polygon = sh_ops.unary_union(parts)
             else:
                 corridor_polygon = None
+            # logger.file_only(
+            #     cid +
+            #     f" merged_type={corridor_polygon.geom_type}"
+            # )
+            #
+            # logger.file_only(
+            #     cid +
+            #     f" merged_valid={corridor_polygon.is_valid}"
+            # )
+            # logger.file_only(
+            #     cid +
+            #     shapely.validation.explain_validity(
+            #         corridor_polygon
+            #     )
+            # )
     else:
         corridor_polygon = None
 
@@ -801,8 +845,16 @@ def regenerate_centerline(poly, input_line,corridor_id="UNKNOWN",
         pair_line_1 = line_2
         pair_line_2 = line_1
 
-    center_line_1 = find_centerline(poly_1, pair_line_1)
-    center_line_2 = find_centerline(poly_2, pair_line_2)
+    # logger.file_only(
+    #     cid +
+    #     f" poly1 area={poly_1.area:.2f}"
+    # )
+    #
+    # logger.file_only(
+    #     cid +
+    #     f" poly2 area={poly_2.area:.2f}"
+    # )
+
     center_line_1 = find_centerline(poly_1, pair_line_1,corridor_id=corridor_id,allow_regeneration=False,)
     center_line_2 = find_centerline(poly_2, pair_line_2,corridor_id=corridor_id,allow_regeneration=False,)
 
@@ -818,7 +870,6 @@ def regenerate_centerline(poly, input_line,corridor_id="UNKNOWN",
             log_print("Regenerate line: centerline is empty")
             return None
     except Exception as e:
-        print(f"regenerate_centerline: {e}")
         log_print(f"regenerate_centerline: {e}")
 
     center_line_1 = orient_to_split(center_line_1,
@@ -826,9 +877,61 @@ def regenerate_centerline(poly, input_line,corridor_id="UNKNOWN",
 
     center_line_2 = orient_to_split(center_line_2,
         split_pt,want_end_at_split=False)
+    # logger.file_only(
+    #     cid +
+    #     f" cl1 len={center_line_1.length:.2f} "
+    #     f"gap={sh_geom.Point(center_line_1.coords[0]).distance(sh_geom.Point(center_line_1.coords[-1])):.2f}"
+    # )
+    # logger.file_only(
+    #     cid +
+    #     f" cl1 len={center_line_1.length:.2f} "
+    #     f"ring={center_line_1.is_ring}"
+    # )
+    #
+    # logger.file_only(
+    #     cid +
+    #     f" cl2 len={center_line_2.length:.2f} "
+    #     f"ring={center_line_2.is_ring}"
+    # )
     result=algo_common._safe_linemerge(sh_geom.MultiLineString([center_line_1, center_line_2]))
+    # logger.file_only(
+    #     cid +
+    #     f" merged_type="
+    #     f"{type(result).__name__ if result else 'None'}"
+    # )
+    #
+    # if result:
+    #     logger.file_only(
+    #         cid +
+    #         f" merged_len={result.length:.2f}"
+    #     )
+    # logger.file_only(cid +
+    #                  f"Centerline is regenerated. "
+    #                  f" merged_type="
+    #                  f"{type(result).__name__}, "
+    #                  f" cl1 closed="
+    # f"{center_line_1.coords[0] == center_line_1.coords[-1]}, "
+    # f" cl2 closed="
+    # f"{center_line_2.coords[0] == center_line_2.coords[-1]}")
+
     if isinstance(result, sh_geom.MultiLineString):
+        # logger.file_only(
+        #     cid +
+        #     " regenerate_centerline: "
+        #     "merge remained MultiLineString"
+        # )
         return None
+    # logger.file_only(
+    #     cid +
+    #     f" cl1 endpoint gap="
+    #     f"{sh_geom.Point(center_line_1.coords[0]).distance(sh_geom.Point(center_line_1.coords[-1])):.2f}"
+    # )
+    #
+    # logger.file_only(
+    #     cid +
+    #     f" cl2 endpoint gap="
+    #     f"{sh_geom.Point(center_line_2.coords[0]).distance(sh_geom.Point(center_line_2.coords[-1])):.2f}"
+    # )
 
     return result
 
@@ -1009,10 +1112,28 @@ class SeedLine:
         # find contiguous corridor polygon and extract centerline
         try:
             df = gpd.GeoDataFrame(geometry=[seed_line], crs=out_meta["crs"])
-            corridor_poly_gpd = find_corridor_polygon(corridor_thresh_cl, out_transform, df)
             corridor_poly_gpd = find_corridor_polygon(corridor_thresh_cl, out_transform, df,cid)
             geom = corridor_poly_gpd.geometry.iloc[0]
 
+            # logger.file_only(
+            #     f"{cid} corridor_area={geom.area:.2f} "
+            #     f"corridor_perimeter={geom.length:.2f}"
+            # )
+            #
+            # rect = geom.minimum_rotated_rectangle
+            # pts = list(rect.exterior.coords)
+            #
+            # sides = [
+            #     sh_geom.Point(pts[i]).distance(
+            #         sh_geom.Point(pts[i + 1])
+            #     )
+            #     for i in range(4)
+            # ]
+
+            # logger.file_only(
+            #     f"{cid} aspect="
+            #     f"{max(sides) / max(min(sides), 1e-9):.2f}"
+            # )
             corridor_poly_gpd = self._postprocess_corridor_polygon(corridor_poly_gpd)
             center_line, status = find_centerline(
                 corridor_poly_gpd.geometry.iloc[0],

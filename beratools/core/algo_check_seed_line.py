@@ -789,6 +789,7 @@ def qc_merge_multilinestring(gdf):
     out_gdf = gpd.GeoDataFrame.from_records(valid_records, columns=gdf.columns)
     out_gdf.set_crs(gdf.crs, inplace=True)
     out_gdf = out_gdf.reset_index(drop=True)
+    out_gdf, _ = algo_common.chk_df_multipart(out_gdf, 'LineString')
     return out_gdf
 
 

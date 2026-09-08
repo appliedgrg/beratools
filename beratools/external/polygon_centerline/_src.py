@@ -2018,7 +2018,6 @@ def _path_score(graph, path):
             if not coords:
                 coords.extend(seg_coords)
             else:
-                yield x, y
                 coords.extend(seg_coords[1:])
 
         elif seg_geom.geom_type == "MultiLineString":
@@ -2064,3 +2063,32 @@ def _path_score(graph, path):
 
     return score
 
+def _densify_boundary(linear_ring, step=1):
+    """uniform boundary sampling"""
+    length = linear_ring.length
+
+    distances = np.arange(
+        0.0,
+        length + step,
+        step,
+    )
+
+    coords = [
+        linear_ring.interpolate(d).coords[0]
+        for d in distances
+    ]
+
+    return LineString(coords)
+
+def _prepare_node_spatial_index(graph):
+    """Build the spatial index for nodes"""
+    node_ids = list(graph.nodes())
+
+    node_points = [
+        _node_point(graph,n)
+        for n in node_ids
+    ]
+
+    graph.graph["node_tree"] = STRtree(node_points)
+    graph.graph["node_points"] = node_points
+    graph.graph["node_ids"] = node_ids
