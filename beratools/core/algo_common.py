@@ -29,6 +29,7 @@ import shapely
 import shapely.affinity as sh_aff
 import shapely.geometry as sh_geom
 import shapely.ops as sh_ops
+import shapely.validation as sh_val
 import skimage.graph as sk_graph
 from scipy import ndimage
 
@@ -37,7 +38,11 @@ import beratools.core.constants as bt_const
 
 gpd.options.io_engine = "pyogrio"
 DISTANCE_THRESHOLD = 2  # 1 meter for intersection neighborhood
-logger = logging.getLogger(__name__)
+from beratools.core.logger import Logger
+LOGGER_NAME = "algo_common"
+log = Logger(LOGGER_NAME, file_level=logging.DEBUG,console_level=logging.INFO)
+logger = log.get_logger()
+log_print = log.print
 
 
 def log_file_only(message, level=logging.INFO, logger_name=None):
@@ -334,8 +339,7 @@ def split_lines_to_segments(gdf):
     if gdf is None:
         return []
 
-    if has_multilinestring(gdf):
-        gdf = gdf.explode(index_parts=False)
+    gdf, _ = chk_df_multipart(gdf, 'LineString')
 
     split_gdf_list = []
     for row in gdf.itertuples(index=False):
@@ -345,6 +349,7 @@ def split_lines_to_segments(gdf):
         for i in range(len(coords) - 1):
             segment = sh_geom.LineString([coords[i], coords[i + 1]])
             attributes = {col: getattr(row, col) for col in gdf.columns if col != "geometry"}
+            attributes["OLnSEG"] = i
             single_row_gdf = gpd.GeoDataFrame([attributes], geometry=[segment], crs=gdf.crs)
             split_gdf_list.append(single_row_gdf)
 
@@ -718,3 +723,586 @@ def remove_holes(geom):
                 new_polygons.append(polygon)
         return sh_geom.MultiPolygon(new_polygons)
     return geom  # Return other geometry types as is
+
+def _reverse_line(line):
+    """Reverse a LineString coordinate sequence."""
+    return sh_geom.LineString(
+        list(line.coords)[::-1]
+    )
+
+def _safe_linemerge(geometry):
+    """
+    Safely merge line geometry.
+
+    Returns
+    -------
+    LineString
+        When all input parts form one connected line.
+
+    MultiLineString
+        When multiple disconnected line components remain.
+
+    None
+        When the input contains no usable line geometry.
+    """
+    def _usable_line(line):
+
+        if line is None:
+            return False
+
+        if line.is_empty:
+            return False
+
+        if line.length <= 0:
+            return False
+
+        if line.is_ring:
+            return False
+
+        return True
+
+    if geometry is None:
+        return None
+
+    try:
+        if geometry.is_empty:
+            return geometry
+    except Exception:
+        return None
+
+    # Already one usable line.
+    if isinstance(geometry, sh_geom.LineString):
+        if _usable_line(geometry):
+            return geometry
+        else:
+            valid_geom=sh_val.make_valid(geometry)
+
+            if isinstance(valid_geom, sh_geom.LineString):
+                return valid_geom if _usable_line(valid_geom) else None
+
+            elif isinstance(valid_geom, sh_geom.MultiLineString):
+                try:
+                    cleaned_parts = []
+                    for part in valid_geom.geoms:
+                        if not _usable_line(part):
+                            continue
+                        else:
+                            cleaned_parts.append(part)
+
+                    if len(cleaned_parts) == 0:
+                        return None
+                    else:
+                        return sh_ops.linemerge(cleaned_parts)
+                except (TypeError, ValueError):
+                    return None
+            elif isinstance(valid_geom, sh_geom.GeometryCollection):
+                lines = []
+                for part in valid_geom.geoms:
+                    if isinstance(part, sh_geom.LineString):
+                        if _usable_line(part):
+                            lines.append(part)
+                    elif isinstance(part, sh_geom.MultiLineString):
+                        lines.extend(
+                            line
+                            for line in part.geoms
+                            if _usable_line(line))
+
+                if not lines:
+                    return None
+
+                if len(lines) == 1:
+                    return lines[0]
+
+                return sh_ops.linemerge(lines)
+
+    # linemerge is valid for a MultiLineString.
+    if isinstance(geometry, sh_geom.MultiLineString):
+        try:
+            cleaned_parts = []
+            for part in geometry.geoms:
+                if not _usable_line(part):
+                    continue
+                else:
+                    cleaned_parts.append(part)
+
+            if len(cleaned_parts) == 0:
+                return None
+            else:
+                return sh_ops.linemerge(cleaned_parts)
+        except (TypeError, ValueError):
+            return None
+
+    # Extract line components from a mixed collection.
+    if isinstance(geometry, sh_geom.GeometryCollection):
+        lines = []
+
+        for part in geometry.geoms:
+            if part is None or part.is_empty:
+                continue
+
+            if isinstance(part, sh_geom.LineString):
+                if _usable_line(part):
+                    lines.append(part)
+
+            elif isinstance(part, sh_geom.MultiLineString):
+                lines.extend(line
+                    for line in part.geoms
+                    if _usable_line(line))
+
+        if not lines:
+            return None
+
+        if len(lines) == 1:
+            return lines[0]
+
+        unioned = sh_ops.unary_union(lines)
+
+        if isinstance(unioned, sh_geom.LineString):
+            return unioned
+
+        if isinstance(unioned, sh_geom.MultiLineString):
+            try:
+                return sh_ops.linemerge(unioned)
+            except (TypeError, ValueError):
+                return unioned
+
+        return None
+
+    return None
+
+def merge_lines_by_original_id(
+    line_gdf,
+    group_field="OLnFID",
+    order_field="OLnSEG",
+    max_bridge_gap=0.5,
+    output_segment_value=-1,
+    geometry_count_field="merged_part_count",
+):
+    """
+    Reconstruct ordered LineString features by original ID.
+
+    Works for centerlines and least-cost paths.
+    """
+    if line_gdf is None or line_gdf.empty:
+        return line_gdf
+
+    if group_field not in line_gdf.columns:
+        raise KeyError(
+            f"Missing grouping field: {group_field}"
+        )
+
+    if order_field not in line_gdf.columns:
+        raise KeyError(
+            f"Missing ordering field: {order_field}"
+        )
+
+    output_rows = []
+    crs = line_gdf.crs
+
+    for original_id, group in line_gdf.groupby(
+        group_field,
+        sort=False,
+    ):
+        group = group.sort_values(
+            order_field,
+            kind="stable",
+        )
+
+        ordered_lines = []
+
+        for geometry in group.geometry:
+            if geometry is None:
+                continue
+
+            try:
+                if geometry.is_empty:
+                    continue
+            except Exception:
+                continue
+
+            if isinstance(geometry, sh_geom.LineString):
+                if geometry.length > 0:
+                    ordered_lines.append(geometry)
+
+            elif isinstance(
+                    geometry,
+                    sh_geom.MultiLineString,
+            ):
+                parts = [
+                    part
+                    for part in geometry.geoms
+                    if not part.is_empty
+                       and part.length > 0
+                ]
+
+                if not parts:
+                    continue
+
+                locally_merged = _safe_linemerge(
+                    sh_ops.unary_union(parts)
+                )
+
+                if isinstance(
+                        locally_merged,
+                        sh_geom.LineString,
+                ):
+                    if locally_merged.length > 0:
+                        ordered_lines.append(locally_merged)
+
+                elif isinstance(
+                        locally_merged,
+                        sh_geom.MultiLineString,
+                ):
+                    ordered_lines.extend(
+                        part
+                        for part in locally_merged.geoms
+                        if not part.is_empty
+                        and part.length > 0
+                    )
+
+        if not ordered_lines:
+            logger.warning(
+                "OLnFID=%s has no usable line parts",
+                original_id,
+            )
+            continue
+
+        oriented = []
+        bridges = []
+        previous = None
+        max_gap = 0.0
+
+        for current in ordered_lines:
+            if previous is not None:
+                previous_end = sh_geom.Point(
+                    previous.coords[-1]
+                )
+
+                start_gap = previous_end.distance(
+                    sh_geom.Point(current.coords[0])
+                )
+
+                end_gap = previous_end.distance(
+                    sh_geom.Point(current.coords[-1])
+                )
+
+                if end_gap < start_gap:
+                    current = _reverse_line(current)
+
+                gap = previous_end.distance(
+                    sh_geom.Point(current.coords[0])
+                )
+
+                max_gap = max(max_gap, gap)
+
+                if 0.0 < gap <= max_bridge_gap:
+                    bridges.append(
+                        sh_geom.LineString([
+                            previous.coords[-1],
+                            current.coords[0],
+                        ])
+                    )
+
+            oriented.append(current)
+            previous = current
+
+        combined = oriented + bridges
+
+        if len(combined) == 1:
+            merged = combined[0]
+        else:
+            merged = _safe_linemerge(
+                sh_ops.unary_union(combined)
+            )
+
+        if merged is None or merged.is_empty:
+            logger.warning(
+                "OLnFID=%s produced no geometry during merge",
+                original_id,
+            )
+            continue
+
+        row = group.iloc[0].copy()
+        row.geometry = merged
+        row[group_field] = original_id
+        row[order_field] = output_segment_value
+        row[geometry_count_field] = len(ordered_lines)
+        row["merge_max_gap"] = max_gap
+        row["merge_status"] = (
+            "merged"
+            if isinstance(merged, sh_geom.LineString)
+            else "disconnected"
+        )
+
+
+        output_rows.append(row)
+
+    return gpd.GeoDataFrame(
+        output_rows,
+        geometry="geometry",
+        crs=crs,
+    ).reset_index(drop=True)
+
+def merge_corridors_by_original_id(
+    corridor_gdf,
+    group_field="OLnFID",
+    order_field="OLnSEG",
+    repair_invalid=True,
+):
+    """
+    Union corridor polygons back to one record per
+    original seedline ID.
+    """
+    if corridor_gdf is None or corridor_gdf.empty:
+        return corridor_gdf
+
+    if group_field not in corridor_gdf.columns:
+        raise KeyError(
+            f"Missing grouping field: {group_field}"
+        )
+
+    output_rows = []
+    crs = corridor_gdf.crs
+
+    for original_id, group in corridor_gdf.groupby(
+        group_field,
+        sort=False,
+    ):
+        polygon_parts = []
+
+        for geometry in group.geometry:
+            if geometry is None or geometry.is_empty:
+                continue
+
+            if repair_invalid and not geometry.is_valid:
+                geometry = geometry.buffer(0)
+
+            if geometry is None or geometry.is_empty:
+                continue
+
+            if isinstance(geometry, sh_geom.Polygon):
+                polygon_parts.append(geometry)
+
+            elif isinstance(
+                geometry,
+                sh_geom.MultiPolygon,
+            ):
+                polygon_parts.extend(
+                    list(geometry.geoms)
+                )
+
+        if not polygon_parts:
+            continue
+
+        merged = sh_ops.unary_union(
+            polygon_parts
+        )
+
+        if repair_invalid and not merged.is_valid:
+            merged = merged.buffer(0)
+
+        row = group.iloc[0].copy()
+        row.geometry = merged
+        row[group_field] = original_id
+
+        if order_field in row.index:
+            row[order_field] = -1
+
+        row["merged_corridor_part_count"] = len(
+            polygon_parts
+        )
+
+        row["merge_status"] = (
+            "merged"
+            if isinstance(merged, sh_geom.Polygon)
+            else "disconnected"
+        )
+
+        output_rows.append(row)
+
+    return gpd.GeoDataFrame(
+        output_rows,
+        geometry="geometry",
+        crs=crs,
+    ).reset_index(drop=True)
+
+def chk_df_multipart(df:gpd.GeoDataFrame,
+                     chk_shp_in_string:str)-> tuple[gpd.GeoDataFrame , bool]:
+    """
+    This function is check the input geopandas.GeoDataFrame object contains multipart geometry.
+    If multipart geometry is found, function will try to explode and return single geometry and
+    a boolean of multipart is found or not.
+    Args:
+        df: Any geopandas.GeoDataFrame like
+        chk_shp_in_string: String that the input GeoDataFrame geometry type expected to contain, i.e. 'Point', 'Polygon', 'LineString'
+
+    Returns: Expected geometry type and boolean of multipart geometry
+
+    """
+
+    try:
+        found = False
+        # Check the OLnFID column in data. If it is not, column will be created
+        if "OLnFID" not in df.columns.array:
+            print("New column created: {}".format("OLnFID"))
+            df["OLnFID"] = df.index
+
+        # Check the OLnSEG column in data. If it is not, column will be created
+        if "OLnSEG" not in df.columns.array:
+            print("New column created: {}".format("OLnSEG"))
+            df["OLnSEG"] = 0
+
+        if has_multilinestring(df):
+            found = True
+            df = df.explode()
+            if type(df) is gpd.geodataframe.GeoDataFrame:
+                df["OLnSEG"] = df.groupby("OLnFID").cumcount()
+                df = df.sort_values(by=["OLnFID", "OLnSEG"])
+                df = df.reset_index(drop=True)
+        else:
+            found = False
+
+        return df, found
+    except Exception as e:
+        print(e)
+        return df, True
+
+
+def _is_degenerate_line(
+    line,
+    min_length=1.0,
+    endpoint_tolerance=1e-6,
+    min_straightness=0.10,
+    stage="final",):
+    """
+    Return True when a line is unusable.
+
+    Parameters
+    ----------
+    line : shapely geometry
+        LineString or mergeable MultiLineString.
+
+    min_length : float
+        Minimum length used primarily for final merged output.
+
+    endpoint_tolerance : float
+        Absolute tolerance for coincident endpoints.
+
+    min_straightness : float
+        Minimum endpoint-gap / line-length ratio.
+
+    stage : {"segment", "regeneration", "final"}
+        Controls how strictly the line is validated.
+    """
+
+    if line is None:
+        return True
+
+    try:
+        if line.is_empty:
+            return True
+    except Exception:
+        return True
+
+    if isinstance(line, sh_geom.MultiLineString):
+        try:
+            merged = _safe_linemerge(line)
+        except Exception:
+            return True
+
+        if isinstance(merged, sh_geom.MultiLineString):
+            # Individual centerline should normally be connected.
+            # Final merge may handle components separately.
+            return True
+
+        line = merged
+
+    if not isinstance(line, sh_geom.LineString):
+        return True
+
+    try:
+        length = float(line.length)
+    except (TypeError, ValueError, OverflowError):
+        return True
+
+    if not np.isfinite(length):
+        return True
+
+    if length <= endpoint_tolerance:
+        return True
+
+    try:
+        coords = list(line.coords)
+    except Exception:
+        return True
+
+    if len(coords) < 2:
+        return True
+
+    xy_coords = []
+
+    for coord in coords:
+        if len(coord) < 2:
+            return True
+
+        x = float(coord[0])
+        y = float(coord[1])
+
+        if not np.isfinite(x) or not np.isfinite(y):
+            return True
+
+        xy_coords.append((x, y))
+
+    if len(set(xy_coords)) < 2:
+        return True
+
+    endpoint_gap = sh_geom.Point(xy_coords[0]).distance(
+        sh_geom.Point(xy_coords[-1])
+    )
+
+    if endpoint_gap <= endpoint_tolerance:
+        return True
+
+    straightness = endpoint_gap / max(length, 1e-9)
+
+    if stage == "segment":
+        # Be permissive. Short segments are expected when
+        # proc_segments=True.
+        #
+        # Reject only an extreme loop or retracing collapse.
+        if length >= max(2.0 * min_length, endpoint_tolerance):
+            if straightness < 0.05:
+                return True
+
+        return False
+
+    if stage == "regeneration":
+        # Regenerated pieces need some meaningful endpoint extent,
+        # but can still be short.
+        if length < max(0.25 * min_length, endpoint_tolerance):
+            return True
+
+        if straightness < 0.08:
+            return True
+
+        return False
+
+    if stage == "final":
+        # Strong checks apply only after restoring the original ID.
+        if length < min_length:
+            logger.info(
+                f"DEGENERATE length={length:.2f}"
+            )
+            return True
+
+        if straightness < min_straightness:
+            logger.info(
+                f"DEGENERATE straightness={straightness:.4f}"
+            )
+            return True
+
+        return False
+
+    raise ValueError(
+        "stage must be 'segment', 'regeneration', or 'final'"
+    )
