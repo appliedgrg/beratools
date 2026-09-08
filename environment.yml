@@ -21,4 +21,5 @@ dependencies:
   - xarray-spatial
   - pandarallel
   - tabulate
+  - igraph
 variables:
