@@ -15,7 +15,7 @@ Description:
 
 import logging
 from pathlib import Path
-
+import os
 import geopandas as gpd
 import pandas as pd
 import rasterio
@@ -25,14 +25,11 @@ import beratools.core.constants as bt_const
 import beratools.core.tool_geo_simplify as tool_geo_simplify
 import beratools.utility.spatial_common as sp_common
 import beratools.utility.unit_conversion as unit_conversion
-from beratools.core.logger import Logger
 from beratools.core.tool_base import execute_multiprocessing
 from beratools.utility.tool_args import CallMode
 
 LOGGER_NAME="centerline"
-log = Logger(LOGGER_NAME, file_level=logging.DEBUG,console_level=logging.INFO)
-logger = log.get_logger()
-print = log.print
+logger = logging.getLogger(LOGGER_NAME)
 
 
 def _to_bool(value):
@@ -103,8 +100,15 @@ def generate_line_class_list(
 
 
 def process_single_line_class(seed_line):
-    seed_line.compute()
-    return seed_line
+    try:
+        # OLnFID and OLnSEG are added in previous QC stage.
+        cid=(f"{seed_line.line['OLnFID'].iloc[0]}_"
+        f"{seed_line.line['OLnSEG'].iloc[0]}")
+        seed_line.compute()
+        return seed_line
+    except Exception:
+        logger.exception(f"FAILED PID={os.getpid()} FID={cid}")
+        raise
 
 
 def centerline(
@@ -133,7 +137,6 @@ def centerline(
     use_angle_grouping=True,
     processes=0,
     call_mode=CallMode.CLI,
-    log_level="INFO",
 ):
     """Run centerline extraction.
 
@@ -296,20 +299,6 @@ def centerline(
                 ),
             )
         )
-        # for fid in [232]:
-        #
-        #     rows = dissolved_cl[
-        #         dissolved_cl["OLnFID"] == fid
-        #         ]
-        #
-        #     if len(rows):
-        #         logger.file_only(
-        #             f"POST_MERGE {fid}: "
-        #             f"merge_status={rows.iloc[0]['merge_status']} "
-        #             f"type={rows.geometry.iloc[0].geom_type} "
-        #             f"length={rows.geometry.iloc[0].length:.2f}"
-        #         )
-
 
         dissolved_cl = algo_common.clean_geometries(
             dissolved_cl,
@@ -317,20 +306,6 @@ def centerline(
             out_file=out_file,
             layer="rejected_merged_centerline_geometry",
         )
-        # for fid in [232]:
-        #
-        #     rows = dissolved_cl[
-        #         dissolved_cl["OLnFID"] == fid
-        #         ]
-        #
-        #     if len(rows):
-        #         geom = rows.geometry.iloc[0]
-        #
-        #         logger.file_only(
-        #             f"PRE_QC {fid}: "
-        #             f"type={geom.geom_type} "
-        #             f"length={geom.length:.2f}"
-        #         )
 
         dissolved_lcp = (
             algo_common.merge_lines_by_original_id(
@@ -360,73 +335,29 @@ def centerline(
             print("No centerlines remained after merging.")
             return 1
 
-        # for fid in [232]:
-        #
-        #     rows = dissolved_cl[
-        #         dissolved_cl["OLnFID"] == fid
-        #         ]
-        #
-        #     if len(rows):
-        #         geom = rows.geometry.iloc[0]
-        #
-        #         logger.file_only(
-        #             f"PRE_QC {fid}: "
-        #             f"type={geom.geom_type} "
-        #             f"length={geom.length:.2f}"
-        #         )
-
         valid_mask = dissolved_cl.geometry.apply(
             lambda geom: not algo_common._is_degenerate_line(
                 geom,
                 min_length=max(cell_size, 1.0),
-                endpoint_tolerance=max(
-                    cell_size * 0.01,
-                    1e-6,
-                ),
+                endpoint_tolerance=max(cell_size * 0.01,1e-6,),
                 min_straightness=0.10,
-                stage="final",
-            )
-        )
+                stage="final",))
 
         rejected_final = dissolved_cl.loc[~valid_mask].copy()
-
         dissolved_cl = dissolved_cl.loc[valid_mask].copy()
-
-        # for fid in [232]:
-        #
-        #     if (
-        #             rejected_final["OLnFID"] == fid
-        #     ).any():
-        #         logger.file_only(
-        #             f"FINAL_QC_REJECTED {fid}"
-        #         )
 
         if not rejected_final.empty:
             rejected_final["BT_REJECT_REASON"] = (
-                "degenerate_after_merge"
-            )
+                "degenerate_after_merge")
 
-            rejected_final.to_file(
-                aux_file,
-                layer="rejected_merged_centerlines",
-            )
+            rejected_final.to_file(aux_file,
+                layer="rejected_merged_centerlines",overwrite=True,)
 
         if dissolved_cl.empty:
-            print(
-                "All merged centerlines failed final QC."
-            )
+            print("All merged centerlines failed final QC.")
             return 1
 
         logger.info("Dissolving segments...Done")
-
-    # for fid in [232]:
-    #     rows = dissolved_cl[
-    #         dissolved_cl["OLnFID"] == fid
-    #         ]
-    #
-    #     logger.file_only(
-    #         f"PRE_SAVE {fid}: count={len(rows)}"
-    #     )
 
     if simplify_enabled and diameter > 0:
         temp_file = tool_geo_simplify.build_temp_output_same_folder(
@@ -435,7 +366,7 @@ def centerline(
         )
         temp_layer = "centerline_temp"
         try:
-            dissolved_cl.to_file(temp_file.as_posix(), layer=temp_layer)
+            dissolved_cl.to_file(temp_file.as_posix(), layer=temp_layer,overwrite=True)
             tool_geo_simplify.run_reduce_bend(
                 input_file=temp_file,
                 in_layer=temp_layer,
@@ -450,6 +381,8 @@ def centerline(
     else:
         if simplify_enabled and diameter == 0:
             print("Centerline simplify enabled with diameter 0; skipping simplify step.")
+        if Path(out_file).exists():
+            algo_common.drop_layer_if_exists(out_file,out_layer)
         dissolved_cl.to_file(out_file, layer=out_layer)
 
     print(f"Saved centerlines to: {out_file}")
@@ -459,12 +392,12 @@ def centerline(
 
     # Save lc_path_list and corridor_polys to the new GeoPackage with '_aux' suffix
     if proc_segments:
-        centerline_gdf.to_file(aux_file,layer="centerline_segments",)
-        lc_path_gdf.to_file(aux_file,layer="least_cost_path_segments",)
-        corridor_gdf.to_file(aux_file,layer="corridor_polygon_segments",)
+        centerline_gdf.to_file(aux_file,layer="centerline_segments",overwrite=True)
+        lc_path_gdf.to_file(aux_file,layer="least_cost_path_segments",overwrite=True)
+        corridor_gdf.to_file(aux_file,layer="corridor_polygon_segments",overwrite=True)
 
-    dissolved_lcp.to_file(aux_file, layer="dissolved_lcp")
-    dissolved_corridor.to_file(aux_file, layer="dissolved_corridor")
+    dissolved_lcp.to_file(aux_file, layer="dissolved_lcp",overwrite=True)
+    dissolved_corridor.to_file(aux_file, layer="dissolved_corridor",overwrite=True)
 
     return 0
 
