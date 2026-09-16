@@ -37,6 +37,7 @@ from beratools.core.algo_check_seed_line import (
     _parse_line_id,
     _preclean_lines_full,
     _snap_close_endpoints,
+    _trim_short_terminal_segments,
     qc_merge_multilinestring,
     qc_split_lines_at_intersections,
 )
@@ -45,10 +46,8 @@ import beratools.utility.unit_conversion as unit_conversion
 from beratools.core.logger import Logger
 from beratools.utility.tool_args import CallMode
 
-log = Logger("check_seed_line", file_level=logging.INFO)
-logger = log.get_logger()
-print = log.print
-
+LOGGER_NAME="check_seed_line"
+logger = logging.getLogger(LOGGER_NAME)
 
 @dataclass
 class SeedLineQCConfig:
@@ -622,7 +621,14 @@ def check_seed_line(
             close_distance_m=effective_preclean_close_distance,
             angle_tol_deg=config.preclean_angle_tolerance,
         )
+        gdf.geometry = gdf.geometry.apply(
+            lambda g: _trim_short_terminal_segments(
+                g,
+                min_segment_length=config.minimum_line_length
+            )
+        )
         gdf = gdf.reset_index(drop=True)
+
         _mark_layer(
             "qc_removed_preclean", removed_gdf, notes="written" if _has_rows(removed_gdf) else "empty"
         )
