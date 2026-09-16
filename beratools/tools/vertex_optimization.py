@@ -17,13 +17,10 @@ import logging
 
 import beratools.core.algo_vertex_optimization as bt_vo
 import beratools.utility.spatial_common as sp_common
-from beratools.core.logger import Logger
 from beratools.utility.tool_args import CallMode
 
-log = Logger("vertex_optimization", file_level=logging.INFO)
-logger = log.get_logger()
-print = log.print
-
+LOGGER_NAME="vertex_optimization"
+logger = logging.getLogger(LOGGER_NAME)
 
 def vertex_optimization(
     in_line,
