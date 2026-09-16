@@ -35,7 +35,15 @@ from typing import Optional
 from beratools.gui.bt_data import BTData
 
 bt = BTData()
+BT_DEBUG = False
 
+DEFAULT_FILE_LEVEL = logging.DEBUG
+
+DEFAULT_CONSOLE_LEVEL = (
+    logging.DEBUG
+    if BT_DEBUG
+    else logging.WARNING
+)
 
 class NoParsingFilter(logging.Filter):
     """
@@ -90,33 +98,41 @@ class Logger:
     console_level : int, default logging.INFO
         Minimum logging level written to the console.
     """
+    LOG_QUEUE = None
 
+    @staticmethod
+    def set_queue(queue):
+        Logger.LOG_QUEUE = queue
     def __init__(
-        self,
-        logger_name: str,
-        file_level: int = logging.INFO,
-        console_level: int = logging.INFO,
-
-    ) -> None:
-        if not logger_name:
-            raise ValueError("logger_name must be a non-empty string")
-
+            self,
+            logger_name,
+            queue=None,
+            file_level=DEFAULT_FILE_LEVEL,
+            console_level=DEFAULT_CONSOLE_LEVEL,
+    ):
+        import multiprocessing
         self.logger_name = logger_name
+        self.logger = logging.getLogger(logger_name)
         self.file_level = file_level
         self.console_level = console_level
-
-        self.logger = logging.getLogger(logger_name)
-
-        # The logger must allow records required by either handler.
-        # Each handler then applies its own threshold.
-        self.logger.setLevel(
-            min(file_level, console_level)
-        )
-
-        # Prevent messages from being repeated by root logger handlers.
         self.logger.propagate = False
+        self.logger.addFilter(NoParsingFilter())
+        self.logger.setLevel(min(DEFAULT_FILE_LEVEL,DEFAULT_CONSOLE_LEVEL))
 
-        self._configure_logger()
+        if queue is not None:
+            # print(f"QUEUE LOGGER PID="
+            # f"{multiprocessing.current_process().pid}")
+            Logger.LOG_QUEUE = queue
+            self.logger.handlers.clear()
+            self.logger.setLevel(min(DEFAULT_FILE_LEVEL,DEFAULT_CONSOLE_LEVEL))
+            self.logger.propagate = False
+            self.logger.addHandler(
+            logging.handlers.QueueHandler(queue))
+            return
+        else:
+            # print(f"FILE LOGGER PID="
+            # f"{multiprocessing.current_process().pid}")
+            self._configure_logger()
 
     def _configure_logger(self) -> None:
         """
@@ -126,9 +142,13 @@ class Logger:
         This prevents duplicate messages when the same logger is requested
         multiple times within one process.
         """
-        if self.logger.handlers:
-            return
-
+        # import multiprocessing
+        # print(
+        #     f"CONFIGURE_LOGGER CALLED "
+        #     f"PID={multiprocessing.current_process().pid} "
+        #     f"NAME={multiprocessing.current_process().name}"
+        # )
+        self.logger.handlers.clear()
         detailed_formatter = logging.Formatter(
             "%(asctime)s - %(name)s - %(levelname)s - %(message)s"
         )
@@ -146,7 +166,7 @@ class Logger:
         file_handler = logging.handlers.RotatingFileHandler(
             filename=log_file,
             maxBytes=5 * 1024 * 1024,
-            backupCount=5,
+            backupCount=10,
             encoding="utf-8",
         )
 
@@ -161,7 +181,6 @@ class Logger:
         console_handler.setFormatter(console_formatter)
 
         # Apply the filter at logger level so it affects every handler.
-        self.logger.addFilter(NoParsingFilter())
 
         self.logger.addHandler(file_handler)
         self.logger.addHandler(console_handler)
@@ -331,17 +350,6 @@ class Logger:
         target_logger = logging.getLogger(
             logger_name
         )
-
-        if not target_logger.handlers:
-            # The target logger has not been configured. Use the regular
-            # logging mechanism as a fallback.
-            target_logger.log(
-                level,
-                message,
-                *args,
-            )
-            return
-
         record = target_logger.makeRecord(
             name=target_logger.name,
             level=level,
@@ -352,34 +360,8 @@ class Logger:
             exc_info=None,
         )
 
-        # Apply logger-level filters because directly invoking handlers
-        # bypasses Logger.handle(), where those filters normally run.
-        if not target_logger.filter(record):
+        if Logger.LOG_QUEUE is not None:
+            Logger.LOG_QUEUE.put(record)
             return
 
-        file_handler_found = False
-
-        for handler in target_logger.handlers:
-            if not isinstance(
-                handler,
-                logging.FileHandler,
-            ):
-                continue
-
-            file_handler_found = True
-
-            # Calling handler.handle() directly bypasses the handler's
-            # normal level check, so apply that check explicitly.
-            if level < handler.level:
-                continue
-
-            handler.handle(record)
-
-        if not file_handler_found:
-            # No file handler exists. Fall back to normal logging rather
-            # than silently dropping the message.
-            target_logger.log(
-                level,
-                message,
-                *args,
-            )
+        target_logger.log(level, message, *args)
