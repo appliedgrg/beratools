@@ -10,9 +10,18 @@ from typing import Iterable
 
 import numpy as np
 import rasterio
+import logging
+
 from rasterio.features import geometry_mask
 from scipy import ndimage
 from shapely.geometry import LineString
+import shapely.ops as sh_ops
+import shapely.geometry as sh_geom
+import beratools.core.algo_common as algo_common
+
+LOGGER_NAME = "centerline"
+logger = logging.getLogger(LOGGER_NAME)
+
 
 
 SQRT2 = math.sqrt(2.0)
@@ -39,21 +48,139 @@ class AStarAccumulation:
     g_scores: np.ndarray
     closed: np.ndarray
 
+def nearest_valid_cell(cost, start_rc, max_radius=20):
+    """find the nearest valid cell if lcp start/end point land on nodata cell."""
+    r0, c0 = start_rc
+    if np.isfinite(cost[r0, c0]):
+        return start_rc
+    rows, cols = cost.shape
+    for radius in range(1, max_radius + 1):
+        rmin = max(0, r0 - radius)
+        rmax = min(rows, r0 + radius + 1)
+        cmin = max(0, c0 - radius)
+        cmax = min(cols, c0 + radius + 1)
+        best_cell = None
+        best_dist = float("inf")
+        for r in range(rmin, rmax):
+            for c in range(cmin, cmax):
+                if not np.isfinite(cost[r, c]):
+                    continue
+                dist = (r - r0) ** 2 + (c - c0) ** 2
+                if dist < best_dist:
+                    best_dist = dist
+                    best_cell = (r, c)
+        if best_cell is not None:
+            return best_cell
+    return None
 
-def find_least_cost_path_astar_closest_line(cost_arr, meta: dict, input_line: LineString) -> LineString | None:
+def nearest_valid_location_on_line(
+    cost_arr,
+    transform,
+    line,
+    from_start=True,
+    step=1.0,
+    max_search=20.0,
+):
+    length = line.length
+
+    if from_start:
+        distances = np.arange(0, min(max_search, length), step)
+    else:
+        distances = np.arange(
+            length,
+            max(length - max_search, 0),
+            -step,
+        )
+
+    for d in distances:
+        pt = line.interpolate(d)
+
+        r, c = rasterio.transform.rowcol(
+            transform,
+            pt.x,
+            pt.y,
+        )
+
+        if np.isfinite(cost_arr[r, c]):
+            return pt, (r, c)
+
+    return None, None
+
+def find_least_cost_path_astar_closest_line(cost_arr, meta: dict, input_line: LineString, cid=None) -> LineString | None:
     """Find an 8-neighbor A* LCP, tie-broken toward the seed-line direction."""
 
     if input_line is None or input_line.is_empty or len(input_line.coords) < 2:
+        logger.info(cid+f"Input line is empty or too short: {input_line}")
         return None
 
+    x1, y1 = input_line.coords[0]
+    x2, y2 = input_line.coords[-1]
     costs, walkable = _prepare_lcp_costs(cost_arr, meta.get("nodata"))
     rows, cols = costs.shape
     transformer = rasterio.transform.AffineTransformer(meta["transform"])
-    start_xy = input_line.coords[0]
-    end_xy = input_line.coords[-1]
-    start = _clamp_row_col(transformer.rowcol(start_xy[0], start_xy[1]), rows, cols)
-    end = _clamp_row_col(transformer.rowcol(end_xy[0], end_xy[1]), rows, cols)
+    start_rc = rasterio.transform.rowcol(meta["transform"], x1, y1)
+    end_rc = rasterio.transform.rowcol(meta["transform"], x2, y2)
+    if not walkable[start_rc]:
+        start_xy_pt,start_rc_fixed=nearest_valid_location_on_line(cost_arr, meta["transform"], input_line,
+                                                      from_start=True,step=meta["transform"].a,
+                                                      max_search=10.0)
+        if start_rc_fixed is None:
+            start_rc_fixed = nearest_valid_cell(cost_arr, start_rc)
+            if start_rc_fixed is None:
+                logger.info(cid+f"Start point is not traversable: {start_rc}")
+                return None
+            else:
+                sx,sy=rasterio.transform.xy(meta["transform"], start_rc_fixed[0], start_rc_fixed[-1])
+                start_xy_pt =sh_geom.Point(sx,sy)
+
+        ds=input_line.project(start_xy_pt)
+        start_connector=sh_ops.substring(input_line,0,ds)
+        logger.warning(
+            cid +
+            f" start_connector_type={type(start_connector).__name__ if start_connector is not None else None}"
+        )
+        start_xy=start_xy_pt.coords[0]
+        logger.warning(
+            cid +
+            f" moved start {start_rc}->{start_rc_fixed}"
+        )
+    else:
+        start_rc_fixed = start_rc
+        start_connector=None
+        start_xy = (x1, y1)
+    if not walkable[end_rc]:
+        end_xy_pt,end_rc_fixed=nearest_valid_location_on_line(cost_arr, meta["transform"], input_line,
+                                                      from_start=False,step=meta["transform"].a,
+                                                      max_search=10.0)
+        if end_rc_fixed is None:
+            end_rc_fixed= nearest_valid_cell(cost_arr, end_rc)
+            if end_rc_fixed is None:
+                logger.info(cid+f"End point is not traversable: {end_rc}")
+                return None
+            else:
+                ex,ey=rasterio.transform.xy(meta["transform"], end_rc_fixed[0], end_rc_fixed[-1])
+                end_xy_pt =sh_geom.Point(ex,ey)
+        de = input_line.project(end_xy_pt)
+        end_connector = sh_ops.substring(input_line,  de, input_line.length)
+        logger.warning(
+                cid +
+                f" end_connector_type={type(end_connector).__name__ if end_connector is not None else None}"
+            )
+        end_xy = end_xy_pt.coords[0]
+        logger.warning(
+                cid +
+                f" moved end {end_rc}->{end_rc_fixed}"
+            )
+    else:
+        end_rc_fixed =  end_rc
+        end_xy = (x2, y2)
+        end_connector = None
+
+    start = _clamp_row_col(start_rc_fixed, rows, cols)
+    end = _clamp_row_col(end_rc_fixed, rows, cols)
     if not walkable[start] or not walkable[end]:
+        logger.info(cid+
+                    f"Start or end point is not traversable: {start_rc_fixed} or {end_rc_fixed}")
         return None
 
     min_cost = float(costs[walkable].min()) if np.any(walkable) else 0.0
@@ -73,7 +200,19 @@ def find_least_cost_path_astar_closest_line(cost_arr, meta: dict, input_line: Li
         if current in closed:
             continue
         if current == end:
-            return _path_to_linestring(_reconstruct_path(came_from, end), transformer, start_xy, end_xy)
+            lcp = _path_to_linestring(_reconstruct_path(came_from, end), transformer, start_xy, end_xy)
+            segments = []
+            if start_connector is not None:
+               segments.append(start_connector)
+
+            segments.append(lcp)
+
+            if end_connector is not None:
+                segments.append(end_connector)
+            if len(segments) == 1:
+                return segments[0]
+            return algo_common._safe_linemerge(sh_geom.MultiLineString(segments))
+
         closed.add(current)
 
         for neighbor in _neighbors(current, rows, cols, walkable):
@@ -94,7 +233,7 @@ def find_least_cost_path_astar_closest_line(cost_arr, meta: dict, input_line: Li
                 heap,
                 _lcp_queue_entry(neighbor, end, start, new_g, new_tie, min_cost, next(sequence)),
             )
-
+    logger.info(cid+f'No path found between {start_rc_fixed} and {end_rc_fixed} using A* LCP.')
     return None
 
 
@@ -120,6 +259,11 @@ def astar_accumulation_corridor_raster(
     end_xy = lc_path.coords[-1]
     source = _clamp_row_col(transformer.rowcol(*start_xy), rows, cols)
     destination = _clamp_row_col(transformer.rowcol(*end_xy), rows, cols)
+    if not np.isfinite(cost[source]):
+        _, source = nearest_valid_location_on_line(cost_arr, meta["transform"], lc_path, from_start=True,step=meta['transform'].a)
+
+    if not np.isfinite(cost[destination]):
+        _, destination = nearest_valid_location_on_line(cost_arr, meta["transform"], lc_path, from_start=False,step=meta['transform'].a)
     sampling = _raster_sampling(transform)
 
     forward = _astar_mcp_geometric_accumulation(
