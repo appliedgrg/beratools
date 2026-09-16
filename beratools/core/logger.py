@@ -27,7 +27,7 @@ Description:
     logger's file handler.
 """
 
-import logging
+import logging, queue
 import logging.handlers
 import sys
 from typing import Optional
@@ -43,6 +43,12 @@ DEFAULT_CONSOLE_LEVEL = (
     logging.DEBUG
     if BT_DEBUG
     else logging.WARNING
+)
+
+LOGGER_LEVEL = (
+    logging.DEBUG
+    if BT_DEBUG
+    else logging.INFO
 )
 
 class NoParsingFilter(logging.Filter):
@@ -117,14 +123,14 @@ class Logger:
         self.console_level = console_level
         self.logger.propagate = False
         self.logger.addFilter(NoParsingFilter())
-        self.logger.setLevel(min(DEFAULT_FILE_LEVEL,DEFAULT_CONSOLE_LEVEL))
+        self.logger.setLevel(LOGGER_LEVEL)
 
         if queue is not None:
             # print(f"QUEUE LOGGER PID="
             # f"{multiprocessing.current_process().pid}")
             Logger.LOG_QUEUE = queue
             self.logger.handlers.clear()
-            self.logger.setLevel(min(DEFAULT_FILE_LEVEL,DEFAULT_CONSOLE_LEVEL))
+            self.logger.setLevel(LOGGER_LEVEL)
             self.logger.propagate = False
             self.logger.addHandler(
             logging.handlers.QueueHandler(queue))
@@ -361,7 +367,10 @@ class Logger:
         )
 
         if Logger.LOG_QUEUE is not None:
-            Logger.LOG_QUEUE.put(record)
+            try:
+                Logger.LOG_QUEUE.put_nowait(record)
+            except queue.Full:
+                pass
             return
 
         target_logger.log(level, message, *args)
