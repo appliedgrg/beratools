@@ -609,7 +609,8 @@ def find_centerline(poly, input_line,
     return centerline, status
 
 
-def find_corridor_polygon(corridor_thresh, in_transform, line_gpd,cid, exp_shk_cell=0):
+def find_corridor_polygon(corridor_thresh, in_transform,
+                          line_gpd, exp_shk_cell=0.,cid=None):
     # Threshold corridor raster used for generating centerline
     corridor_thresh_cl = algo_common.corridor_threshold_to_mask(corridor_thresh)
     labels_before, n_before = ndimage.label(corridor_thresh_cl)
@@ -1030,7 +1031,8 @@ class SeedLine:
         # find contiguous corridor polygon and extract centerline
         try:
             df = gpd.GeoDataFrame(geometry=[seed_line], crs=out_meta["crs"])
-            corridor_poly_gpd = find_corridor_polygon(corridor_thresh_cl, out_transform, df,cid=cid,exp_shk_cell=self.cell_size)
+            corridor_poly_gpd = find_corridor_polygon(corridor_thresh_cl, out_transform, df,exp_shk_cell=self.cell_size,
+                                                      cid=cid)
             corridor_poly_gpd = self._postprocess_corridor_polygon(corridor_poly_gpd)
             center_line, status = find_centerline(
                 corridor_poly_gpd.geometry.iloc[0],
