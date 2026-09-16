@@ -154,7 +154,20 @@ class VertexNode:
 
     def set_vertex(self, line, vertex_index):
         """Set vertex coordinates."""
-        self.vertex = shapely.force_2d(shapely.get_point(line, vertex_index))
+        if line is None:
+            self.vertex = None
+            return
+
+        if line.is_empty:
+            self.vertex = None
+            return
+
+        try:
+            self.vertex = shapely.force_2d(
+                shapely.get_point(line, vertex_index)
+            )
+        except Exception:
+            self.vertex = None
 
     def add_line(self, line_class):
         """Add line when creating or merging other VertexNode."""
@@ -665,7 +678,10 @@ class LineGrouping:
         v_points = []
         for i in self.vertex_list:
             if i.vertex is None:
-                print("Vertex is None, skipping.")
+                print(
+                    f"Vertex is None, skipping. "
+                    f"line_id={i.line_list[0].line_id if i.line_list else 'NA'}"
+                )
                 continue
 
             v_points.append(i.vertex.buffer(SMALL_BUFFER))  # small polygon
