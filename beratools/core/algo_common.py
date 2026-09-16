@@ -20,6 +20,8 @@ import logging
 import json
 from pathlib import Path
 
+import sqlite3
+import pyogrio
 import geopandas as gpd
 import numpy as np
 import pyproj
@@ -38,12 +40,9 @@ import beratools.core.constants as bt_const
 
 gpd.options.io_engine = "pyogrio"
 DISTANCE_THRESHOLD = 2  # 1 meter for intersection neighborhood
-from beratools.core.logger import Logger
-LOGGER_NAME = "algo_common"
-log = Logger(LOGGER_NAME, file_level=logging.DEBUG,console_level=logging.INFO)
-logger = log.get_logger()
-log_print = log.print
 
+LOGGER_NAME = "algo_common"
+logger = logging.getLogger(LOGGER_NAME)
 
 def log_file_only(message, level=logging.INFO, logger_name=None):
     """Log a message to file handlers only, skipping console/gui handlers."""
@@ -67,7 +66,6 @@ def log_file_only(message, level=logging.INFO, logger_name=None):
 
     if not wrote_to_file:
         target_logger.log(level, message)
-
 
 def process_single_item(cls_obj):
     """
@@ -967,53 +965,50 @@ def merge_lines_by_original_id(
             )
             continue
 
-        oriented = []
-        bridges = []
-        previous = None
-        max_gap = 0.0
+        oriented = [ordered_lines[0]]
 
-        for current in ordered_lines:
-            if previous is not None:
-                previous_end = sh_geom.Point(
-                    previous.coords[-1]
-                )
+        for current in ordered_lines[1:]:
 
-                start_gap = previous_end.distance(
-                    sh_geom.Point(current.coords[0])
-                )
+            previous = oriented[-1]
 
-                end_gap = previous_end.distance(
-                    sh_geom.Point(current.coords[-1])
-                )
+            previous_end = sh_geom.Point(
+                previous.coords[-1]
+            )
 
-                if end_gap < start_gap:
-                    current = _reverse_line(current)
+            start_gap = previous_end.distance(
+                sh_geom.Point(current.coords[0])
+            )
 
-                gap = previous_end.distance(
-                    sh_geom.Point(current.coords[0])
-                )
+            end_gap = previous_end.distance(
+                sh_geom.Point(current.coords[-1])
+            )
 
-                max_gap = max(max_gap, gap)
-
-                if 0.0 < gap <= max_bridge_gap:
-                    bridges.append(
-                        sh_geom.LineString([
-                            previous.coords[-1],
-                            current.coords[0],
-                        ])
-                    )
+            if end_gap < start_gap:
+                current = _reverse_line(current)
 
             oriented.append(current)
-            previous = current
+        coords = list(oriented[0].coords)
 
-        combined = oriented + bridges
+        max_gap = 0.0
 
-        if len(combined) == 1:
-            merged = combined[0]
-        else:
-            merged = _safe_linemerge(
-                sh_ops.unary_union(combined)
+        for i, line in enumerate(oriented[1:], start=1):
+
+            line_coords = list(line.coords)
+
+            gap = (
+                sh_geom.Point(coords[-1])
+                .distance(
+                    sh_geom.Point(line_coords[0])
+                )
             )
+
+            max_gap = max(max_gap, gap)
+
+            if gap > max_bridge_gap:
+                coords.append(line_coords[0])
+            coords.extend(line_coords[1:])
+
+        merged = sh_geom.LineString(coords)
 
         if merged is None or merged.is_empty:
             logger.warning(
@@ -1028,13 +1023,7 @@ def merge_lines_by_original_id(
         row[order_field] = output_segment_value
         row[geometry_count_field] = len(ordered_lines)
         row["merge_max_gap"] = max_gap
-        row["merge_status"] = (
-            "merged"
-            if isinstance(merged, sh_geom.LineString)
-            else "disconnected"
-        )
-
-
+        row["merge_status"] = ("merged" if max_gap <= max_bridge_gap else "bridged")
         output_rows.append(row)
 
     return gpd.GeoDataFrame(
@@ -1306,3 +1295,92 @@ def _is_degenerate_line(
     raise ValueError(
         "stage must be 'segment', 'regeneration', or 'final'"
     )
+
+
+def prepare_gpkg_layer(
+        gpkg,
+        layer):
+
+    gpkg = Path(gpkg)
+
+    if not gpkg.exists():
+        return
+
+    layers = pyogrio.list_layers(gpkg)
+
+    layer_names = [
+        row[0]
+        for row in layers
+    ]
+
+    if layer not in layer_names:
+        return
+
+    conn = sqlite3.connect(gpkg)
+
+    try:
+
+        conn.execute(
+            f'DROP TABLE "{layer}"'
+        )
+
+        conn.execute(
+            "DELETE FROM gpkg_contents "
+            "WHERE table_name=?",
+            (layer,)
+        )
+
+        conn.execute(
+            "DELETE FROM gpkg_geometry_columns "
+            "WHERE table_name=?",
+            (layer,)
+        )
+
+        conn.commit()
+
+    finally:
+
+        conn.close()
+
+def drop_layer_if_exists(
+        gpkg,
+        layer):
+
+    if not Path(gpkg).exists():
+        return
+
+    layers = pyogrio.list_layers(gpkg)
+
+    layer_names = [
+        row[0]
+        for row in layers
+    ]
+
+    if layer not in layer_names:
+        return
+
+    conn = sqlite3.connect(gpkg)
+
+    try:
+
+        conn.execute(
+            f'DROP TABLE "{layer}"'
+        )
+
+        conn.execute(
+            "DELETE FROM gpkg_contents "
+            "WHERE table_name=?",
+            (layer,)
+        )
+
+        conn.execute(
+            "DELETE FROM gpkg_geometry_columns "
+            "WHERE table_name=?",
+            (layer,)
+        )
+
+        conn.commit()
+
+    finally:
+
+        conn.close()
