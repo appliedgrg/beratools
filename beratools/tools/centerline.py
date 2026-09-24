@@ -137,6 +137,7 @@ def centerline(
     use_angle_grouping=True,
     processes=0,
     call_mode=CallMode.CLI,
+    log_level="INFO",
 ):
     """Run centerline extraction.
 
