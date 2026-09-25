@@ -14,9 +14,16 @@ def test_is_endpoint_anchored_detects_direct_and_reverse():
     reverse = LineString([(10, 0), (4, 0), (0, 0)])
     not_anchored = LineString([(1, 0), (9, 0)])
 
-    assert algo_centerline._is_endpoint_anchored(direct, seed)
-    assert algo_centerline._is_endpoint_anchored(reverse, seed)
-    assert not algo_centerline._is_endpoint_anchored(not_anchored, seed)
+    result = (algo_centerline._is_endpoint_anchored(direct, seed))
+    assert result.anchored
+    assert not result.reversed_match
+
+    result = (algo_centerline._is_endpoint_anchored(reverse, seed))
+    assert result.anchored
+    assert result.reversed_match
+
+    result = (algo_centerline._is_endpoint_anchored(not_anchored, seed))
+    assert not result.anchored
 
 
 def test_find_centerline_pairwise_forwards_guidance_and_skips_trim_snap(monkeypatch):

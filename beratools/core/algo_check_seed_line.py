@@ -2,6 +2,7 @@
 
 import logging
 import math
+import numpy as np
 
 import geopandas as gpd
 import pyproj
@@ -789,6 +790,7 @@ def qc_merge_multilinestring(gdf):
     out_gdf = gpd.GeoDataFrame.from_records(valid_records, columns=gdf.columns)
     out_gdf.set_crs(gdf.crs, inplace=True)
     out_gdf = out_gdf.reset_index(drop=True)
+    out_gdf, _ = algo_common.chk_df_multipart(out_gdf, 'LineString')
     return out_gdf
 
 
@@ -811,3 +813,113 @@ def qc_split_lines_at_intersections(gdf):
             return splitter.split_lines_gdf.reset_index(drop=True)
         return splitter.split_lines_gdf
     return gdf.reset_index(drop=True)
+
+
+
+def _bend_angle(a, b, c):
+    """
+    Return deviation from straight line in degrees.
+
+    0°   = perfectly straight
+    90°  = right angle
+    """
+
+    v1 = np.array([
+        a[0] - b[0],
+        a[1] - b[1],
+    ])
+
+    v2 = np.array([
+        c[0] - b[0],
+        c[1] - b[1],
+    ])
+
+    n1 = np.linalg.norm(v1)
+    n2 = np.linalg.norm(v2)
+
+    if n1 == 0 or n2 == 0:
+        return 0.0
+
+    cosang = np.dot(v1, v2) / (n1 * n2)
+    cosang = np.clip(cosang, -1.0, 1.0)
+
+    angle = np.degrees(
+        np.arccos(cosang)
+    )
+
+    return min(
+        angle,
+        180.0 - angle
+    )
+
+
+def _trim_short_terminal_segments(
+    line,
+    min_segment_length=5.0,
+    max_bend_angle=5.0,
+):
+    coords = list(line.coords)
+
+    #
+    # remove short tail
+    #
+    while len(coords) > 2:
+
+        tail_len = (
+            sh_geom.Point(coords[-2])
+            .distance(
+                sh_geom.Point(coords[-1])
+            )
+        )
+
+        if tail_len >= min_segment_length:
+            break
+
+        #
+        # check if last vertex is essentially inline
+        #
+        if len(coords) >= 3:
+
+            angle = _bend_angle(
+                coords[-3],
+                coords[-2],
+                coords[-1]
+            )
+
+            if angle > max_bend_angle:
+                break
+
+        coords.pop(-1)
+
+    #
+    # remove short head
+    #
+    while len(coords) > 2:
+
+        head_len = (
+            sh_geom.Point(coords[0])
+            .distance(
+                sh_geom.Point(coords[1])
+            )
+        )
+
+        if head_len >= min_segment_length:
+            break
+
+        #
+        # check if first vertex is essentially inline
+        #
+        if len(coords) >= 3:
+
+            angle = _bend_angle(
+                coords[0],
+                coords[1],
+                coords[2]
+            )
+
+            if angle > max_bend_angle:
+                break
+
+        coords.pop(0)
+
+    return sh_geom.LineString(coords)

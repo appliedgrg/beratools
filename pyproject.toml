@@ -39,6 +39,7 @@ dependencies = [
     "tqdm",
     "xarray-spatial",
     "pandarallel",
+    "igraph",
 ]
 
 [project.optional-dependencies]

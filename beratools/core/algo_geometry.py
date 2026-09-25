@@ -3,7 +3,10 @@
 from __future__ import annotations
 
 from shapely.geometry import LineString, MultiPolygon, Polygon
+import logging
 
+LOGGER_NAME = "algo_geometry"
+logger = logging.getLogger(LOGGER_NAME)
 
 def chaikin_smooth_line(line: LineString, *, iterations: int) -> LineString:
     if line is None or line.is_empty or iterations <= 0 or len(line.coords) < 3:
@@ -34,6 +37,7 @@ def chaikin_smooth_polygon(geometry, *, iterations: int):
 
 def process_corridor_polygon(
     polygon,
+    cid=None,
     *,
     delete_holes=False,
     simplify=False,
@@ -49,8 +53,15 @@ def process_corridor_polygon(
     processed = polygon
     if delete_holes:
         processed = _delete_polygon_holes(processed)
+        processed = processed.buffer(0.5)
+        processed = processed.buffer(-0.5)
     if simplify and float(simplify_length) > 0:
+        area_before = processed.area
         processed = processed.simplify(float(simplify_length), preserve_topology=True)
+        logger.debug(
+        f"{cid} simplify "
+        f"area_change="
+        f"{100 * (processed.area - area_before) / area_before:.2f}%")
     if smooth and int(smooth_iterations) > 0:
         processed = chaikin_smooth_polygon(processed, iterations=int(smooth_iterations))
     if processed is not None and not processed.is_valid:

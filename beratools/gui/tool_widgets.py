@@ -132,7 +132,7 @@ class ToolWidgets(QtWidgets.QWidget):
                 param_value = p["saved_value"]
             if param_value is None:
                 param_value = p["default_value"]
-            if param_value is "":
+            if param_value == "":
                 param_value = p["default_value"]
             if param_value is not None:
                 if type(widget) is OptionsInput:

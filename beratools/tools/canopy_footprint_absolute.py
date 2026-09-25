@@ -35,9 +35,8 @@ import beratools.utility.unit_conversion as unit_conversion
 from beratools.core.logger import Logger
 from beratools.utility.tool_args import CallMode
 
-log = Logger("canopy_footprint_abs", file_level=logging.INFO)
-logger = log.get_logger()
-print = log.print
+LOGGER_NAME="canopy_footprint_abs"
+logger = logging.getLogger(LOGGER_NAME)
 
 
 def _is_valid_gdf(obj, attr):

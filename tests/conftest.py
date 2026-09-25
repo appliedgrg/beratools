@@ -61,6 +61,8 @@ def tool_arguments_integration(testdata_dir, available_cpu_cores):
             "line_radius": 15,
             "proc_segments": True,
             "out_line": f"{testdata_dir.joinpath('integration_inter.gpkg').as_posix()}|centerline",
+            "chm_mode": "current",
+            "centerline_method": "astar"
         },
         "args_centerline_pairwise": {
             "in_line": f"{testdata_dir.joinpath('integration_aoi.gpkg').as_posix()}|seed_lines_vo",

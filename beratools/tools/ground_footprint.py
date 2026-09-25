@@ -31,13 +31,11 @@ import beratools.utility.unit_conversion as unit_conversion
 from beratools.core.algo_line_grouping import LineGrouping
 from beratools.core.algo_merge_lines import custom_line_merge
 from beratools.core.algo_split_with_lines import LineSplitter
-from beratools.core.logger import Logger
 from beratools.core.tool_base import execute_multiprocessing
 from beratools.utility.tool_args import CallMode
 
-log = Logger("ground_footprint", file_level=logging.INFO)
-logger = log.get_logger()
-print = log.print
+LOGGER_NAME="ground_footprint"
+logger = logging.getLogger(LOGGER_NAME)
 
 FP_FIXED_WIDTH_DEFAULT = 5.0
 
